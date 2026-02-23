@@ -1,0 +1,9 @@
+Navbar.tsx: Navegación principal.
+
+HeroSection.tsx: La primera impresión visual (título, imagen de fondo y botón de reserva).
+
+ServicesMenu.tsx: Lista de cortes, perfilados de barba y precios.
+
+BarbersTeam.tsx: Presentación del equipo para generar confianza.
+
+Footer.tsx: Horarios, ubicación y redes sociales.
