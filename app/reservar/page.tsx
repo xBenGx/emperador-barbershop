@@ -8,11 +8,11 @@ import {
   Scissors, Clock, Calendar as CalendarIcon, MapPin, 
   ChevronLeft, CheckCircle2, User, Sparkles, ChevronRight,
   Phone, Mail, UserCircle, AlertCircle, Crown, Star, Flame, Crosshair, Zap,
-  Droplets, Wand2, ShieldCheck
+  Droplets, Wand2, ShieldCheck, Lock
 } from "lucide-react";
 
 // ============================================================================
-// DATA DE NEGOCIO (Extendida: 12 Servicios y 4 Barberos)
+// DATA DE NEGOCIO 
 // ============================================================================
 const BARBERS = [
   { id: "cesar", name: "Cesar Luna", role: "Master Barber", img: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=800&auto=format&fit=crop" },
@@ -36,19 +36,46 @@ const SERVICES = [
   { id: "s12", name: "Platinado + Corte + Cejas", duration: "5 hrs", price: 90000, desc: "Decoloración nivel platino. Cambio extremo.", icon: <Flame size={24} /> },
 ];
 
-const DATES = [
-  { day: "Lun", date: "23", month: "Feb" },
-  { day: "Mar", date: "24", month: "Feb" },
-  { day: "Mié", date: "25", month: "Feb" },
-  { day: "Jue", date: "26", month: "Feb" },
-  { day: "Vie", date: "27", month: "Feb" },
-  { day: "Sáb", date: "28", month: "Feb" },
-];
+// Generamos fechas reales a partir de hoy
+const generateDates = () => {
+  const dates = [];
+  const today = new Date();
+  const days = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+  const months = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+  
+  for(let i = 0; i < 7; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    // Saltamos el domingo si no trabajan
+    if(d.getDay() !== 0) { 
+      dates.push({ 
+        day: days[d.getDay()], 
+        date: d.getDate().toString(), 
+        month: months[d.getMonth()],
+        fullDate: d.toISOString().split('T')[0]
+      });
+    }
+  }
+  return dates;
+};
+const DATES = generateDates();
 
 const TIME_SLOTS = {
-  manana: ["10:00 am", "11:00 am"],
-  tarde: ["12:00 pm", "1:00 pm", "2:00 pm", "3:00 pm", "4:00 pm", "5:00 pm"],
-  noche: ["6:00 pm", "7:00 pm"]
+  manana: ["10:00", "11:00"],
+  tarde: ["12:00", "13:00", "14:00", "15:00", "16:00", "17:00"],
+  noche: ["18:00", "19:00"]
+};
+
+// SIMULACIÓN DE BASE DE DATOS: Horas ya reservadas por barbero y fecha
+// En Supabase, esto se consultará en vivo: SELECT time FROM appointments WHERE barberId = X AND date = Y
+const BOOKED_SLOTS_DB: Record<string, Record<string, string[]>> = {
+  "cesar": {
+    [DATES[0].fullDate]: ["10:00", "15:00"], // Hoy Cesar tiene ocupadas las 10 y las 15
+    [DATES[1].fullDate]: ["12:00"]
+  },
+  "jack": {
+    [DATES[0].fullDate]: ["11:00", "18:00", "19:00"], // Jack tiene ocupada la tarde
+  }
 };
 
 // ============================================================================
@@ -72,8 +99,9 @@ export default function BookingEngine() {
     time: null as string | null,
     guest: { name: "", phone: "", email: "" }
   });
+  
+  const [isConfirming, setIsConfirming] = useState(false);
 
-  // Scroll to top on step change for mobile
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [step]);
@@ -83,6 +111,29 @@ export default function BookingEngine() {
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(price);
+  };
+
+  // Función para saber si un bloque horario está ocupado para el barbero y fecha seleccionados
+  const isSlotBooked = (time: string) => {
+    if (!booking.barber || !booking.date) return false;
+    const barberId = booking.barber.id;
+    const dateStr = booking.date.fullDate;
+    
+    // Revisamos nuestra DB simulada
+    if (BOOKED_SLOTS_DB[barberId] && BOOKED_SLOTS_DB[barberId][dateStr]) {
+      return BOOKED_SLOTS_DB[barberId][dateStr].includes(time);
+    }
+    return false;
+  };
+
+  const handleFinalConfirm = () => {
+    setIsConfirming(true);
+    // AQUÍ VA LA CONEXIÓN A SUPABASE:
+    // await supabase.from('appointments').insert({ barberId: ..., time: ... })
+    setTimeout(() => {
+      setIsConfirming(false);
+      nextStep(); // Va al paso 5 (Éxito)
+    }, 2000);
   };
 
   return (
@@ -128,12 +179,11 @@ export default function BookingEngine() {
           <div className="sticky top-36 space-y-6">
             
             <div className="bg-zinc-950/80 border border-zinc-800 p-10 rounded-[3rem] overflow-hidden relative shadow-2xl backdrop-blur-md">
-              {/* Marca de agua interna */}
-              <div className="absolute -top-10 -right-10 opacity-5">
+              <div className="absolute -top-10 -right-10 opacity-5 pointer-events-none">
                 <Image src="/logo.png" alt="Watermark" width={300} height={300} className="grayscale" />
               </div>
               
-              <h3 className="text-amber-500 font-black uppercase text-xs tracking-[0.4em] mb-10 border-b border-zinc-800 pb-4 inline-block">Tu Trono</h3>
+              <h3 className="text-amber-500 font-black uppercase text-xs tracking-[0.4em] mb-10 border-b border-zinc-800 pb-4 inline-block relative z-10">Tu Trono</h3>
               
               <ul className="space-y-10 relative z-10 text-left">
                 <li className={`flex gap-6 items-center transition-opacity duration-500 ${!booking.service ? 'opacity-30' : 'opacity-100'}`}>
@@ -164,7 +214,7 @@ export default function BookingEngine() {
                     <p className="text-[10px] uppercase font-black text-zinc-500 tracking-widest mb-1">Horario</p>
                     <p className="text-base font-bold text-white leading-tight">
                       {booking.date ? `${booking.date.day} ${booking.date.date} ${booking.date.month}` : "Pendiente..."}
-                      {booking.time && <span className="block text-amber-500">{booking.time}</span>}
+                      {booking.time && <span className="block text-amber-500 mt-1 text-xl">{booking.time} hrs</span>}
                     </p>
                   </div>
                 </li>
@@ -182,7 +232,7 @@ export default function BookingEngine() {
 
             <div className="p-6 bg-zinc-900/50 border border-zinc-800 rounded-[2rem] flex items-start gap-4 text-left">
               <ShieldCheck size={24} className="text-amber-500 shrink-0 mt-0.5" />
-              <p className="text-xs text-zinc-400 font-medium leading-relaxed">No solicitamos tarjeta de crédito. Reserva 100% gratuita. Cancelas tu servicio directamente en <strong className="text-white">Peña 666, Piso 2, Curicó.</strong></p>
+              <p className="text-xs text-zinc-400 font-medium leading-relaxed">Confirmación automática. Reserva 100% gratuita. Cancelas tu servicio directamente en el local.</p>
             </div>
           </div>
         </div>
@@ -192,7 +242,7 @@ export default function BookingEngine() {
           <AnimatePresence mode="wait">
             
             {/* ========================================================= */}
-            {/* PASO 1: SELECCIÓN DE SERVICIOS (Grilla Extendida) */}
+            {/* PASO 1: SELECCIÓN DE SERVICIOS */}
             {/* ========================================================= */}
             {step === 1 && (
               <motion.div key="s1" variants={slideIn} initial="hidden" animate="visible" exit="exit" className="space-y-10 text-left">
@@ -209,7 +259,6 @@ export default function BookingEngine() {
                       onClick={() => { setBooking({ ...booking, service: srv }); nextStep(); }}
                       className={`group p-6 md:p-8 rounded-[2.5rem] border text-left transition-all duration-300 flex flex-col justify-between min-h-[240px] relative overflow-hidden ${booking.service?.id === srv.id ? 'bg-amber-500 border-amber-400 text-black shadow-[0_0_30px_rgba(217,119,6,0.3)] scale-[1.02]' : 'bg-zinc-900/40 border-zinc-800 hover:border-amber-500/50 hover:bg-zinc-900/80'}`}
                     >
-                      {/* Efecto de Glow en Hover */}
                       <div className="absolute -inset-24 bg-gradient-to-r from-amber-500/0 via-amber-500/10 to-amber-500/0 opacity-0 group-hover:opacity-100 blur-2xl transition-opacity duration-700 pointer-events-none -z-10" />
                       
                       <div className="relative z-10">
@@ -248,11 +297,11 @@ export default function BookingEngine() {
                   <p className="text-zinc-400 mt-6 font-medium text-lg max-w-lg">La élite de Curicó. Cada barbero maneja su propia agenda exclusiva.</p>
                 </div>
                 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6 pb-10">
                   {BARBERS.map((b) => (
                     <button 
                       key={b.id}
-                      onClick={() => { setBooking({ ...booking, barber: b }); nextStep(); }}
+                      onClick={() => { setBooking({ ...booking, barber: b, time: null }); nextStep(); }}
                       className="group flex items-center gap-6 p-6 rounded-[3rem] bg-zinc-900/40 border border-zinc-800 hover:border-amber-500 transition-all duration-500 w-full text-left"
                     >
                       <div className="relative w-24 h-24 md:w-32 md:h-32 shrink-0 rounded-full overflow-hidden border-2 border-zinc-700 group-hover:border-amber-500 transition-all duration-700 shadow-[0_0_20px_rgba(0,0,0,0.5)] group-hover:shadow-[0_0_30px_rgba(217,119,6,0.3)]">
@@ -270,17 +319,19 @@ export default function BookingEngine() {
             )}
 
             {/* ========================================================= */}
-            {/* PASO 3: CALENDARIO Y HORA */}
+            {/* PASO 3: CALENDARIO Y HORA (Sincronizado) */}
             {/* ========================================================= */}
             {step === 3 && (
-              <motion.div key="s3" variants={slideIn} initial="hidden" animate="visible" exit="exit" className="space-y-12 text-left">
+              <motion.div key="s3" variants={slideIn} initial="hidden" animate="visible" exit="exit" className="space-y-12 text-left pb-32">
                 <div>
                   <motion.div initial={{ width: 0 }} animate={{ width: "120px" }} className="h-1 bg-amber-500 mb-6 rounded-full"></motion.div>
                   <h2 className="text-5xl md:text-7xl font-serif font-black text-white uppercase tracking-tighter text-left leading-[0.9]">Elige el <br/><span className="text-amber-500">Momento.</span></h2>
-                  <p className="text-zinc-400 mt-6 font-medium text-lg">Viendo disponibilidad para <strong className="text-white">{booking.barber?.name}</strong>.</p>
+                  <p className="text-zinc-400 mt-6 font-medium text-lg flex items-center gap-2">
+                    Viendo agenda exclusiva de <strong className="text-white bg-zinc-800 px-3 py-1 rounded-md ml-1">{booking.barber?.name}</strong>.
+                  </p>
                 </div>
                 
-                {/* Carrusel de Días Horizontal */}
+                {/* Carrusel de Días */}
                 <div className="flex gap-4 overflow-x-auto pb-6 pt-2 scrollbar-hide -mx-6 px-6 lg:mx-0 lg:px-0">
                   {DATES.map((d, i) => (
                     <button 
@@ -295,56 +346,51 @@ export default function BookingEngine() {
                   ))}
                 </div>
 
-                {/* Slots de Hora (Estilo AgendaPro Premium) */}
+                {/* Slots de Hora (Validación de Ocupado) */}
                 {booking.date && (
-                  <div className="bg-zinc-900/40 border border-zinc-800 rounded-[3rem] p-8 md:p-10 space-y-10">
-                    <div className="text-left space-y-6">
-                      <h4 className="text-[10px] font-black text-amber-500 uppercase tracking-[0.4em] flex items-center gap-6">
-                        Jornada Mañana <div className="h-px bg-zinc-800 flex-1" />
-                      </h4>
-                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-4 text-left">
-                        {TIME_SLOTS.manana.map(t => (
-                          <button key={t} onClick={() => setBooking({...booking, time: t})} className={`py-4 rounded-2xl text-xs font-black uppercase border transition-all duration-300 ${booking.time === t ? 'bg-white text-black border-white shadow-[0_0_20px_rgba(255,255,255,0.3)] scale-105' : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-500 hover:bg-zinc-900'}`}>
-                            {t}
-                          </button>
-                        ))}
+                  <div className="bg-zinc-900/40 border border-zinc-800 rounded-[3rem] p-8 md:p-10 space-y-10 relative overflow-hidden">
+                    {/* Render helper block */}
+                    {[
+                      { title: "Jornada Mañana", slots: TIME_SLOTS.manana },
+                      { title: "Jornada Tarde", slots: TIME_SLOTS.tarde },
+                      { title: "Jornada Noche", slots: TIME_SLOTS.noche }
+                    ].map((section, idx) => (
+                      <div key={idx} className="text-left space-y-6 relative z-10">
+                        <h4 className="text-[10px] font-black text-amber-500 uppercase tracking-[0.4em] flex items-center gap-6">
+                          {section.title} <div className="h-px bg-zinc-800 flex-1" />
+                        </h4>
+                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-4 text-left">
+                          {section.slots.map(t => {
+                            const isBooked = isSlotBooked(t);
+                            return (
+                              <button 
+                                key={t} 
+                                disabled={isBooked}
+                                onClick={() => setBooking({...booking, time: t})} 
+                                className={`py-4 rounded-2xl text-xs font-black uppercase border transition-all duration-300 relative overflow-hidden
+                                  ${isBooked ? 'bg-zinc-950/50 border-zinc-900 text-zinc-600 cursor-not-allowed' : 
+                                    booking.time === t ? 'bg-white text-black border-white shadow-[0_0_20px_rgba(255,255,255,0.3)] scale-105' : 
+                                    'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white hover:border-amber-500 hover:bg-zinc-900 hover:-translate-y-1'
+                                  }
+                                `}
+                              >
+                                {isBooked && <div className="absolute inset-0 flex items-center justify-center bg-zinc-950/80 backdrop-blur-[1px]"><Lock size={14} className="text-zinc-700"/></div>}
+                                <span className={isBooked ? 'opacity-30' : ''}>{t}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
-                    
-                    <div className="text-left space-y-6">
-                      <h4 className="text-[10px] font-black text-amber-500 uppercase tracking-[0.4em] flex items-center gap-6">
-                        Jornada Tarde <div className="h-px bg-zinc-800 flex-1" />
-                      </h4>
-                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-4 text-left">
-                        {TIME_SLOTS.tarde.map(t => (
-                          <button key={t} onClick={() => setBooking({...booking, time: t})} className={`py-4 rounded-2xl text-xs font-black uppercase border transition-all duration-300 ${booking.time === t ? 'bg-white text-black border-white shadow-[0_0_20px_rgba(255,255,255,0.3)] scale-105' : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-500 hover:bg-zinc-900'}`}>
-                            {t}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    
-                    <div className="text-left space-y-6">
-                      <h4 className="text-[10px] font-black text-amber-500 uppercase tracking-[0.4em] flex items-center gap-6">
-                        Jornada Noche <div className="h-px bg-zinc-800 flex-1" />
-                      </h4>
-                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-4 text-left">
-                        {TIME_SLOTS.noche.map(t => (
-                          <button key={t} onClick={() => setBooking({...booking, time: t})} className={`py-4 rounded-2xl text-xs font-black uppercase border transition-all duration-300 ${booking.time === t ? 'bg-white text-black border-white shadow-[0_0_20px_rgba(255,255,255,0.3)] scale-105' : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-500 hover:bg-zinc-900'}`}>
-                            {t}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                    ))}
                   </div>
                 )}
 
                 {/* Botón Flotante Continuar */}
                 <AnimatePresence>
                   {booking.time && (
-                    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="sticky bottom-8 z-50">
-                      <button onClick={nextStep} className="w-full py-6 md:py-8 bg-amber-500 text-black font-black text-lg md:text-xl uppercase tracking-[0.2em] rounded-[2rem] flex justify-center items-center gap-4 hover:bg-white transition-all shadow-[0_15px_40px_-10px_rgba(217,119,6,0.6)]">
-                        Continuar <ChevronRight size={28} />
+                    <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="fixed bottom-8 right-6 left-6 lg:left-auto lg:w-[calc(66.666%-4rem)] max-w-[1400px] mx-auto z-50">
+                      <button onClick={nextStep} className="w-full py-6 md:py-8 bg-amber-500 text-black font-black text-lg md:text-xl uppercase tracking-[0.2em] rounded-[2rem] flex justify-center items-center gap-4 hover:bg-white transition-all shadow-[0_20px_50px_-10px_rgba(217,119,6,0.6)] group">
+                        Confirmar Horario <ChevronRight size={28} className="group-hover:translate-x-2 transition-transform" />
                       </button>
                     </motion.div>
                   )}
@@ -353,76 +399,70 @@ export default function BookingEngine() {
             )}
 
             {/* ========================================================= */}
-            {/* PASO 4: FORMULARIO GUEST (Checkout) */}
+            {/* PASO 4: FORMULARIO GUEST & CONFIRMACIÓN */}
             {/* ========================================================= */}
             {step === 4 && (
               <motion.div key="s4" variants={slideIn} initial="hidden" animate="visible" exit="exit" className="space-y-10 text-left">
                 <div>
                   <motion.div initial={{ width: 0 }} animate={{ width: "160px" }} className="h-1 bg-amber-500 mb-6 rounded-full"></motion.div>
                   <h2 className="text-5xl md:text-7xl font-serif font-black text-white uppercase tracking-tighter text-left leading-[0.9]">Casi <br/><span className="text-amber-500">Listos.</span></h2>
-                  <p className="text-zinc-400 mt-6 font-medium text-lg">Ingresa tus datos para confirmar tu lugar en el trono. <strong className="text-white">Sin crear cuenta.</strong></p>
+                  <p className="text-zinc-400 mt-6 font-medium text-lg">Ingresa tus datos de contacto. <strong className="text-white">Sin registros tediosos.</strong></p>
                 </div>
                 
-                <div className="bg-zinc-900/40 border border-zinc-800 p-8 md:p-12 rounded-[3rem] space-y-6 text-left shadow-xl">
+                <form onSubmit={(e) => { e.preventDefault(); handleFinalConfirm(); }} className="bg-zinc-900/40 border border-zinc-800 p-8 md:p-12 rounded-[3rem] space-y-6 text-left shadow-xl relative overflow-hidden">
+                  
                   <div className="relative text-left group">
                     <UserCircle className="absolute left-6 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-amber-500 transition-colors" size={24} />
-                    <input type="text" placeholder="Nombre completo" className="w-full bg-black border border-zinc-800 rounded-[2rem] pl-16 pr-6 py-6 text-white font-bold text-lg focus:outline-none focus:border-amber-500 focus:bg-zinc-950 transition-all placeholder:text-zinc-700" />
+                    <input required type="text" placeholder="Tu nombre y apellido" className="w-full bg-black border border-zinc-800 rounded-[2rem] pl-16 pr-6 py-6 text-white font-bold text-lg focus:outline-none focus:border-amber-500 focus:bg-zinc-950 transition-all placeholder:text-zinc-700" />
                   </div>
+                  
                   <div className="relative text-left group">
                     <Phone className="absolute left-6 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-amber-500 transition-colors" size={24} />
-                    <input type="tel" placeholder="WhatsApp (+56 9...)" className="w-full bg-black border border-zinc-800 rounded-[2rem] pl-16 pr-6 py-6 text-white font-bold text-lg focus:outline-none focus:border-amber-500 focus:bg-zinc-950 transition-all placeholder:text-zinc-700" />
+                    <input required type="tel" placeholder="WhatsApp (+56 9...)" className="w-full bg-black border border-zinc-800 rounded-[2rem] pl-16 pr-6 py-6 text-white font-bold text-lg focus:outline-none focus:border-amber-500 focus:bg-zinc-950 transition-all placeholder:text-zinc-700" />
                   </div>
-                  <div className="relative text-left group">
-                    <Mail className="absolute left-6 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-amber-500 transition-colors" size={24} />
-                    <input type="email" placeholder="Email (Opcional, para recibo)" className="w-full bg-black border border-zinc-800 rounded-[2rem] pl-16 pr-6 py-6 text-white font-bold text-lg focus:outline-none focus:border-amber-500 focus:bg-zinc-950 transition-all placeholder:text-zinc-700" />
+                  
+                  <div className="pt-6 mt-6 border-t border-zinc-800">
+                    <button type="submit" disabled={isConfirming} className="w-full py-8 bg-amber-500 hover:bg-amber-400 disabled:bg-amber-500/50 disabled:text-black/50 text-black text-xl font-black uppercase tracking-[0.2em] rounded-[2rem] shadow-[0_0_40px_rgba(217,119,6,0.4)] hover:scale-[1.02] transition-all duration-300 flex items-center justify-center gap-3">
+                      {isConfirming ? <Zap className="animate-pulse" size={28} /> : <CheckCircle2 size={28} />}
+                      {isConfirming ? "Sincronizando..." : "Asegurar Mi Trono"}
+                    </button>
                   </div>
-                </div>
-
-                {/* Resumen Móvil (Solo visible en pantallas pequeñas) */}
-                <div className="block lg:hidden bg-amber-500/10 border border-amber-500/20 p-6 rounded-[2rem] mt-8">
-                  <div className="flex justify-between items-center text-amber-500 font-black mb-2">
-                     <span className="uppercase tracking-widest text-xs">Total a pagar:</span>
-                     <span className="text-2xl">{formatPrice(booking.service.price)}</span>
-                  </div>
-                  <p className="text-xs text-zinc-400 font-medium">Pago presencial en la barbería.</p>
-                </div>
-
-                <button onClick={() => setStep(5)} className="w-full py-8 bg-amber-500 text-black text-xl font-black uppercase tracking-[0.2em] rounded-[2rem] shadow-[0_0_40px_rgba(217,119,6,0.3)] hover:bg-white hover:scale-[1.02] transition-all duration-300 flex items-center justify-center gap-3">
-                  Confirmar Reserva <CheckCircle2 size={28} />
-                </button>
+                </form>
               </motion.div>
             )}
 
             {/* ========================================================= */}
-            {/* PASO 5: FINALIZADO (Éxito) */}
+            {/* PASO 5: FINALIZADO (Éxito Automático) */}
             {/* ========================================================= */}
             {step === 5 && (
-              <motion.div key="s5" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-center py-20 space-y-10">
-                <div className="w-40 h-40 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto mb-10 border border-amber-500/30 relative">
+              <motion.div key="s5" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-center py-20 space-y-10 relative">
+                
+                {/* Lluvia de confeti simulada con Glow */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-amber-500/10 blur-[150px] rounded-full pointer-events-none z-0"></div>
+
+                <div className="w-40 h-40 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto mb-10 border border-amber-500/30 relative z-10">
                   <div className="absolute inset-0 rounded-full bg-amber-500/20 animate-ping"></div>
                   <Crown size={80} className="text-amber-500 relative z-10" />
                 </div>
                 
-                <div>
-                  <h2 className="text-6xl md:text-8xl font-serif font-black text-white uppercase tracking-tighter leading-[0.9] mb-4">¡RESERVA <br/><span className="text-amber-500">CONFIRMADA!</span></h2>
-                  <p className="text-zinc-400 font-medium text-lg max-w-md mx-auto">Tu lugar en el trono está asegurado. Te hemos enviado los detalles por WhatsApp.</p>
+                <div className="relative z-10">
+                  <h2 className="text-5xl md:text-8xl font-serif font-black text-white uppercase tracking-tighter leading-[0.9] mb-4">¡RESERVA <br/><span className="text-amber-500">CONFIRMADA!</span></h2>
+                  <p className="text-zinc-300 font-medium text-lg max-w-md mx-auto bg-zinc-900/80 p-4 rounded-xl border border-zinc-800">
+                    Tu trono está asegurado y el barbero ha sido notificado automáticamente.
+                  </p>
                 </div>
 
-                <div className="p-10 bg-zinc-900/50 rounded-[3rem] border border-zinc-800 inline-block text-left shadow-2xl backdrop-blur-md">
-                   <p className="text-zinc-500 font-black uppercase tracking-[0.3em] text-xs mb-4">Resumen de Cita</p>
-                   <p className="text-white text-3xl font-black uppercase tracking-tighter mb-2">{booking.date?.day} {booking.date?.date} {booking.date?.month} • <span className="text-amber-500">{booking.time}</span></p>
-                   <p className="text-zinc-300 font-medium text-lg flex items-center gap-2 mt-4"><UserCircle size={20} className="text-zinc-500"/> Maestro: {booking.barber?.name}</p>
-                   <p className="text-zinc-300 font-medium text-lg flex items-center gap-2 mt-2"><Scissors size={20} className="text-zinc-500"/> {booking.service?.name}</p>
+                <div className="p-10 bg-zinc-950/80 rounded-[3rem] border border-zinc-800 inline-block text-left shadow-2xl backdrop-blur-xl relative z-10">
+                   <p className="text-zinc-500 font-black uppercase tracking-[0.3em] text-xs mb-4">Detalles Oficiales</p>
+                   <p className="text-white text-3xl font-black uppercase tracking-tighter mb-2">{booking.date?.day} {booking.date?.date} {booking.date?.month} • <span className="text-amber-500">{booking.time} hrs</span></p>
+                   <p className="text-zinc-300 font-medium text-lg flex items-center gap-3 mt-6"><UserCircle size={24} className="text-amber-500"/> {booking.barber?.name}</p>
+                   <p className="text-zinc-300 font-medium text-lg flex items-center gap-3 mt-3"><Scissors size={24} className="text-amber-500"/> {booking.service?.name}</p>
                 </div>
                 
-                <div className="pt-12 flex flex-col gap-8 items-center border-t border-zinc-800 mt-12">
-                  <button onClick={() => window.location.href = '/'} className="px-16 py-6 bg-zinc-900 text-white font-black uppercase tracking-[0.2em] rounded-2xl border border-zinc-800 hover:bg-zinc-800 hover:text-amber-500 transition-all shadow-xl">
+                <div className="pt-12 flex flex-col gap-8 items-center border-t border-zinc-800 mt-12 relative z-10">
+                  <Link href="/" className="px-16 py-6 bg-zinc-900 text-white font-black uppercase tracking-[0.2em] rounded-2xl border border-zinc-800 hover:bg-zinc-800 hover:text-amber-500 transition-all shadow-xl hover:scale-105 active:scale-95">
                     Volver al Inicio
-                  </button>
-                  <div className="flex items-center gap-3">
-                    <Image src="/logo.png" alt="Logo" width={24} height={24} className="grayscale opacity-50" />
-                    <p className="text-[10px] text-zinc-600 font-black uppercase tracking-[0.5em]">Powered by BAYX</p>
-                  </div>
+                  </Link>
                 </div>
               </motion.div>
             )}
