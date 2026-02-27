@@ -7,3 +7,30 @@ ServicesMenu.tsx: Lista de cortes, perfilados de barba y precios.
 BarbersTeam.tsx: Presentación del equipo para generar confianza.
 
 Footer.tsx: Horarios, ubicación y redes sociales.
+
+├── actions/            # Server Actions (Mutaciones de BD, lógica de negocio)
+│   ├── appointment.ts
+│   └── auth.ts
+├── app/                # App Router (Páginas y Layouts)
+│   ├── (auth)/         # Rutas agrupadas de autenticación
+│   │   ├── login/page.tsx
+│   │   └── register/page.tsx
+│   ├── (dashboard)/    # Paneles protegidos
+│   │   ├── admin/page.tsx
+│   │   ├── barber/page.tsx
+│   │   └── client/page.tsx
+│   ├── api/            # Route Handlers (Webhooks Stripe, etc.)
+│   ├── layout.tsx      # Root Layout (Providers, Fuentes)
+│   └── page.tsx        # Landing Page (Hero, Servicios, Ubicación)
+├── components/         # Componentes UI
+│   ├── landing/        # Hero, Footer, Gallery
+│   ├── dashboard/      # Gráficos (Recharts), Tablas
+│   ├── forms/          # Formularios de reserva (React Hook Form)
+│   └── ui/             # Componentes base (Shadcn/ui)
+├── hooks/              # Custom Hooks (ej. useBooking)
+├── lib/                # Utilidades y configuraciones
+│   ├── prisma.ts       # Instancia global de Prisma
+│   ├── auth.ts         # Configuración NextAuth
+│   └── utils.ts        # Tailwind merge, formateo de fechas
+├── schemas/            # Validaciones Zod compartidas
+└── types/              # Interfaces TypeScript globales
