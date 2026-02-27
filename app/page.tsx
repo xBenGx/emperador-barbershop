@@ -123,7 +123,7 @@ const FAQItem = ({ faq, index }: { faq: any, index: number }) => {
 export default function UltimateEmperadorLanding() {
   const [scrolled, setScrolled] = useState(false);
   const [activeTab, setActiveTab] = useState("reels");
-  const [showLoginMenu, setShowLoginMenu] = useState(false); // Estado para el menú de login
+  const [showLoginMenu, setShowLoginMenu] = useState(false); 
   
   const { scrollY } = useScroll();
   const yHero = useTransform(scrollY, [0, 1000], [0, 400]);
@@ -148,27 +148,40 @@ export default function UltimateEmperadorLanding() {
 
       {/* 1. NAVBAR PREMIUM CON LOGO GIGANTE Y LOGIN */}
       <nav className={`fixed top-0 w-full z-50 transition-all duration-500 ${scrolled ? "py-4 bg-[#050505]/90 backdrop-blur-2xl border-b border-amber-500/20 shadow-[0_10px_40px_-10px_rgba(217,119,6,0.15)]" : "py-8 bg-transparent"}`}>
-        <div className="max-w-[1400px] mx-auto px-6 flex justify-between items-center relative z-10">
+        <div className="max-w-[1400px] mx-auto px-6 grid grid-cols-3 items-center relative z-10">
           
-          {/* ÁREA DEL LOGO GIGANTE (Sobresale del menú) */}
-          <Link href="/" className="relative z-50 flex items-center group">
-            <div className={`absolute top-1/2 -translate-y-1/2 left-0 transition-all duration-500 rounded-full overflow-hidden border-2 border-amber-500/50 group-hover:border-amber-500 shadow-[0_0_20px_rgba(217,119,6,0.4)] group-hover:shadow-[0_0_40px_rgba(217,119,6,0.8)] group-hover:scale-105 ${scrolled ? 'w-16 h-16' : 'w-24 h-24 md:w-36 md:h-36'}`}>
-              <Image src="/logo.png" alt="Emperador Logo" fill sizes="(max-width: 768px) 96px, 144px" className="object-cover" priority />
-            </div>
-            {/* Div espaciador invisible para que flexbox no colapse */}
-            <div className={`${scrolled ? 'w-16' : 'w-24 md:w-36'} transition-all duration-500 h-1`}></div>
-          </Link>
+          {/* IZQUIERDA: ÁREA DEL LOGO GIGANTE (Sobresale del menú) */}
+          <div className="flex justify-start">
+            <Link href="/" className="relative z-50 flex items-center group">
+              <div className={`absolute top-1/2 -translate-y-1/2 left-0 transition-all duration-500 rounded-full overflow-hidden border-2 border-amber-500/50 group-hover:border-amber-500 shadow-[0_0_20px_rgba(217,119,6,0.4)] group-hover:shadow-[0_0_40px_rgba(217,119,6,0.8)] group-hover:scale-105 ${scrolled ? 'w-16 h-16' : 'w-24 h-24 md:w-36 md:h-36'}`}>
+                <Image src="/logo.png" alt="Emperador Logo" fill sizes="(max-width: 768px) 96px, 144px" className="object-cover" priority />
+              </div>
+              {/* Div espaciador invisible */}
+              <div className={`${scrolled ? 'w-16' : 'w-24 md:w-36'} transition-all duration-500 h-1`}></div>
+            </Link>
+          </div>
           
-          <div className="hidden lg:flex gap-10 text-[11px] font-black text-zinc-400 uppercase tracking-[0.3em] items-center ml-8">
+          {/* CENTRO: ENLACES DE NAVEGACIÓN */}
+          <div className="hidden lg:flex justify-center gap-10 text-[11px] font-black text-zinc-400 uppercase tracking-[0.3em]">
             <Link href="#flow" className="hover:text-amber-500 hover:-translate-y-1 transition-all">VIP Room</Link>
             <Link href="#servicios" className="hover:text-amber-500 hover:-translate-y-1 transition-all">Servicios</Link>
             <Link href="#squad" className="hover:text-amber-500 hover:-translate-y-1 transition-all">El Squad</Link>
+          </div>
+          
+          {/* DERECHA: BOTONES DE ACCIÓN (INGRESAR + AGENDAR) */}
+          <div className="flex justify-end items-center gap-4 col-span-2 lg:col-span-1">
             
+            {/* BOTÓN AGENDAR (Principal) */}
+            <Link href="/reservar" className="relative group px-6 py-3 md:px-8 md:py-3.5 bg-amber-500 text-black font-black uppercase tracking-[0.2em] text-xs overflow-hidden rounded-lg hover:scale-105 transition-all shadow-[0_0_20px_rgba(217,119,6,0.4)] active:scale-95">
+               <span className="relative z-10 flex items-center gap-2">Agendar <Zap size={14} className="group-hover:animate-bounce" /></span>
+               <div className="absolute inset-0 bg-white translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out z-0" />
+            </Link>
+
             {/* MENÚ DE ACCESO MULTINIVEL (LOGIN) */}
-            <div className="relative py-4" onMouseEnter={() => setShowLoginMenu(true)} onMouseLeave={() => setShowLoginMenu(false)}>
-              <button className="flex items-center gap-2 text-zinc-300 hover:text-white transition-all hover:-translate-y-1 bg-zinc-900/80 px-5 py-2.5 rounded-full border border-zinc-700 hover:border-amber-500 shadow-lg">
-                <UserCircle size={18} className="text-amber-500" />
-                <span className="font-bold">Ingresar</span>
+            <div className="relative hidden sm:block" onMouseEnter={() => setShowLoginMenu(true)} onMouseLeave={() => setShowLoginMenu(false)}>
+              <button className="flex items-center gap-2 text-zinc-300 hover:text-white transition-all hover:-translate-y-1 bg-transparent px-4 py-3 rounded-lg border border-zinc-700 hover:border-amber-500 backdrop-blur-sm group">
+                <UserCircle size={18} className="text-zinc-400 group-hover:text-amber-500 transition-colors" />
+                <span className="font-bold text-xs uppercase tracking-widest">Ingresar</span>
               </button>
 
               <AnimatePresence>
@@ -178,7 +191,7 @@ export default function UltimateEmperadorLanding() {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
                     transition={{ duration: 0.2 }}
-                    className="absolute right-0 top-full mt-[-5px] w-64 bg-zinc-950 border border-zinc-800 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.7)] overflow-hidden py-2 z-50"
+                    className="absolute right-0 top-full mt-2 w-64 bg-zinc-950 border border-zinc-800 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.7)] overflow-hidden py-2 z-50"
                   >
                     <Link href="/login?role=client" className="flex items-center gap-4 px-5 py-4 text-xs font-bold text-zinc-300 hover:bg-zinc-900 hover:text-amber-500 transition-colors border-b border-zinc-900/50 group">
                       <div className="bg-zinc-800 p-2 rounded-lg group-hover:bg-amber-500/20 group-hover:text-amber-500 transition-colors"><UserCircle size={20} /></div> 
@@ -197,11 +210,6 @@ export default function UltimateEmperadorLanding() {
               </AnimatePresence>
             </div>
           </div>
-          
-          <Link href="/reservar" className="relative group px-6 py-3 md:px-8 md:py-3.5 bg-amber-500 text-black font-black uppercase tracking-[0.2em] text-xs overflow-hidden rounded-lg hover:scale-105 transition-all shadow-[0_0_20px_rgba(217,119,6,0.4)] active:scale-95 ml-auto lg:ml-0">
-             <span className="relative z-10 flex items-center gap-2">Agendar <Zap size={14} className="group-hover:animate-bounce" /></span>
-             <div className="absolute inset-0 bg-white translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out z-0" />
-          </Link>
         </div>
       </nav>
 
