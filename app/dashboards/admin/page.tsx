@@ -15,7 +15,7 @@ import Image from "next/image";
 import { createClient } from "@/utils/supabase/client";
 
 // ============================================================================
-// TIPADOS (Sincronizados exactamente con app/page.tsx)
+// TIPADOS
 // ============================================================================
 type TabType = "RESUMEN" | "SILLONES" | "STAFF" | "SERVICIOS" | "CLIENTES" | "PROMOCIONES";
 
@@ -26,7 +26,7 @@ interface Promotion { id: string; titleLeft: string; subtitleLeft: string; price
 interface Chair { id: string; name: string; status: "OCCUPIED" | "FREE"; barber?: string; client?: string; timeRemaining?: string; }
 
 // ============================================================================
-// MOCK DATA (Idéntico a app/page.tsx para asegurar sincronización visual)
+// MOCK DATA (Fallbacks visuales)
 // ============================================================================
 const FALLBACK_BARBERS: Barber[] = [
   { id: "cesar", name: "Cesar Luna", email: "cesar@emperador.cl", phone: "+56912345678", status: "ACTIVE", cutsToday: 5, role: "Master Barber", tag: "El Arquitecto", img: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=800&auto=format&fit=crop" },
@@ -38,24 +38,11 @@ const FALLBACK_BARBERS: Barber[] = [
 const FALLBACK_SERVICES: Service[] = [
   { id: "s1", name: "Corte Clásico / Degradado", time: "1 hrs", price: "$12.000", desc: "El corte que define tu estilo. Clean, fresh, de líneas perfectas.", iconName: "Scissors", duration: 60 },
   { id: "s2", name: "Corte + Perfilado de Cejas", time: "1 hrs", price: "$14.000", desc: "Sube de nivel tu mirada. Detalles quirúrgicos que marcan la diferencia.", iconName: "Crosshair", duration: 60 },
-  { id: "s3", name: "Barba + Vapor Caliente", time: "30 min", price: "$7.000", desc: "Afeitado VIP. Abrimos los poros para un acabado de seda y cero irritación.", iconName: "Flame", duration: 30 },
-  { id: "s4", name: "Corte + Barba + Lavado GRATIS", time: "1h 5m", price: "$17.000", desc: "El combo indispensable para salir listo directo al fin de semana.", iconName: "Zap", duration: 65 },
-  { id: "s5", name: "Limpieza Facial + Vapor", time: "25 min", price: "$10.000", desc: "Skin care masculino. Vapor, extracción de impurezas y mascarilla.", iconName: "Sparkles", duration: 25 },
-  { id: "s6", name: "Corte + Barba + Cejas + Lavado", time: "1h 15m", price: "$20.000", desc: "Mantenimiento total. Renovación completa en una sola sesión.", iconName: "Crown", duration: 75 },
-  { id: "s7", name: "Servicio Emperador VIP", time: "1h 30m", price: "$35.000", desc: "La experiencia definitiva. Trato de realeza garantizado.", iconName: "Star", duration: 90 },
-  { id: "s8", name: "Perfilado de Cejas", time: "5 min", price: "$3.000", desc: "Limpieza rápida y definición de contornos.", iconName: "Crosshair", duration: 5 },
-  { id: "s9", name: "Lavado de Cabello", time: "5 min", price: "$3.000", desc: "Lavado profundo con productos premium.", iconName: "Droplets", duration: 5 },
-  { id: "s10", name: "Diseño / Hair Tattoo", time: "15 min", price: "$4.000", desc: "Líneas, tribales o diseños exclusivos a navaja.", iconName: "Wand2", duration: 15 },
-  { id: "s11", name: "Visos + Corte + Cejas", time: "4 hrs", price: "$70.000", desc: "Iluminación de cabello profesional más perfilado completo.", iconName: "Zap", duration: 240 },
-  { id: "s12", name: "Platinado + Corte + Cejas", time: "5 hrs", price: "$90.000", desc: "Decoloración global nivel platino. Transformación extrema.", iconName: "Flame", duration: 300 },
 ];
 
 const FALLBACK_STORE: Promotion[] = [
   {
     id: "promo1", tag: "LAST DAY!", titleLeft: "Wahl Magic Clip", subtitleLeft: "Edición Gold Cordless", priceLeft: "$149.990", oldPriceLeft: "$189.990", titleRight: "Detailer Li", subtitleRight: "Trimmer Gold", priceRight: "$119.990", oldPriceRight: "$149.990", image: "https://images.unsplash.com/photo-1621607512214-68297480165e?q=80&w=2000&auto=format&fit=crop", promoText: "Por la compra de una Wahl Magic Clip en LastDay!,", promoHighlight: "+$19.990", promoEnd: "lleva un set de peines premium.", sku: "SKU: WAHL-GOLD-PACK", status: "ACTIVE"
-  },
-  {
-    id: "promo2", tag: "NUEVO STOCK", titleLeft: "Pomada Reuzel", subtitleLeft: "Matte Clay 113g", priceLeft: "$22.990", oldPriceLeft: "$28.990", titleRight: "Pomada Reuzel", subtitleRight: "Extreme Hold 113g", priceRight: "$22.990", oldPriceRight: "$28.990", image: "https://images.unsplash.com/photo-1597354984706-fac992d9306f?q=80&w=2000&auto=format&fit=crop", promoText: "Por la compra de 2 pomadas Reuzel en la web,", promoHighlight: "ENVÍO GRATIS", promoEnd: "a todo Curicó.", sku: "SKU: REUZEL-PACK-02", status: "ACTIVE"
   }
 ];
 
@@ -71,15 +58,19 @@ const MOCK_CLIENTS: Client[] = [
   { id: "c2", name: "Carlos Díaz", phone: "+56987654321", visits: 5, lastVisit: "Hace 2 días", totalSpent: 60000 },
 ];
 
-// Motor para iconos dinámicos
+// Helpers
 const DynamicIcon = ({ name, size = 24, className = "" }: { name: string, size?: number, className?: string }) => {
   const IconComponent = (LucideIcons as any)[name] || LucideIcons.Scissors;
   return <IconComponent size={size} className={className} />;
 };
 
-// Formateador de dinero
 const formatMoney = (amount: number) => {
   return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
+};
+
+// VALIDADOR INTELIGENTE: Verifica si un ID es un UUID real de Supabase o un texto falso como "cesar"
+const isValidUUID = (uuid: string) => {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid);
 };
 
 // ============================================================================
@@ -117,29 +108,20 @@ export default function AdminDashboard() {
   const fetchData = async () => {
     setIsFetching(true);
     try {
-      // Fetch Barberos
       const { data: dbBarbers, error: errBarbers } = await supabase.from('Barbers').select('*').order('created_at', { ascending: false });
       if (!errBarbers && dbBarbers && dbBarbers.length > 0) {
         setBarbers(dbBarbers);
       } else {
-        setBarbers(FALLBACK_BARBERS); // Si no hay DB, usa el idéntico al inicio
+        setBarbers(FALLBACK_BARBERS); 
       }
 
-      // Fetch Servicios
       const { data: dbServices, error: errServices } = await supabase.from('Services').select('*');
-      if (!errServices && dbServices && dbServices.length > 0) {
-        setServices(dbServices);
-      } else {
-        setServices(FALLBACK_SERVICES);
-      }
+      if (!errServices && dbServices && dbServices.length > 0) setServices(dbServices);
+      else setServices(FALLBACK_SERVICES);
 
-      // Fetch Tienda / Promociones
       const { data: dbStore, error: errStore } = await supabase.from('StoreProducts').select('*');
-      if (!errStore && dbStore && dbStore.length > 0) {
-        setStorePromos(dbStore);
-      } else {
-        setStorePromos(FALLBACK_STORE);
-      }
+      if (!errStore && dbStore && dbStore.length > 0) setStorePromos(dbStore);
+      else setStorePromos(FALLBACK_STORE);
 
     } catch (error) {
       console.error("Modo desarrollo: usando mock data", error);
@@ -151,7 +133,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // Previsualización de la imagen antes de subir
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
@@ -160,7 +141,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // Abrir Modal de Barbero (Sirve para Crear o Editar)
   const openBarberModal = (barber: Barber | null = null) => {
     setEditingBarber(barber);
     setImagePreview(null);
@@ -168,28 +148,25 @@ export default function AdminDashboard() {
     setModalType("BARBER");
   };
 
-  // Función REAL para Eliminar Barbero
   const handleDeleteBarber = async (id: string) => {
-    const isConfirmed = window.confirm("¿Estás seguro de que deseas eliminar a este barbero? Se removerá del inicio.");
+    const isConfirmed = window.confirm("¿Estás seguro de que deseas eliminar a este barbero?");
     if (!isConfirmed) return;
 
     try {
-      // 1. Eliminar de la base de datos Supabase
-      const { error } = await supabase.from('Barbers').delete().eq('id', id);
-      if (error) throw error;
+      // Solo intentamos borrar en la BD si es un ID válido de Supabase
+      if (isValidUUID(id)) {
+        const { error } = await supabase.from('Barbers').delete().eq('id', id);
+        if (error) throw error;
+      }
       
-      // 2. Actualizar la tabla visualmente AL INSTANTE
       setBarbers(prev => prev.filter(b => b.id !== id));
       alert("Barbero eliminado correctamente.");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error eliminando:", error);
-      // Fallback visual si estamos usando Mock Data
-      setBarbers(prev => prev.filter(b => b.id !== id));
-      alert("Barbero removido visualmente (Modo Desarrollo).");
+      alert(`No se pudo eliminar: ${error.message}`);
     }
   };
 
-  // Función REAL para Guardar o Editar Datos
   const handleSaveAction = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
@@ -197,13 +174,10 @@ export default function AdminDashboard() {
     
     try {
       if (modalType === "BARBER") {
-        // Mantiene la imagen actual si estamos editando y no seleccionamos una nueva
         let imageUrl = editingBarber?.img || "https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=800&auto=format&fit=crop"; 
         
-        // Si el usuario seleccionó una imagen NUEVA
         if (selectedImage) {
           const fileExt = selectedImage.name.split('.').pop();
-          // SOLUCIÓN ANTI-CACHÉ: Nombre único con fecha y hora exacta
           const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
           const filePath = `barbers/${fileName}`;
           
@@ -212,8 +186,7 @@ export default function AdminDashboard() {
             const { data: publicUrlData } = supabase.storage.from('barber-profiles').getPublicUrl(filePath);
             imageUrl = publicUrlData.publicUrl;
           } else {
-             console.error("Error subiendo imagen:", uploadError);
-             throw new Error("No se pudo subir la imagen al Storage.");
+             throw new Error(`Storage Error: ${uploadError.message}`);
           }
         }
 
@@ -228,26 +201,29 @@ export default function AdminDashboard() {
           img: imageUrl
         };
 
-        if (editingBarber) {
-          // ACTUALIZAR (UPDATE)
+        // Si estamos editando Y el ID es un UUID válido de la Base de datos
+        if (editingBarber && isValidUUID(editingBarber.id)) {
           const { data, error } = await supabase.from('Barbers').update(barberData).eq('id', editingBarber.id).select();
-          if (error) throw error;
+          if (error) throw new Error(`Database Error: ${error.message}`);
           
-          // Actualización instantánea en la tabla visual
           if (data && data.length > 0) {
             setBarbers(prev => prev.map(b => b.id === editingBarber.id ? data[0] : b));
           }
-          alert("¡Barbero actualizado y sincronizado correctamente!");
+          alert("¡Barbero actualizado exitosamente!");
         } else {
-          // CREAR (INSERT)
+          // Si estamos creando uno nuevo, o si estamos "editando" un mock data (como 'cesar') lo guardamos como nuevo
           const { data, error } = await supabase.from('Barbers').insert([barberData]).select();
-          if (error) throw error;
+          if (error) throw new Error(`Database Error: ${error.message}`);
 
-          // Actualización instantánea en la tabla visual
           if (data && data.length > 0) {
-            setBarbers(prev => [data[0], ...prev]);
+            // Si estábamos sobrescribiendo un mock, lo quitamos de la vista y ponemos el real
+            if (editingBarber && !isValidUUID(editingBarber.id)) {
+               setBarbers(prev => [data[0], ...prev.filter(b => b.id !== editingBarber.id)]);
+            } else {
+               setBarbers(prev => [data[0], ...prev]);
+            }
           }
-          alert("¡Barbero creado y sincronizado correctamente!");
+          alert("¡Barbero guardado en la base de datos correctamente!");
         }
       }
 
@@ -261,7 +237,7 @@ export default function AdminDashboard() {
          };
          
          const { data, error } = await supabase.from('Services').insert([newService]).select();
-         if (error) throw error;
+         if (error) throw new Error(`Database Error: ${error.message}`);
          
          if (data && data.length > 0) {
            setServices(prev => [data[0], ...prev]);
@@ -269,7 +245,6 @@ export default function AdminDashboard() {
          alert("¡Servicio guardado exitosamente!");
       }
 
-      // Limpiar Modales después de guardar exitosamente
       setModalType(null);
       setEditingBarber(null);
       setSelectedImage(null);
@@ -277,8 +252,7 @@ export default function AdminDashboard() {
       
     } catch (error: any) {
       console.error("Error guardando:", error);
-      alert(`Error al procesar: ${error.message || 'Verifica tu conexión a Supabase.'}`);
-      setModalType(null);
+      alert(`Error al procesar: ${error.message}`);
     } finally {
       setIsLoading(false);
     }
@@ -296,7 +270,7 @@ export default function AdminDashboard() {
           </h1>
           <p className="text-zinc-400 mt-2 font-medium">Control total de la web y datos de Emperador Barbershop</p>
         </div>
-        {isFetching && <span className="text-amber-500 text-sm font-bold animate-pulse">Sincronizando Base de Datos...</span>}
+        {isFetching && <span className="text-amber-500 text-sm font-bold animate-pulse bg-amber-500/10 px-4 py-2 rounded-full border border-amber-500/20">Sincronizando Base de Datos...</span>}
       </div>
 
       {/* TABS DE NAVEGACIÓN */}
@@ -326,7 +300,7 @@ export default function AdminDashboard() {
       <AnimatePresence mode="wait">
         
         {/* =================================================================== */}
-        {/* TAB 1: RESUMEN (KPIs Generales) */}
+        {/* TAB 1: RESUMEN */}
         {/* =================================================================== */}
         {activeTab === "RESUMEN" && (
           <motion.div key="resumen" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-8">
@@ -335,6 +309,11 @@ export default function AdminDashboard() {
               <KpiCard icon={<Scissors />} title="Cortes Realizados (Hoy)" value={15} />
               <KpiCard icon={<Armchair />} title="Sillones Ocupados" value="1 / 4" statusColor="text-green-500" />
               <KpiCard icon={<Users />} title="Nuevos Clientes (Mes)" value={42} trend="+12% vs mes pasado" />
+            </div>
+            
+            <div className="bg-amber-500/10 border border-amber-500/30 p-6 rounded-2xl flex items-center gap-4 text-amber-500">
+              <AlertCircle size={24} />
+              <p className="text-sm font-bold">Asegúrate de agregar Políticas de RLS en Supabase (Storage y Base de datos) para permitir guardar cambios.</p>
             </div>
           </motion.div>
         )}
@@ -379,7 +358,7 @@ export default function AdminDashboard() {
         )}
 
         {/* =================================================================== */}
-        {/* TAB 3: STAFF (Controla "TEAM EMPERADOR" en el Inicio) */}
+        {/* TAB 3: STAFF */}
         {/* =================================================================== */}
         {activeTab === "STAFF" && (
           <motion.div key="staff" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
@@ -409,7 +388,6 @@ export default function AdminDashboard() {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-4">
                           <div className="relative w-14 h-14 rounded-xl overflow-hidden border border-zinc-700 bg-zinc-800">
-                            {/* IMPORTANTE: unoptimized ayuda a evitar problemas de caché de Next.js con imágenes externas */}
                             {b.img ? (
                               <Image src={b.img} alt={b.name} fill className="object-cover grayscale hover:grayscale-0 transition-all" unoptimized />
                             ) : (
