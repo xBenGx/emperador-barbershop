@@ -77,13 +77,18 @@ const DynamicIcon = ({ name, size = 24, className = "" }: { name: string, size?:
   return <IconComponent size={size} className={className} />;
 };
 
+// Formateador de dinero (SOLUCIÓN AL ERROR)
+const formatMoney = (amount: number) => {
+  return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
+};
+
 // ============================================================================
 // COMPONENTE PRINCIPAL (ADMIN DASHBOARD)
 // ============================================================================
 export default function AdminDashboard() {
   const supabase = createClient();
   
-  const [activeTab, setActiveTab] = useState<TabType>("RESUMEN");
+  const [activeTab, setActiveTab] = useState<TabType>("STAFF");
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
 
@@ -98,6 +103,9 @@ export default function AdminDashboard() {
   const [modalType, setModalType] = useState<"SERVICE" | "BARBER" | "PROMO" | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Estados para Edición
+  const [editingBarber, setEditingBarber] = useState<Barber | null>(null);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
@@ -110,7 +118,7 @@ export default function AdminDashboard() {
     setIsFetching(true);
     try {
       // Fetch Barberos
-      const { data: dbBarbers, error: errBarbers } = await supabase.from('Barbers').select('*');
+      const { data: dbBarbers, error: errBarbers } = await supabase.from('Barbers').select('*').order('created_at', { ascending: false });
       if (!errBarbers && dbBarbers && dbBarbers.length > 0) setBarbers(dbBarbers);
       else setBarbers(FALLBACK_BARBERS); // Si no hay DB, usa el idéntico al inicio
 
@@ -142,15 +150,44 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleSimulateAction = async (e: React.FormEvent<HTMLFormElement>) => {
+  const openBarberModal = (barber: Barber | null = null) => {
+    setEditingBarber(barber);
+    setImagePreview(null);
+    setSelectedImage(null);
+    setModalType("BARBER");
+  };
+
+  const handleDeleteBarber = async (id: string) => {
+    const isConfirmed = window.confirm("¿Estás seguro de que deseas eliminar a este barbero? Se removerá del inicio.");
+    if (!isConfirmed) return;
+
+    try {
+      // Intenta eliminar de Supabase
+      const { error } = await supabase.from('Barbers').delete().eq('id', id);
+      if (error) throw error;
+      
+      // Actualiza estado local inmediatamente para UX o recarga db
+      await fetchData();
+      alert("Barbero eliminado correctamente.");
+    } catch (error) {
+      console.error("Error eliminando:", error);
+      // Si falla (ej. porque es un dato de prueba y no está en tu BD real aún), borrar local
+      setBarbers(prev => prev.filter(b => b.id !== id));
+      alert("Barbero removido de la vista (Simulación por falta de DB conectada).");
+    }
+  };
+
+  const handleSaveAction = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
     const formData = new FormData(e.currentTarget);
     
     try {
       if (modalType === "BARBER") {
-        let imageUrl = "https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=800&auto=format&fit=crop"; 
+        // Mantiene la imagen vieja por defecto si estamos editando
+        let imageUrl = editingBarber?.img || "https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=800&auto=format&fit=crop"; 
         
+        // Si subió imagen nueva
         if (selectedImage) {
           const fileExt = selectedImage.name.split('.').pop();
           const fileName = `${Date.now()}.${fileExt}`;
@@ -160,28 +197,40 @@ export default function AdminDashboard() {
           if (!uploadError) {
             const { data: publicUrlData } = supabase.storage.from('barber-profiles').getPublicUrl(filePath);
             imageUrl = publicUrlData.publicUrl;
+          } else {
+             console.error("Error subiendo imagen:", uploadError);
           }
         }
 
-        const newBarber = {
-          name: formData.get("name"),
-          email: formData.get("email"),
-          phone: formData.get("phone"),
-          role: formData.get("role"),
-          tag: formData.get("tag"),
-          status: "ACTIVE",
-          cutsToday: 0,
+        const barberData = {
+          name: formData.get("name") as string,
+          email: formData.get("email") as string,
+          phone: formData.get("phone") as string,
+          role: formData.get("role") as string,
+          tag: formData.get("tag") as string,
+          status: (formData.get("status") || "ACTIVE") as "ACTIVE" | "INACTIVE",
+          cutsToday: editingBarber ? editingBarber.cutsToday : 0,
           img: imageUrl
         };
-        await supabase.from('Barbers').insert([newBarber]);
-        alert("¡Barbero guardado y sincronizado con el Inicio!");
+
+        if (editingBarber && !editingBarber.id.includes("cesar")) { 
+          // UPDATE en Supabase (Solo si no es uno de los Mocks quemados como "cesar")
+          const { error } = await supabase.from('Barbers').update(barberData).eq('id', editingBarber.id);
+          if (error) throw error;
+        } else {
+          // INSERT nuevo en Supabase
+          const { error } = await supabase.from('Barbers').insert([barberData]);
+          if (error) throw error;
+        }
+        
+        alert(`¡Barbero ${editingBarber ? 'actualizado' : 'guardado'} y sincronizado con el Inicio!`);
       }
 
       if (modalType === "SERVICE") {
          const newService = {
             name: formData.get("name"),
-            price: formData.get("price"), // ej: "$15.000"
-            time: formData.get("time"), // ej: "1 hrs"
+            price: formData.get("price"),
+            time: formData.get("time"),
             desc: formData.get("desc"),
             iconName: formData.get("iconName") || "Scissors"
          };
@@ -189,10 +238,15 @@ export default function AdminDashboard() {
          alert("¡Servicio guardado exitosamente!");
       }
 
+      // IMPORTANTE: Refrescar los datos reales después de insertar/actualizar
+      await fetchData(); 
+
+      // Limpiar Modales
       setModalType(null);
+      setEditingBarber(null);
       setSelectedImage(null);
       setImagePreview(null);
-      fetchData(); // Recargar
+      
     } catch (error) {
       console.log("Simulación de guardado exitosa (No hay DB conectada aún)");
       setModalType(null);
@@ -309,9 +363,9 @@ export default function AdminDashboard() {
             <div className="flex justify-between items-center mb-6">
               <div>
                 <h2 className="text-2xl font-bold text-white">Equipo de Barberos</h2>
-                <p className="text-sm text-zinc-500">Lo que modifiques aquí se refleja en "Team Emperador" en la web.</p>
+                <p className="text-sm text-zinc-500">Crea, edita o elimina barberos. Se refleja en "Team Emperador" en la web.</p>
               </div>
-              <button onClick={() => setModalType("BARBER")} className="flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-400 text-black font-black text-xs uppercase tracking-widest rounded-xl transition-all shadow-[0_0_20px_rgba(217,119,6,0.3)]">
+              <button onClick={() => openBarberModal(null)} className="flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-400 text-black font-black text-xs uppercase tracking-widest rounded-xl transition-all shadow-[0_0_20px_rgba(217,119,6,0.3)]">
                 <UserPlus size={16} /> Añadir Barbero
               </button>
             </div>
@@ -351,13 +405,22 @@ export default function AdminDashboard() {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <button className="p-2 text-zinc-500 hover:text-amber-500 transition-colors"><Edit3 size={18} /></button>
-                        <button className="p-2 text-zinc-500 hover:text-red-500 transition-colors"><Trash2 size={18} /></button>
+                        {/* BOTÓN EDITAR */}
+                        <button onClick={() => openBarberModal(b)} className="p-2 text-zinc-500 hover:text-amber-500 transition-colors" title="Editar">
+                          <Edit3 size={18} />
+                        </button>
+                        {/* BOTÓN ELIMINAR */}
+                        <button onClick={() => handleDeleteBarber(b.id)} className="p-2 text-zinc-500 hover:text-red-500 transition-colors" title="Eliminar">
+                          <Trash2 size={18} />
+                        </button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              {barbers.length === 0 && (
+                 <div className="p-8 text-center text-zinc-500">No hay barberos registrados.</div>
+              )}
             </div>
           </motion.div>
         )}
@@ -430,12 +493,12 @@ export default function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {clients.map(c => (
+                  {clients.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase())).map(c => (
                     <tr key={c.id} className="border-b border-zinc-800/50">
                       <td className="px-6 py-4 font-bold text-white">{c.name}</td>
                       <td className="px-6 py-4">{c.phone}</td>
-                      <td className="px-6 py-4 text-center">{c.visits}</td>
-                      <td className="px-6 py-4 text-right font-bold text-amber-500">${c.totalSpent}</td>
+                      <td className="px-6 py-4 text-center"><span className="bg-zinc-800 text-white px-3 py-1 rounded-full text-xs font-bold">{c.visits}</span></td>
+                      <td className="px-6 py-4 text-right font-bold text-amber-500">{formatMoney(c.totalSpent)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -490,7 +553,7 @@ export default function AdminDashboard() {
       </AnimatePresence>
 
       {/* =================================================================== */}
-      {/* MODALES REUTILIZABLES (CREACIÓN) */}
+      {/* MODALES REUTILIZABLES (CREACIÓN / EDICIÓN) */}
       {/* =================================================================== */}
       <AnimatePresence>
         {modalType && (
@@ -501,12 +564,12 @@ export default function AdminDashboard() {
               <button onClick={() => setModalType(null)} className="absolute top-6 right-6 text-zinc-500 hover:text-white"><X size={24}/></button>
               
               <h3 className="text-2xl font-black text-white uppercase tracking-tighter mb-6 font-serif">
-                {modalType === "SERVICE" && "Crear Nuevo Servicio (Web)"}
-                {modalType === "BARBER" && "Añadir Barbero a la Web"}
+                {modalType === "SERVICE" && "Servicio Web"}
+                {modalType === "BARBER" && (editingBarber ? "Editar Barbero" : "Añadir Barbero a la Web")}
                 {modalType === "PROMO" && "Crear Destacado de Tienda"}
               </h3>
               
-              <form onSubmit={handleSimulateAction} className="space-y-5">
+              <form onSubmit={handleSaveAction} className="space-y-5">
                 
                 {/* ----------------- FORMULARIO: BARBERO ----------------- */}
                 {modalType === "BARBER" && (
@@ -518,6 +581,8 @@ export default function AdminDashboard() {
                       >
                         {imagePreview ? (
                           <Image src={imagePreview} alt="Preview" fill className="object-cover" />
+                        ) : editingBarber?.img ? (
+                          <Image src={editingBarber.img} alt="Current" fill className="object-cover grayscale group-hover:grayscale-0 transition-all" />
                         ) : (
                           <>
                             <Upload className="text-zinc-500 mb-2 group-hover:text-amber-500 transition-colors" />
@@ -531,17 +596,39 @@ export default function AdminDashboard() {
                       <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageChange} />
                     </div>
 
-                    <div><label className="block text-xs font-black text-zinc-400 uppercase tracking-widest mb-2">Nombre Mostrado</label><input name="name" type="text" className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none" required placeholder="Ej: Cesar Luna" /></div>
+                    <div>
+                      <label className="block text-xs font-black text-zinc-400 uppercase tracking-widest mb-2">Nombre Mostrado</label>
+                      <input name="name" defaultValue={editingBarber?.name || ""} type="text" className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none" required placeholder="Ej: Cesar Luna" />
+                    </div>
                     
                     <div className="grid grid-cols-2 gap-4">
-                      <div><label className="block text-xs font-black text-zinc-400 uppercase tracking-widest mb-2">Rol</label><input name="role" type="text" className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none" required placeholder="Ej: Master Barber" /></div>
-                      <div><label className="block text-xs font-black text-zinc-400 uppercase tracking-widest mb-2">Etiqueta Naranja</label><input name="tag" type="text" className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none" required placeholder="Ej: El Arquitecto" /></div>
+                      <div>
+                        <label className="block text-xs font-black text-zinc-400 uppercase tracking-widest mb-2">Rol</label>
+                        <input name="role" defaultValue={editingBarber?.role || ""} type="text" className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none" required placeholder="Ej: Master Barber" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-black text-zinc-400 uppercase tracking-widest mb-2">Etiqueta Naranja</label>
+                        <input name="tag" defaultValue={editingBarber?.tag || ""} type="text" className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none" required placeholder="Ej: El Arquitecto" />
+                      </div>
                     </div>
 
                     <div className="pt-4 border-t border-zinc-800">
                       <p className="text-xs text-amber-500 mb-4 font-bold">Datos Opcionales (Uso Interno)</p>
-                      <div><label className="block text-xs font-black text-zinc-400 uppercase tracking-widest mb-2">Correo Electrónico</label><input name="email" type="email" className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none" /></div>
+                      <div>
+                        <label className="block text-xs font-black text-zinc-400 uppercase tracking-widest mb-2">Correo Electrónico</label>
+                        <input name="email" defaultValue={editingBarber?.email || ""} type="email" className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none" />
+                      </div>
                     </div>
+                    
+                    {editingBarber && (
+                      <div className="pt-2">
+                        <label className="block text-xs font-black text-zinc-400 uppercase tracking-widest mb-2">Estado</label>
+                        <select name="status" defaultValue={editingBarber.status} className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none appearance-none">
+                          <option value="ACTIVE">Activo en la web</option>
+                          <option value="INACTIVE">Oculto / Inactivo</option>
+                        </select>
+                      </div>
+                    )}
                   </>
                 )}
 
@@ -560,7 +647,7 @@ export default function AdminDashboard() {
 
                 <div className="pt-6 border-t border-zinc-800 mt-6">
                   <button type="submit" disabled={isLoading} className="w-full py-4 text-black font-black uppercase tracking-widest text-xs bg-amber-500 hover:bg-amber-400 rounded-xl transition-all shadow-[0_0_20px_rgba(217,119,6,0.3)] flex justify-center items-center gap-2">
-                    {isLoading ? "Enviando a Supabase..." : <><Save size={16}/> Publicar en la Web</>}
+                    {isLoading ? "Guardando..." : <><Save size={16}/> Guardar y Publicar en Web</>}
                   </button>
                 </div>
               </form>
