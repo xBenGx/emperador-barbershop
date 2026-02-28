@@ -10,7 +10,7 @@ import {
   Minus, Plus, CheckCircle, ShieldCheck, 
   MessageSquare, Heart, MessageCircle, ExternalLink, 
   Lock, LayoutGrid, Clapperboard, Droplets, Sparkles, Wand2,
-  UserCircle, Briefcase, KeyRound, ShoppingBag, ShoppingCart, Tag
+  UserCircle, Briefcase, KeyRound
 } from "lucide-react";
 
 // ============================================================================
@@ -21,13 +21,6 @@ const TEAM = [
   { id: "jack", name: "Jack Guerra", role: "Fade Specialist", tag: "Rey del Fade", img: "https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=800&auto=format&fit=crop" },
   { id: "jhonn", name: "Jhonn Prado", role: "Beard Expert", tag: "Precisión", img: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?q=80&w=800&auto=format&fit=crop" },
   { id: "marcos", name: "Marcos Peña", role: "Senior Barber", tag: "Versatilidad", img: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=800&auto=format&fit=crop" },
-];
-
-const PRODUCTS = [
-  { id: 1, name: "Pomada Texturizante Mate", brand: "Emperador Premium", price: "$14.990", img: "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?q=80&w=600&auto=format&fit=crop", tag: "Bestseller" },
-  { id: 2, name: "Aceite de Barba 'Oud Wood'", brand: "King's Care", price: "$12.500", img: "https://images.unsplash.com/photo-1626285861696-9f0bf5a49ceb?q=80&w=600&auto=format&fit=crop", tag: "Nuevo" },
-  { id: 3, name: "Polvo Voluminizador 0G", brand: "Slick Gorilla", price: "$18.900", img: "https://images.unsplash.com/photo-1599305090598-fe179d501227?q=80&w=600&auto=format&fit=crop", tag: "Tendencia" },
-  { id: 4, name: "Aftershave Tónico Refrescante", brand: "Proraso", price: "$15.000", img: "https://images.unsplash.com/photo-1585298453252-87eb60c5aeb8?q=80&w=600&auto=format&fit=crop", tag: "Clásico" },
 ];
 
 const SERVICES = [
@@ -57,6 +50,7 @@ const FAQS = [
   { q: "¿Qué métodos de pago aceptan?", a: "Para tu comodidad, aceptamos Efectivo, Transferencia Electrónica y todas las tarjetas de Débito/Crédito vía Transbank." },
 ];
 
+// FEED MOCK DE INSTAGRAM REALISTA 
 const INSTA_REELS = [
   { id: 1, likes: "12.4k", comments: "145", type: "reel", img: "https://images.unsplash.com/photo-1593702275687-f8b402bf1fb5?q=80&w=600&auto=format&fit=crop" },
   { id: 2, likes: "8.2k", comments: "98", type: "post", img: "https://images.unsplash.com/photo-1622286342621-4bd786c2447c?q=80&w=600&auto=format&fit=crop" },
@@ -92,6 +86,7 @@ const textReveal: Variants = {
 // ============================================================================
 // COMPONENTES LÓGICOS
 // ============================================================================
+
 const FAQItem = ({ faq, index }: { faq: any, index: number }) => {
   const [isOpen, setIsOpen] = useState(false);
   return (
@@ -155,31 +150,34 @@ export default function UltimateEmperadorLanding() {
       <nav className={`fixed top-0 w-full z-50 transition-all duration-500 ${scrolled ? "py-4 bg-[#050505]/90 backdrop-blur-2xl border-b border-amber-500/20 shadow-[0_10px_40px_-10px_rgba(217,119,6,0.15)]" : "py-8 bg-transparent"}`}>
         <div className="max-w-[1400px] mx-auto px-6 grid grid-cols-3 items-center relative z-10">
           
-          {/* IZQUIERDA: ÁREA DEL LOGO */}
+          {/* IZQUIERDA: ÁREA DEL LOGO GIGANTE (Sobresale del menú) */}
           <div className="flex justify-start">
             <Link href="/" className="relative z-50 flex items-center group">
               <div className={`absolute top-1/2 -translate-y-1/2 left-0 transition-all duration-500 rounded-full overflow-hidden border-2 border-amber-500/50 group-hover:border-amber-500 shadow-[0_0_20px_rgba(217,119,6,0.4)] group-hover:shadow-[0_0_40px_rgba(217,119,6,0.8)] group-hover:scale-105 ${scrolled ? 'w-16 h-16' : 'w-24 h-24 md:w-36 md:h-36'}`}>
                 <Image src="/logo.png" alt="Emperador Logo" fill sizes="(max-width: 768px) 96px, 144px" className="object-cover" priority />
               </div>
+              {/* Div espaciador invisible */}
               <div className={`${scrolled ? 'w-16' : 'w-24 md:w-36'} transition-all duration-500 h-1`}></div>
             </Link>
           </div>
           
           {/* CENTRO: ENLACES DE NAVEGACIÓN */}
-          <div className="hidden lg:flex justify-center gap-8 text-[11px] font-black text-zinc-400 uppercase tracking-[0.3em]">
-            <Link href="#squad" className="hover:text-amber-500 hover:-translate-y-1 transition-all">El Squad</Link>
-            <Link href="#tienda" className="hover:text-amber-500 hover:-translate-y-1 transition-all flex items-center gap-1"><ShoppingBag size={14}/> Tienda</Link>
+          <div className="hidden lg:flex justify-center gap-10 text-[11px] font-black text-zinc-400 uppercase tracking-[0.3em]">
             <Link href="#flow" className="hover:text-amber-500 hover:-translate-y-1 transition-all">VIP Room</Link>
             <Link href="#servicios" className="hover:text-amber-500 hover:-translate-y-1 transition-all">Servicios</Link>
+            <Link href="#squad" className="hover:text-amber-500 hover:-translate-y-1 transition-all">El Squad</Link>
           </div>
           
-          {/* DERECHA: BOTONES DE ACCIÓN */}
+          {/* DERECHA: BOTONES DE ACCIÓN (INGRESAR + AGENDAR) */}
           <div className="flex justify-end items-center gap-4 col-span-2 lg:col-span-1">
+            
+            {/* BOTÓN AGENDAR (Principal) */}
             <Link href="/reservar" className="relative group px-6 py-3 md:px-8 md:py-3.5 bg-amber-500 text-black font-black uppercase tracking-[0.2em] text-xs overflow-hidden rounded-lg hover:scale-105 transition-all shadow-[0_0_20px_rgba(217,119,6,0.4)] active:scale-95">
                <span className="relative z-10 flex items-center gap-2">Agendar <Zap size={14} className="group-hover:animate-bounce" /></span>
                <div className="absolute inset-0 bg-white translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out z-0" />
             </Link>
 
+            {/* MENÚ DE ACCESO MULTINIVEL (LOGIN) */}
             <div className="relative hidden sm:block" onMouseEnter={() => setShowLoginMenu(true)} onMouseLeave={() => setShowLoginMenu(false)}>
               <button className="flex items-center gap-2 text-zinc-300 hover:text-white transition-all hover:-translate-y-1 bg-transparent px-4 py-3 rounded-lg border border-zinc-700 hover:border-amber-500 backdrop-blur-sm group">
                 <UserCircle size={18} className="text-zinc-400 group-hover:text-amber-500 transition-colors" />
@@ -215,7 +213,7 @@ export default function UltimateEmperadorLanding() {
         </div>
       </nav>
 
-      {/* BOTÓN FLOTANTE PULSANTE */}
+      {/* BOTÓN FLOTANTE PULSANTE (Llamado a cortar extremo) */}
       <motion.div 
         initial={{ scale: 0 }} 
         animate={{ scale: 1 }} 
@@ -228,8 +226,8 @@ export default function UltimateEmperadorLanding() {
         </Link>
       </motion.div>
 
-      {/* 2. HERO HYPE SECTION CON CARRUSEL DE PRODUCTOS */}
-      <section className="relative h-[100svh] flex flex-col justify-center overflow-hidden bg-black">
+      {/* 2. HERO HYPE SECTION */}
+      <section className="relative h-[100svh] flex items-center justify-center overflow-hidden bg-black">
         <motion.div style={{ y: yHero, opacity: opacityHero }} className="absolute inset-0 z-0">
           <Image 
             src="https://images.unsplash.com/photo-1593702275687-f8b402bf1fb5?q=80&w=2070&auto=format&fit=crop" 
@@ -239,7 +237,7 @@ export default function UltimateEmperadorLanding() {
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-amber-500/20 via-transparent to-transparent mix-blend-overlay" />
         </motion.div>
 
-        <div className="relative z-10 w-full max-w-[1400px] mx-auto px-6 text-center mt-20 md:mt-0 flex-1 flex flex-col justify-center">
+        <div className="relative z-10 w-full max-w-[1400px] px-6 text-center mt-24">
           <motion.div initial="hidden" animate="visible" variants={staggerContainer}>
             <motion.div variants={popUp} className="mb-6 inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/50 px-6 py-2 rounded-full text-[10px] md:text-xs font-black text-amber-500 uppercase tracking-[0.4em] shadow-[0_0_20px_rgba(217,119,6,0.2)] backdrop-blur-md">
               <MapPin size={14} /> Peña 666, Piso 2 • Curicó
@@ -265,112 +263,29 @@ export default function UltimateEmperadorLanding() {
                 <span className="relative z-10 flex items-center gap-3">Asegura tu Trono <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" /></span>
                 <div className="absolute inset-0 bg-white translate-y-full group-hover:translate-y-0 transition-transform duration-300 z-0" />
               </Link>
+              <a href="#instagram" className="w-full sm:w-auto px-8 py-5 border border-zinc-700 bg-zinc-900/50 backdrop-blur-sm text-white font-black uppercase tracking-[0.2em] text-sm hover:border-amber-500 hover:text-amber-500 transition-all flex items-center justify-center gap-3 rounded-xl group">
+                <Instagram size={20} className="group-hover:scale-110 transition-transform" /> Ver Trabajos
+              </a>
             </motion.div>
           </motion.div>
         </div>
-
-        {/* CINTA DE PRODUCTOS DESTACADOS (Hero Marquee) */}
-        <div className="absolute bottom-0 w-full bg-zinc-950/80 backdrop-blur-md border-t border-amber-500/30 overflow-hidden z-20 py-4 shadow-[0_-10px_30px_rgba(217,119,6,0.1)]">
-           <div className="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-zinc-950 to-transparent z-10"></div>
-           <div className="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-zinc-950 to-transparent z-10"></div>
-           
-           <motion.div animate={{ x: [0, -1500] }} transition={{ repeat: Infinity, ease: "linear", duration: 25 }} className="flex whitespace-nowrap items-center gap-12 text-zinc-300 font-bold uppercase tracking-widest text-xs">
-             {[...PRODUCTS, ...PRODUCTS, ...PRODUCTS].map((product, i) => (
-               <Link href="#tienda" key={i} className="flex items-center gap-4 hover:text-amber-500 transition-colors group cursor-pointer">
-                  <div className="w-12 h-12 rounded-lg overflow-hidden border border-zinc-700 group-hover:border-amber-500 relative shrink-0">
-                     <Image src={product.img} fill alt={product.name} className="object-cover" />
-                  </div>
-                  <div className="flex flex-col">
-                     <span className="text-amber-500 flex items-center gap-1"><Tag size={12}/> {product.tag}</span>
-                     <span className="text-white text-sm">{product.name}</span>
-                  </div>
-                  <span className="text-amber-500 bg-amber-500/10 px-3 py-1 rounded-full">{product.price}</span>
-               </Link>
-             ))}
-           </motion.div>
-        </div>
       </section>
 
-      {/* 3. THE SQUAD (PERSONAJES MOVIDO HACIA ARRIBA) */}
-      <section id="squad" className="py-32 bg-[#050505] relative overflow-hidden">
-        <div className="absolute top-1/2 right-0 w-[600px] h-[600px] bg-amber-500/10 blur-[150px] rounded-full pointer-events-none"></div>
-        <div className="max-w-[1400px] mx-auto px-6 relative z-10">
-          <div className="text-center mb-24">
-            <h2 className="text-amber-500 font-black text-sm uppercase tracking-[0.4em] mb-4">Conoce a los Maestros</h2>
-            <h3 className="text-5xl md:text-8xl font-serif font-black text-white uppercase tracking-tighter leading-none">THE SQUAD.</h3>
-            <p className="mt-6 text-zinc-400 max-w-2xl mx-auto text-lg">En Emperador no contratamos barberos, reclutamos artistas. Elige a tu especialista y asegura un fade de otro nivel.</p>
-          </div>
-          
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={staggerContainer} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-            {TEAM.map((t, i) => (
-              <motion.div 
-                key={i} variants={popUp}
-                className="group relative h-[500px] md:h-[600px] rounded-[3rem] overflow-hidden border border-zinc-800 bg-zinc-900 cursor-pointer shadow-2xl hover:shadow-[0_20px_50px_rgba(217,119,6,0.3)] hover:-translate-y-4 transition-all duration-500"
-              >
-                <Image src={t.img} fill alt={t.name} className="object-cover grayscale contrast-125 group-hover:grayscale-0 group-hover:scale-110 transition-all duration-700" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent opacity-90 group-hover:opacity-70 transition-opacity" />
-                
-                <div className="absolute top-6 left-6"><span className="px-4 py-2 bg-amber-500 text-black text-[10px] font-black uppercase tracking-[0.2em] rounded-lg shadow-lg">{t.tag}</span></div>
-                
-                <div className="absolute bottom-8 left-8 right-8">
-                  <h4 className="text-3xl md:text-4xl font-black text-white uppercase tracking-tighter mb-1">{t.name}</h4>
-                  <p className="text-amber-500 font-bold uppercase text-[10px] tracking-[0.3em] mb-6">{t.role}</p>
-                  
-                  <div className="overflow-hidden">
-                     <Link href={`/reservar?barber=${t.id}`} className="w-full py-4 bg-white text-black font-black uppercase text-xs tracking-widest rounded-xl flex justify-center items-center gap-2 opacity-0 translate-y-full group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 hover:bg-amber-500 shadow-xl hover:scale-105 active:scale-95">
-                       Reservar con él <Zap size={14} fill="currentColor" />
-                     </Link>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </motion.div>
-        </div>
-      </section>
+      {/* 3. INFINITE TICKER */}
+      <div className="w-full bg-amber-500 py-4 overflow-hidden border-y border-amber-400 flex relative z-20 shadow-[0_0_40px_rgba(217,119,6,0.3)]">
+        <motion.div animate={{ x: [0, -1000] }} transition={{ repeat: Infinity, ease: "linear", duration: 15 }} className="flex whitespace-nowrap items-center gap-12 text-black font-black uppercase tracking-[0.2em] text-lg md:text-xl">
+          {[...Array(10)].map((_, i) => (
+            <React.Fragment key={i}>
+              <span>VIP Room</span> <Star size={20} fill="black" />
+              <span>PS5 Libre</span> <Gamepad2 size={20} fill="black" />
+              <span>Mesa de Pool</span> <Crown size={20} fill="black" />
+              <span>Fades Premium</span> <Scissors size={20} fill="black" />
+            </React.Fragment>
+          ))}
+        </motion.div>
+      </div>
 
-      {/* 4. NUEVA SECCIÓN: TIENDA / ARSENAL */}
-      <section id="tienda" className="py-32 bg-zinc-950 border-y border-zinc-900 relative">
-        <div className="max-w-[1400px] mx-auto px-6">
-          <div className="flex flex-col md:flex-row justify-between items-end mb-20 gap-8">
-             <div>
-               <motion.h2 initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} className="text-amber-500 font-black text-sm uppercase tracking-[0.4em] mb-4 flex items-center gap-3"><ShoppingBag size={20}/> Arsenal de Cuidado</motion.h2>
-               <motion.h3 initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} className="text-5xl md:text-8xl font-serif font-black text-white uppercase tracking-tighter leading-none">LA TIENDA.</motion.h3>
-             </div>
-             <motion.p initial={{ opacity: 0, x: 20 }} whileInView={{ opacity: 1, x: 0 }} className="text-zinc-500 font-bold uppercase tracking-widest text-xs border-l-2 border-amber-500 pl-6 max-w-sm">
-               Mantén el look impecable en casa. Adquiere los mismos productos premium que utilizamos en nuestras sillas.
-             </motion.p>
-          </div>
-
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={staggerContainer} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-             {PRODUCTS.map((product) => (
-                <motion.div key={product.id} variants={popUp} className="bg-zinc-900 border border-zinc-800 rounded-3xl overflow-hidden group hover:border-amber-500 transition-colors shadow-xl flex flex-col">
-                   <div className="relative aspect-square overflow-hidden bg-zinc-800">
-                      <Image src={product.img} fill alt={product.name} className="object-cover group-hover:scale-110 transition-transform duration-700 opacity-90 group-hover:opacity-100" />
-                      <div className="absolute top-4 left-4">
-                         <span className="px-3 py-1 bg-black/70 backdrop-blur-md border border-amber-500/50 text-amber-500 text-[10px] font-black uppercase tracking-widest rounded-full">
-                            {product.tag}
-                         </span>
-                      </div>
-                   </div>
-                   <div className="p-6 flex flex-col flex-1 justify-between">
-                      <div>
-                         <p className="text-zinc-500 text-xs font-black uppercase tracking-widest mb-1">{product.brand}</p>
-                         <h4 className="text-white font-bold text-lg leading-tight mb-4 group-hover:text-amber-500 transition-colors">{product.name}</h4>
-                      </div>
-                      <div className="flex items-center justify-between mt-4 pt-4 border-t border-zinc-800">
-                         <span className="text-2xl font-black text-white">{product.price}</span>
-                         <button className="w-10 h-10 rounded-full bg-amber-500 text-black flex items-center justify-center hover:scale-110 active:scale-95 transition-transform shadow-[0_0_15px_rgba(217,119,6,0.4)]">
-                            <ShoppingCart size={18} />
-                         </button>
-                      </div>
-                   </div>
-                </motion.div>
-             ))}
-          </motion.div>
-        </div>
-      </section>
-
-      {/* 5. THE VIBE (Instalaciones VIP) */}
+      {/* 4. THE VIBE (Instalaciones VIP) */}
       <section id="flow" className="py-32 relative">
         <div className="max-w-[1400px] mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-20 items-center relative z-10">
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-100px" }} variants={staggerContainer}>
@@ -403,54 +318,7 @@ export default function UltimateEmperadorLanding() {
         </div>
       </section>
 
-      {/* 6. SERVICES GRID */}
-      <section id="servicios" className="py-32 bg-zinc-950 border-y border-zinc-900 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-amber-500/5 blur-[150px] rounded-full pointer-events-none"></div>
-
-        <div className="max-w-[1400px] mx-auto px-6 relative z-10">
-          <div className="flex flex-col md:flex-row justify-between items-end mb-24 gap-8">
-             <div>
-               <motion.h2 initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} className="text-amber-500 font-black text-sm uppercase tracking-[0.4em] mb-4">El Menú Completo</motion.h2>
-               <motion.h3 initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} className="text-6xl md:text-9xl font-serif font-black text-white uppercase tracking-tighter leading-none">SERVICIOS.</motion.h3>
-             </div>
-             <motion.p initial={{ opacity: 0, x: 20 }} whileInView={{ opacity: 1, x: 0 }} className="text-zinc-500 font-bold uppercase tracking-widest text-xs border-l-2 border-amber-500 pl-6 max-w-sm">
-               Técnicas de vanguardia y productos premium para garantizar un resultado de nivel imperial.
-             </motion.p>
-          </div>
-          
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-50px" }} variants={staggerContainer} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-             {SERVICES.map((s, i) => (
-               <motion.div 
-                 key={i} variants={popUp} whileHover={{ y: -10, scale: 1.02 }}
-                 className="group p-8 bg-zinc-900/40 border border-zinc-800 rounded-[2.5rem] hover:bg-zinc-900 hover:border-amber-500 transition-all duration-300 flex flex-col justify-between shadow-lg hover:shadow-[0_20px_40px_rgba(217,119,6,0.15)] relative overflow-hidden"
-               >
-                 <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
-
-                 <div className="relative z-10">
-                   <div className="w-14 h-14 bg-black border border-zinc-800 rounded-2xl flex items-center justify-center text-amber-500 group-hover:bg-amber-500 group-hover:text-black group-hover:border-amber-400 transition-colors mb-6 shadow-lg group-hover:scale-110 duration-300">
-                     {s.icon}
-                   </div>
-                   <h4 className="text-xl font-black text-white uppercase mb-3 leading-tight group-hover:text-amber-500 transition-colors line-clamp-2">{s.name}</h4>
-                   <p className="text-zinc-500 font-medium mb-8 text-sm leading-relaxed">{s.desc}</p>
-                 </div>
-                 <div className="relative z-10">
-                   <div className="flex justify-between items-end pt-6 border-t border-zinc-800 mb-6 group-hover:border-amber-500/30 transition-colors">
-                     <div>
-                       <span className="block text-[10px] text-zinc-600 font-black uppercase tracking-widest mb-1">{s.time}</span>
-                       <span className="text-3xl font-black text-amber-500 tracking-tighter">{s.price}</span>
-                     </div>
-                   </div>
-                   <Link href="/reservar" className="w-full py-4 bg-black text-white font-black uppercase text-[10px] tracking-widest rounded-xl flex justify-center items-center gap-2 group-hover:bg-white group-hover:text-black transition-colors border border-zinc-800 hover:scale-105 active:scale-95">
-                      Seleccionar <ChevronRight size={14} />
-                   </Link>
-                 </div>
-               </motion.div>
-             ))}
-          </motion.div>
-        </div>
-      </section>
-
-      {/* 7. INSTAGRAM SHOWCASE */}
+      {/* 5. INSTAGRAM SHOWCASE REALISTA */}
       <section id="instagram" className="py-32 bg-black border-y border-zinc-900 relative overflow-hidden">
          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[1200px] h-[500px] bg-gradient-to-r from-purple-600/10 via-pink-600/10 to-amber-500/10 blur-[120px] rounded-full pointer-events-none" />
          
@@ -459,7 +327,7 @@ export default function UltimateEmperadorLanding() {
                <div className="relative w-32 h-32 md:w-40 md:h-40 shrink-0">
                   <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-yellow-400 via-red-500 to-purple-500 animate-spin-slow"></div>
                   <div className="absolute inset-1 rounded-full bg-black flex items-center justify-center overflow-hidden border-[3px] border-black">
-                      <Image src="/logo.png" alt="Emperador Logo Instagram" width={150} height={150} className="object-cover" />
+                     <Image src="/logo.png" alt="Emperador Logo Instagram" width={150} height={150} className="object-cover" />
                   </div>
                </div>
                
@@ -530,6 +398,88 @@ export default function UltimateEmperadorLanding() {
          </div>
       </section>
 
+      {/* 6. SERVICES GRID EXTENDIDO */}
+      <section id="servicios" className="py-32 bg-zinc-950 border-y border-zinc-900 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-amber-500/5 blur-[150px] rounded-full pointer-events-none"></div>
+
+        <div className="max-w-[1400px] mx-auto px-6 relative z-10">
+          <div className="flex flex-col md:flex-row justify-between items-end mb-24 gap-8">
+             <div>
+               <motion.h2 initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} className="text-amber-500 font-black text-sm uppercase tracking-[0.4em] mb-4">El Menú Completo</motion.h2>
+               <motion.h3 initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} className="text-6xl md:text-9xl font-serif font-black text-white uppercase tracking-tighter leading-none">SERVICIOS.</motion.h3>
+             </div>
+             <motion.p initial={{ opacity: 0, x: 20 }} whileInView={{ opacity: 1, x: 0 }} className="text-zinc-500 font-bold uppercase tracking-widest text-xs border-l-2 border-amber-500 pl-6 max-w-sm">
+               Técnicas de vanguardia y productos premium para garantizar un resultado de nivel imperial.
+             </motion.p>
+          </div>
+          
+          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-50px" }} variants={staggerContainer} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+             {SERVICES.map((s, i) => (
+               <motion.div 
+                 key={i} variants={popUp} whileHover={{ y: -10, scale: 1.02 }}
+                 className="group p-8 bg-zinc-900/40 border border-zinc-800 rounded-[2.5rem] hover:bg-zinc-900 hover:border-amber-500 transition-all duration-300 flex flex-col justify-between shadow-lg hover:shadow-[0_20px_40px_rgba(217,119,6,0.15)] relative overflow-hidden"
+               >
+                  <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
+
+                  <div className="relative z-10">
+                    <div className="w-14 h-14 bg-black border border-zinc-800 rounded-2xl flex items-center justify-center text-amber-500 group-hover:bg-amber-500 group-hover:text-black group-hover:border-amber-400 transition-colors mb-6 shadow-lg group-hover:scale-110 duration-300">
+                      {s.icon}
+                    </div>
+                    <h4 className="text-xl font-black text-white uppercase mb-3 leading-tight group-hover:text-amber-500 transition-colors line-clamp-2">{s.name}</h4>
+                    <p className="text-zinc-500 font-medium mb-8 text-sm leading-relaxed">{s.desc}</p>
+                  </div>
+                  <div className="relative z-10">
+                    <div className="flex justify-between items-end pt-6 border-t border-zinc-800 mb-6 group-hover:border-amber-500/30 transition-colors">
+                      <div>
+                        <span className="block text-[10px] text-zinc-600 font-black uppercase tracking-widest mb-1">{s.time}</span>
+                        <span className="text-3xl font-black text-amber-500 tracking-tighter">{s.price}</span>
+                      </div>
+                    </div>
+                    <Link href="/reservar" className="w-full py-4 bg-black text-white font-black uppercase text-[10px] tracking-widest rounded-xl flex justify-center items-center gap-2 group-hover:bg-white group-hover:text-black transition-colors border border-zinc-800 hover:scale-105 active:scale-95">
+                       Seleccionar <ChevronRight size={14} />
+                    </Link>
+                  </div>
+               </motion.div>
+             ))}
+          </motion.div>
+        </div>
+      </section>
+
+      {/* 7. THE SQUAD (PERSONAJES) */}
+      <section id="squad" className="py-32 bg-[#050505]">
+        <div className="max-w-[1400px] mx-auto px-6">
+          <div className="text-center mb-24">
+            <h2 className="text-amber-500 font-black text-sm uppercase tracking-[0.4em] mb-4">Conoce a los Maestros</h2>
+            <h3 className="text-5xl md:text-8xl font-serif font-black text-white uppercase tracking-tighter leading-none">THE SQUAD.</h3>
+          </div>
+          
+          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={staggerContainer} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+            {TEAM.map((t, i) => (
+              <motion.div 
+                key={i} variants={popUp}
+                className="group relative h-[500px] md:h-[600px] rounded-[3rem] overflow-hidden border border-zinc-800 bg-zinc-900 cursor-pointer shadow-2xl hover:shadow-[0_20px_50px_rgba(217,119,6,0.3)] transition-all duration-500"
+              >
+                <Image src={t.img} fill alt={t.name} className="object-cover grayscale contrast-125 group-hover:grayscale-0 group-hover:scale-110 transition-all duration-700" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent opacity-90 group-hover:opacity-70 transition-opacity" />
+                
+                <div className="absolute top-6 left-6"><span className="px-4 py-2 bg-amber-500 text-black text-[10px] font-black uppercase tracking-[0.2em] rounded-lg shadow-lg">{t.tag}</span></div>
+                
+                <div className="absolute bottom-8 left-8 right-8">
+                  <h4 className="text-3xl md:text-4xl font-black text-white uppercase tracking-tighter mb-1">{t.name}</h4>
+                  <p className="text-amber-500 font-bold uppercase text-[10px] tracking-[0.3em] mb-6">{t.role}</p>
+                  
+                  <div className="overflow-hidden">
+                     <Link href={`/reservar?barber=${t.id}`} className="w-full py-4 bg-white text-black font-black uppercase text-xs tracking-widest rounded-xl flex justify-center items-center gap-2 opacity-0 translate-y-full group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 hover:bg-amber-500 shadow-xl hover:scale-105 active:scale-95">
+                       Reservar con él <Zap size={14} fill="currentColor" />
+                     </Link>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </motion.div>
+        </div>
+      </section>
+
       {/* 8. REVIEWS & TRUST */}
       <section className="py-32 bg-zinc-900/30 border-t border-zinc-900">
         <div className="max-w-[1400px] mx-auto px-6">
@@ -570,6 +520,7 @@ export default function UltimateEmperadorLanding() {
         
         <div className="max-w-[1400px] mx-auto text-center mb-32 relative z-10">
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={popUp}>
+            {/* LOGO GIGANTE EN FOOTER */}
             <div className="mx-auto w-32 h-32 md:w-48 md:h-48 mb-12 rounded-full overflow-hidden border-2 border-amber-500 shadow-[0_0_50px_rgba(217,119,6,0.6)] relative bg-zinc-950 p-2 hover:scale-105 transition-transform duration-500">
                <div className="relative w-full h-full rounded-full overflow-hidden">
                  <Image src="/logo.png" alt="Emperador Logo Final" fill className="object-cover" />
@@ -604,6 +555,7 @@ export default function UltimateEmperadorLanding() {
               </ul>
            </div>
            
+           {/* ACCESOS RÁPIDOS FOOTER */}
            <div className="flex flex-col items-start md:items-end justify-between gap-8 md:gap-0">
               <div className="flex items-center gap-2 text-zinc-500"><ShieldCheck size={16} className="text-green-500" /> <span className="font-black uppercase text-[10px] tracking-widest">Reserva Segura</span></div>
               
@@ -619,6 +571,7 @@ export default function UltimateEmperadorLanding() {
            </div>
         </div>
         
+        {/* MARCA DE AGUA GIGANTE FINAL */}
         <div className="text-center text-zinc-900/40 font-black text-[15vw] uppercase leading-none select-none relative z-0 overflow-hidden pointer-events-none mt-10">
            EMPERADOR
         </div>
