@@ -23,7 +23,7 @@ import { createClient } from "@/utils/supabase/client";
 
 const FALLBACK_STORE_SLIDES = [
   {
-    id: 1,
+    id: "1",
     tag: "LAST DAY!",
     titleLeft: "Wahl Magic Clip",
     subtitleLeft: "Edición Gold Cordless",
@@ -40,7 +40,7 @@ const FALLBACK_STORE_SLIDES = [
     sku: "SKU: WAHL-GOLD-PACK"
   },
   {
-    id: 2,
+    id: "2",
     tag: "NUEVO STOCK",
     titleLeft: "Pomada Reuzel",
     subtitleLeft: "Matte Clay 113g",
@@ -66,14 +66,14 @@ const FALLBACK_TEAM = [
 ];
 
 const FALLBACK_SERVICES = [
-  { name: "Corte Clásico / Degradado", time: "1 hrs", price: "$12.000", desc: "El corte que define tu estilo. Clean, fresh, de líneas perfectas.", iconName: "Scissors" },
-  { name: "Corte + Perfilado de Cejas", time: "1 hrs", price: "$14.000", desc: "Sube de nivel tu mirada. Detalles quirúrgicos que marcan la diferencia.", iconName: "Crosshair" },
-  { name: "Barba + Vapor Caliente", time: "30 min", price: "$7.000", desc: "Afeitado VIP. Abrimos los poros para un acabado de seda y cero irritación.", iconName: "Flame" },
-  { name: "Corte + Barba + Lavado GRATIS", time: "1h 5m", price: "$17.000", desc: "El combo indispensable para salir listo directo al fin de semana.", iconName: "Zap" },
-  { name: "Limpieza Facial + Vapor", time: "25 min", price: "$10.000", desc: "Skin care masculino. Vapor, extracción de impurezas y mascarilla.", iconName: "Sparkles" },
-  { name: "Corte + Barba + Cejas + Lavado", time: "1h 15m", price: "$20.000", desc: "Mantenimiento total. Renovación completa en una sola sesión.", iconName: "Crown" },
-  { name: "Servicio Emperador VIP", time: "1h 30m", price: "$35.000", desc: "La experiencia definitiva. Trato de realeza garantizado.", iconName: "Star" },
-  { name: "Platinado + Corte + Cejas", time: "5 hrs", price: "$90.000", desc: "Decoloración global nivel platino. Transformación extrema.", iconName: "Flame" },
+  { id: "s1", name: "Corte Clásico / Degradado", time: "1 hrs", price: "$12.000", desc: "El corte que define tu estilo. Clean, fresh, de líneas perfectas.", iconName: "Scissors" },
+  { id: "s2", name: "Corte + Perfilado de Cejas", time: "1 hrs", price: "$14.000", desc: "Sube de nivel tu mirada. Detalles quirúrgicos que marcan la diferencia.", iconName: "Crosshair" },
+  { id: "s3", name: "Barba + Vapor Caliente", time: "30 min", price: "$7.000", desc: "Afeitado VIP. Abrimos los poros para un acabado de seda y cero irritación.", iconName: "Flame" },
+  { id: "s4", name: "Corte + Barba + Lavado GRATIS", time: "1h 5m", price: "$17.000", desc: "El combo indispensable para salir listo directo al fin de semana.", iconName: "Zap" },
+  { id: "s5", name: "Limpieza Facial + Vapor", time: "25 min", price: "$10.000", desc: "Skin care masculino. Vapor, extracción de impurezas y mascarilla.", iconName: "Sparkles" },
+  { id: "s6", name: "Corte + Barba + Cejas + Lavado", time: "1h 15m", price: "$20.000", desc: "Mantenimiento total. Renovación completa en una sola sesión.", iconName: "Crown" },
+  { id: "s7", name: "Servicio Emperador VIP", time: "1h 30m", price: "$35.000", desc: "La experiencia definitiva. Trato de realeza garantizado.", iconName: "Star" },
+  { id: "s8", name: "Platinado + Corte + Cejas", time: "5 hrs", price: "$90.000", desc: "Decoloración global nivel platino. Transformación extrema.", iconName: "Flame" },
 ];
 
 const FALLBACK_REVIEWS = [
@@ -198,20 +198,20 @@ export default function UltimateEmperadorLanding() {
     return () => clearInterval(slideInterval);
   }, [totalSlides]);
 
-  // EFECTO 3: Fetching desde Supabase (Control de Administrador)
+  // EFECTO 3: Fetching desde Supabase (Sincronización con Administrador)
   useEffect(() => {
     async function fetchAdminData() {
       try {
-        // 1. Barberos
-        const { data: dbTeam, error: errTeam } = await supabase.from('Barbers').select('*');
+        // 1. Barberos (Con ordenamiento)
+        const { data: dbTeam, error: errTeam } = await supabase.from('Barbers').select('*').order('created_at', { ascending: true });
         if (!errTeam && dbTeam && dbTeam.length > 0) setTeam(dbTeam);
 
         // 2. Servicios
-        const { data: dbServices, error: errServ } = await supabase.from('Services').select('*');
+        const { data: dbServices, error: errServ } = await supabase.from('Services').select('*').order('created_at', { ascending: true });
         if (!errServ && dbServices && dbServices.length > 0) setServices(dbServices);
 
         // 3. Productos Destacados
-        const { data: dbStore, error: errStore } = await supabase.from('StoreProducts').select('*');
+        const { data: dbStore, error: errStore } = await supabase.from('StoreProducts').select('*').order('created_at', { ascending: false });
         if (!errStore && dbStore && dbStore.length > 0) setStoreSlides(dbStore);
 
         // 4. Reseñas
@@ -318,12 +318,14 @@ export default function UltimateEmperadorLanding() {
             {currentHeroSlide === 0 && (
               <div className="w-full h-full relative flex items-center justify-center">
                 <motion.div style={{ y: yHero }} className="absolute inset-0 w-full h-full z-0">
+                  {/* IMPORTANTE: unoptimized agregado a la imagen estática también para consistencia */}
                   <Image 
                     src="https://images.unsplash.com/photo-1599351431202-1e0f0137899a?q=80&w=2000&auto=format&fit=crop" 
                     alt="Barbería Emperador" 
                     fill 
                     className="object-cover grayscale contrast-125 opacity-50 scale-105"
                     priority
+                    unoptimized
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/60 to-transparent" />
                 </motion.div>
@@ -368,11 +370,13 @@ export default function UltimateEmperadorLanding() {
               <div className="w-full h-full relative flex items-center justify-center">
                 {/* Imagen de fondo extendida horizontalmente */}
                 <div className="absolute inset-0 z-0">
+                  {/* IMPORTANTE: unoptimized previene que Next.js bloquee la URL de Supabase */}
                   <Image 
                     src={storeSlides[currentHeroSlide - 1].image} 
                     alt="Producto Destacado" 
                     fill 
                     className="object-cover object-center grayscale-[20%] opacity-40 scale-105"
+                    unoptimized
                   />
                   {/* Gradiente para asegurar lectura de texto, oscuro en bordes */}
                   <div className="absolute inset-0 bg-gradient-to-r from-[#050505] via-transparent to-[#050505]" />
@@ -468,10 +472,11 @@ export default function UltimateEmperadorLanding() {
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={staggerContainer} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
             {team.map((t, i) => (
               <motion.div 
-                key={i} variants={popUp}
+                key={t.id || i} variants={popUp}
                 className="group relative h-[450px] md:h-[600px] rounded-[2rem] overflow-hidden border border-zinc-800 bg-zinc-900 cursor-pointer shadow-xl hover:shadow-[0_20px_50px_rgba(217,119,6,0.3)] transition-all duration-500"
               >
-                <Image src={t.img} fill alt={t.name} className="object-cover grayscale contrast-125 group-hover:grayscale-0 group-hover:scale-110 transition-all duration-700" />
+                {/* IMPORTANTE: unoptimized previene que Next.js bloquee la URL de Supabase */}
+                <Image src={t.img} fill alt={t.name} className="object-cover grayscale contrast-125 group-hover:grayscale-0 group-hover:scale-110 transition-all duration-700" unoptimized />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/50 to-transparent opacity-90 group-hover:opacity-70 transition-opacity" />
                 
                 <div className="absolute top-6 left-6"><span className="px-4 py-2 bg-amber-500 text-black text-[10px] font-black uppercase tracking-[0.2em] rounded-lg shadow-lg">{t.tag}</span></div>
@@ -510,7 +515,7 @@ export default function UltimateEmperadorLanding() {
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-50px" }} variants={staggerContainer} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
              {services.map((s, i) => (
                <motion.div 
-                 key={i} variants={popUp} whileHover={{ y: -10, scale: 1.02 }}
+                 key={s.id || i} variants={popUp} whileHover={{ y: -10, scale: 1.02 }}
                  className="group p-8 bg-zinc-900/40 border border-zinc-800 rounded-[2rem] hover:bg-zinc-900 hover:border-amber-500 transition-all duration-300 flex flex-col justify-between shadow-lg relative overflow-hidden"
                >
                   <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
@@ -567,7 +572,7 @@ export default function UltimateEmperadorLanding() {
           <motion.div initial={{ opacity: 0, x: 50 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 1 }} className="relative h-[500px] md:h-[700px] w-full group">
             <div className="absolute inset-0 bg-amber-500 translate-x-4 translate-y-4 rounded-[3rem] opacity-20 group-hover:translate-x-6 group-hover:translate-y-6 transition-transform duration-500" />
             <div className="relative h-full w-full rounded-[3rem] overflow-hidden border border-zinc-800 shadow-2xl">
-               <Image src="https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=2071&auto=format&fit=crop" fill alt="PS5 Experience" className="object-cover grayscale group-hover:grayscale-0 transition-all duration-1000 group-hover:scale-105" />
+               <Image src="https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=2071&auto=format&fit=crop" fill alt="PS5 Experience" className="object-cover grayscale group-hover:grayscale-0 transition-all duration-1000 group-hover:scale-105" unoptimized />
                <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-transparent to-transparent" />
             </div>
           </motion.div>
@@ -659,7 +664,7 @@ export default function UltimateEmperadorLanding() {
                     key={post.id} href="https://www.instagram.com/emperador_barbershop/" target="_blank" rel="noopener noreferrer"
                     variants={popUp} className="group relative aspect-[9/16] bg-zinc-900 overflow-hidden cursor-pointer rounded-xl md:rounded-2xl"
                   >
-                     <Image src={post.img} fill alt="Instagram Content" className="object-cover grayscale-[20%] group-hover:grayscale-0 transition-all duration-700 group-hover:scale-110" />
+                     <Image src={post.img} fill alt="Instagram Content" className="object-cover grayscale-[20%] group-hover:grayscale-0 transition-all duration-700 group-hover:scale-110" unoptimized />
                      <div className="absolute top-3 right-3 text-white drop-shadow-md bg-black/40 p-1.5 rounded-full backdrop-blur-sm">
                         {post.type === 'reel' ? <Clapperboard size={16} fill="currentColor" /> : <LayoutGrid size={16} fill="currentColor" />}
                      </div>
