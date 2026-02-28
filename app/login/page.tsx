@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, Suspense } from "react";
-import { signIn, getSession } from "next-auth/react";
+// 🛠️ Cambiamos NextAuth por nuestro nuevo cliente de Supabase
+import { createClient } from "@/utils/supabase/client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, ArrowLeft, UserCircle2, Scissors, Lock, ChevronRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -10,11 +11,12 @@ import Link from "next/link";
 type PortalType = "CLIENTE" | "BARBERO" | "ADMIN" | null;
 
 // ============================================================================
-// COMPONENTE PRINCIPAL DE LOGIN (Envuelto para manejar useSearchParams)
+// COMPONENTE PRINCIPAL DE LOGIN (Conexión Directa a Supabase)
 // ============================================================================
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const supabase = createClient(); // Inicializamos el cliente
   
   const [portal, setPortal] = useState<PortalType>(null);
   const [error, setError] = useState<string | null>(null);
@@ -37,27 +39,39 @@ function LoginContent() {
     const email = formData.get("email") as string;
     const password = formData.get("password") as string;
 
-    const result = await signIn("credentials", {
-      redirect: false,
+    // 🚀 LOGIC DE SUPABASE AUTH (Directo, sin intermediarios)
+    const { data, error: authError } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
-    if (result?.error) {
-      setError(result.error);
+    if (authError) {
+      // Manejo de errores amigables de Supabase
+      setError(authError.message === "Invalid login credentials" 
+        ? "Correo o contraseña incorrectos. Revisa tus datos." 
+        : authError.message
+      );
       setIsLoading(false);
       return;
     }
 
-    // Redirección inteligente según el rol
-    const session = await getSession();
-    
-    if (session?.user?.role === "BARBER") {
-      router.push("/barber"); 
-    } else if (session?.user?.role === "ADMIN") {
-      router.push("/admin"); 
+    // Si el login es exitoso, obtenemos el perfil para saber a dónde mandarlo
+    // Buscamos en tu tabla "User" de la base de datos pública
+    const { data: userProfile } = await supabase
+      .from("User")
+      .select("role")
+      .eq("email", email)
+      .single();
+
+    // Redirección inteligente basada en el ROL de la base de datos
+    const role = userProfile?.role;
+
+    if (role === "BARBER") {
+      router.push("/dashboards/barber"); 
+    } else if (role === "ADMIN") {
+      router.push("/dashboards/admin"); 
     } else {
-      router.push("/client/book"); 
+      router.push("/dashboards/client/book"); 
     }
     
     router.refresh(); 
@@ -94,7 +108,7 @@ function LoginContent() {
       {/* Fondos Glow sutiles */}
       <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] rounded-full bg-amber-600/10 blur-[120px] pointer-events-none z-0"></div>
       
-      {/* Botón Volver (Siempre visible) */}
+      {/* Botón Volver */}
       <div className="absolute top-8 left-8 z-20">
         <Link href="/" className="flex items-center gap-2 text-sm font-bold text-amber-500 hover:text-amber-400 transition-colors group">
           <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
@@ -104,7 +118,6 @@ function LoginContent() {
 
       <AnimatePresence mode="wait">
         
-        {/* VISTA 1: SELECCIÓN DE PORTAL (Las Tarjetas) */}
         {!portal && (
           <motion.div 
             key="selection"
@@ -145,7 +158,6 @@ function LoginContent() {
           </motion.div>
         )}
 
-        {/* VISTA 2: EL FORMULARIO DE LOGIN */}
         {portal && (
           <motion.div 
             key="form"
@@ -218,9 +230,6 @@ function LoginContent() {
   );
 }
 
-// ============================================================================
-// EXPORTACIÓN CON SUSPENSE (Requerido por Next.js al usar useSearchParams)
-// ============================================================================
 export default function LoginPage() {
   return (
     <Suspense fallback={
