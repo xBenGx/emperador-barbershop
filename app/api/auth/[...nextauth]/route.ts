@@ -1,10 +1,11 @@
-import NextAuth from "next-auth";
-import { NextAuthOptions } from "next-auth";
+import NextAuth, { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import bcrypt from "bcrypt"; // Cambiado a bcrypt para mayor compatibilidad
+
+// @ts-ignore: Suprime el error ts(7016) para evitar advertencias en VS Code
+import bcrypt from "bcrypt"; 
 import prisma from "@/lib/prisma";
 
-export const authOptions: NextAuthOptions = {
+const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
       name: "Credenciales",
@@ -17,21 +18,23 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Por favor ingresa tu email y contraseña");
         }
 
-        // Buscamos en la tabla pública que crearemos con prisma db push
+        // Buscamos al usuario en la base de datos de Supabase vía Prisma
         const user = await prisma.user.findUnique({
           where: { email: credentials.email }
         });
 
-        if (!user) {
+        if (!user || !user.password) {
           throw new Error("No existe una cuenta con este correo registrado en el sistema");
         }
 
+        // Comparamos la contraseña encriptada
         const isPasswordValid = await bcrypt.compare(credentials.password, user.password);
 
         if (!isPasswordValid) {
           throw new Error("Contraseña incorrecta");
         }
 
+        // Retornamos los datos que se guardarán en la sesión (JWT)
         return {
           id: user.id,
           email: user.email,
@@ -58,8 +61,11 @@ export const authOptions: NextAuthOptions = {
       return session;
     }
   },
-  pages: { signIn: "/login" }
+  pages: { 
+    signIn: "/login" // Redirige a tu página de login personalizada
+  }
 };
 
+// Exportación correcta para Next.js App Router (Rutas API)
 const handler = NextAuth(authOptions);
 export { handler as GET, handler as POST };
