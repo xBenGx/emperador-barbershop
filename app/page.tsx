@@ -275,10 +275,11 @@ export default function UltimateEmperadorLanding() {
               <div className="w-full h-full relative flex items-center justify-center">
                 <motion.div style={{ y: yHero }} className="absolute inset-0 w-full h-full z-0">
                   <Image 
-                    src="https://images.unsplash.com/photo-1593702275687-f8b402bf1fb5?q=80&w=2070&auto=format&fit=crop" 
+                    src="https://images.unsplash.com/photo-1599351431202-1e0f0137899a?q=80&w=2000&auto=format&fit=crop" 
                     alt="Barbería Emperador" 
                     fill 
-                    className="object-cover grayscale contrast-125 opacity-40 scale-105"
+                    className="object-cover grayscale contrast-125 opacity-50 scale-105"
+                    priority
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/60 to-transparent" />
                 </motion.div>
@@ -291,12 +292,12 @@ export default function UltimateEmperadorLanding() {
                     
                     <div className="overflow-hidden mb-2">
                       <motion.h2 variants={textReveal} className="text-[14vw] lg:text-[12rem] font-serif font-black text-white leading-[0.8] tracking-tighter uppercase drop-shadow-2xl">
-                        TRUE
+                        EMPERADOR
                       </motion.h2>
                     </div>
                     <div className="overflow-hidden mb-8">
                       <motion.h2 variants={textReveal} className="text-[14vw] lg:text-[12rem] font-serif font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-amber-500 to-amber-700 leading-[0.8] tracking-tighter uppercase drop-shadow-2xl">
-                        HUSTLE.
+                        BARBERSHOP
                       </motion.h2>
                     </div>
                     
