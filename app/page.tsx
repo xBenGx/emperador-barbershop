@@ -17,7 +17,6 @@ import {
 // DATA MAESTRA 
 // ============================================================================
 
-// NUEVO: DATA DEL SLIDER DE PRODUCTOS (Estilo Tienda)
 const STORE_SLIDES = [
   {
     id: 1,
@@ -34,8 +33,7 @@ const STORE_SLIDES = [
     promoText: "Por la compra de una Wahl Magic Clip en LastDay!,",
     promoHighlight: "+$19.990",
     promoEnd: "lleva un set de peines premium.",
-    validity: "Oferta válida desde el jueves 26 al sábado 28 de febrero de 2026 o hasta agotar stock de 50 unidades.",
-    sku: "SKU PROMO: WAHL-GOLD-PACK"
+    sku: "SKU: WAHL-GOLD-PACK"
   },
   {
     id: 2,
@@ -52,8 +50,7 @@ const STORE_SLIDES = [
     promoText: "Por la compra de 2 pomadas Reuzel en la web,",
     promoHighlight: "ENVÍO GRATIS",
     promoEnd: "a todo Curicó.",
-    validity: "Promoción válida por el mes de marzo o hasta agotar stock de 100 unidades.",
-    sku: "SKU PROMO: REUZEL-PACK-02"
+    sku: "SKU: REUZEL-PACK-02"
   }
 ];
 
@@ -89,9 +86,9 @@ const FAQS = [
   { q: "¿Necesito cuenta para reservar?", a: "No, en Emperador valoramos tu tiempo. Puedes agendar como invitado en menos de 1 minuto ingresando solo tu nombre y número." },
   { q: "¿El uso de PS5 tiene costo?", a: "Para nada. PS5 y la mesa de Pool son un beneficio exclusivo y 100% gratuito para nuestros clientes mientras esperan." },
   { q: "¿Qué métodos de pago aceptan?", a: "Para tu comodidad, aceptamos Efectivo, Transferencia Electrónica y todas las tarjetas de Débito/Crédito vía Transbank." },
+  { q: "¿Puedo comprar productos online?", a: "Sí, contamos con una tienda integrada donde puedes adquirir ceras, pomadas y máquinas profesionales con retiro en tienda o envío a domicilio." },
 ];
 
-// FEED MOCK DE INSTAGRAM REALISTA 
 const INSTA_REELS = [
   { id: 1, likes: "12.4k", comments: "145", type: "reel", img: "https://images.unsplash.com/photo-1593702275687-f8b402bf1fb5?q=80&w=600&auto=format&fit=crop" },
   { id: 2, likes: "8.2k", comments: "98", type: "post", img: "https://images.unsplash.com/photo-1622286342621-4bd786c2447c?q=80&w=600&auto=format&fit=crop" },
@@ -105,7 +102,7 @@ const INSTA_REELS = [
 // ANIMACIONES IMPACTANTES
 // ============================================================================
 const popUp: Variants = {
-  hidden: { opacity: 0, y: 80, scale: 0.9 },
+  hidden: { opacity: 0, y: 50, scale: 0.95 },
   visible: { opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 100, damping: 20 } }
 };
 
@@ -119,26 +116,21 @@ const staggerContainer: Variants = {
   visible: { opacity: 1, transition: { staggerChildren: 0.15 } }
 };
 
-const textReveal: Variants = {
-  hidden: { opacity: 0, y: "100%" },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.33, 1, 0.68, 1] } }
-};
-
 // ============================================================================
 // COMPONENTES LÓGICOS
 // ============================================================================
 
-const FAQItem = ({ faq, index }: { faq: any, index: number }) => {
+const FAQItem = ({ faq }: { faq: any }) => {
   const [isOpen, setIsOpen] = useState(false);
   return (
-    <motion.div variants={fadeUp} className="border-b border-zinc-800">
+    <motion.div variants={fadeUp} className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden hover:border-amber-500 transition-colors duration-300">
       <button 
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full py-8 flex justify-between items-center text-left transition-colors hover:text-amber-500 group"
+        className="w-full px-6 py-6 flex justify-between items-center text-left group"
       >
-        <span className="text-xl md:text-2xl font-black uppercase tracking-tighter">{faq.q}</span>
-        <div className={`p-3 rounded-full transition-all duration-300 ${isOpen ? 'bg-amber-500 text-black rotate-180 shadow-[0_0_15px_rgba(217,119,6,0.5)]' : 'bg-zinc-900 text-amber-500 group-hover:bg-zinc-800'}`}>
-          {isOpen ? <Minus size={20} /> : <Plus size={20} />}
+        <span className="text-lg md:text-xl font-bold text-white group-hover:text-amber-500 transition-colors">{faq.q}</span>
+        <div className={`p-2 rounded-full transition-all duration-300 flex-shrink-0 ${isOpen ? 'bg-amber-500 text-black rotate-180' : 'bg-black text-amber-500 border border-zinc-700 group-hover:border-amber-500'}`}>
+          {isOpen ? <Minus size={18} /> : <Plus size={18} />}
         </div>
       </button>
       <AnimatePresence>
@@ -147,9 +139,9 @@ const FAQItem = ({ faq, index }: { faq: any, index: number }) => {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden"
+            className="overflow-hidden bg-[#050505]"
           >
-            <p className="pb-8 text-zinc-400 font-medium text-lg leading-relaxed border-l-2 border-amber-500 pl-4 ml-2">{faq.a}</p>
+            <p className="px-6 pb-6 pt-4 text-zinc-300 font-medium leading-relaxed border-t border-zinc-800/50">{faq.a}</p>
           </motion.div>
         )}
       </AnimatePresence>
@@ -165,12 +157,10 @@ export default function UltimateEmperadorLanding() {
   const [scrolled, setScrolled] = useState(false);
   const [activeTab, setActiveTab] = useState("reels");
   const [showLoginMenu, setShowLoginMenu] = useState(false); 
-  const [currentHeroSlide, setCurrentHeroSlide] = useState(0);
+  const [currentStoreSlide, setCurrentStoreSlide] = useState(0);
   
   const { scrollY } = useScroll();
-  // Efectos para la sección TRUE HUSTLE
-  const yHero = useTransform(scrollY, [0, 1500], [0, 400]);
-  const opacityHero = useTransform(scrollY, [500, 1100], [1, 0]);
+  const yHero = useTransform(scrollY, [0, 1000], [0, 400]);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 50);
@@ -181,7 +171,7 @@ export default function UltimateEmperadorLanding() {
   // Lógica auto-play del Slider de la Tienda
   useEffect(() => {
     const slideInterval = setInterval(() => {
-      setCurrentHeroSlide((prev) => (prev + 1) % STORE_SLIDES.length);
+      setCurrentStoreSlide((prev) => (prev + 1) % STORE_SLIDES.length);
     }, 6000);
     return () => clearInterval(slideInterval);
   }, []);
@@ -189,14 +179,10 @@ export default function UltimateEmperadorLanding() {
   return (
     <main className="bg-[#050505] min-h-screen font-sans selection:bg-amber-500 selection:text-black overflow-x-hidden relative">
       
-      {/* GLOBAL BACKGROUND */}
-      <div className="fixed inset-0 z-0 pointer-events-none opacity-[0.04]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}></div>
+      {/* GLOBAL BACKGROUNDS */}
       <div className="fixed inset-0 z-0 pointer-events-none bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:32px_32px]"></div>
       
-      <motion.div animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.5, 0.3] }} transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }} className="fixed top-[-20%] left-[-10%] w-[800px] h-[800px] rounded-full bg-amber-600/10 blur-[120px] pointer-events-none z-0 mix-blend-screen"></motion.div>
-      <motion.div animate={{ scale: [1, 1.5, 1], opacity: [0.2, 0.4, 0.2] }} transition={{ duration: 12, repeat: Infinity, ease: "easeInOut", delay: 2 }} className="fixed bottom-[-20%] right-[-10%] w-[800px] h-[800px] rounded-full bg-orange-700/10 blur-[150px] pointer-events-none z-0 mix-blend-screen"></motion.div>
-
-      {/* 1. NAVBAR PREMIUM CON LOGO GIGANTE Y LOGIN */}
+      {/* 0. NAVBAR PREMIUM */}
       <nav className={`fixed top-0 w-full z-50 transition-all duration-500 ${scrolled ? "py-4 bg-[#050505]/90 backdrop-blur-2xl border-b border-amber-500/20 shadow-[0_10px_40px_-10px_rgba(217,119,6,0.15)]" : "py-8 bg-transparent"}`}>
         <div className="max-w-[1400px] mx-auto px-6 grid grid-cols-3 items-center relative z-10">
           
@@ -209,11 +195,11 @@ export default function UltimateEmperadorLanding() {
             </Link>
           </div>
           
-          <div className="hidden lg:flex justify-center gap-10 text-[11px] font-black text-zinc-400 uppercase tracking-[0.3em]">
-            <Link href="/tienda" className="text-amber-500 hover:text-amber-400 hover:-translate-y-1 transition-all drop-shadow-md">Tienda</Link>
-            <Link href="#flow" className="hover:text-amber-500 hover:-translate-y-1 transition-all">VIP Room</Link>
-            <Link href="#servicios" className="hover:text-amber-500 hover:-translate-y-1 transition-all">Servicios</Link>
+          <div className="hidden lg:flex justify-center gap-10 text-[11px] font-black text-white uppercase tracking-[0.3em] drop-shadow-md">
             <Link href="#squad" className="hover:text-amber-500 hover:-translate-y-1 transition-all">El Squad</Link>
+            <Link href="#servicios" className="hover:text-amber-500 hover:-translate-y-1 transition-all">Servicios</Link>
+            <Link href="#flow" className="hover:text-amber-500 hover:-translate-y-1 transition-all">VIP Room</Link>
+            <Link href="/tienda" className="hover:text-amber-500 hover:-translate-y-1 transition-all">Tienda</Link>
           </div>
           
           <div className="flex justify-end items-center gap-4 col-span-2 lg:col-span-1">
@@ -223,7 +209,7 @@ export default function UltimateEmperadorLanding() {
             </Link>
 
             <div className="relative hidden sm:block" onMouseEnter={() => setShowLoginMenu(true)} onMouseLeave={() => setShowLoginMenu(false)}>
-              <button className="flex items-center gap-2 text-zinc-300 hover:text-white transition-all hover:-translate-y-1 bg-transparent px-4 py-3 rounded-lg border border-zinc-700 hover:border-amber-500 backdrop-blur-sm group">
+              <button className="flex items-center gap-2 text-white hover:text-amber-500 transition-all hover:-translate-y-1 bg-black/40 px-4 py-3 rounded-lg border border-zinc-700 hover:border-amber-500 backdrop-blur-md group shadow-lg">
                 <UserCircle size={18} className="text-zinc-400 group-hover:text-amber-500 transition-colors" />
                 <span className="font-bold text-xs uppercase tracking-widest">Ingresar</span>
               </button>
@@ -231,23 +217,17 @@ export default function UltimateEmperadorLanding() {
               <AnimatePresence>
                 {showLoginMenu && (
                   <motion.div 
-                    initial={{ opacity: 0, y: 15, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    transition={{ duration: 0.2 }}
+                    initial={{ opacity: 0, y: 15, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.95 }} transition={{ duration: 0.2 }}
                     className="absolute right-0 top-full mt-2 w-64 bg-zinc-950 border border-zinc-800 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.7)] overflow-hidden py-2 z-50"
                   >
                     <Link href="/login?role=client" className="flex items-center gap-4 px-5 py-4 text-xs font-bold text-zinc-300 hover:bg-zinc-900 hover:text-amber-500 transition-colors border-b border-zinc-900/50 group">
-                      <div className="bg-zinc-800 p-2 rounded-lg group-hover:bg-amber-500/20 group-hover:text-amber-500 transition-colors"><UserCircle size={20} /></div> 
-                      Portal Clientes
+                      <div className="bg-zinc-800 p-2 rounded-lg group-hover:bg-amber-500/20 group-hover:text-amber-500 transition-colors"><UserCircle size={20} /></div> Portal Clientes
                     </Link>
                     <Link href="/login?role=barber" className="flex items-center gap-4 px-5 py-4 text-xs font-bold text-zinc-300 hover:bg-zinc-900 hover:text-amber-500 transition-colors border-b border-zinc-900/50 group">
-                      <div className="bg-zinc-800 p-2 rounded-lg group-hover:bg-amber-500/20 group-hover:text-amber-500 transition-colors"><Briefcase size={20} /></div> 
-                      Staff / Barberos
+                      <div className="bg-zinc-800 p-2 rounded-lg group-hover:bg-amber-500/20 group-hover:text-amber-500 transition-colors"><Briefcase size={20} /></div> Staff / Barberos
                     </Link>
                     <Link href="/login?role=admin" className="flex items-center gap-4 px-5 py-4 text-xs font-bold text-zinc-500 hover:bg-amber-500/10 hover:text-white transition-colors group">
-                      <div className="bg-zinc-900 p-2 rounded-lg group-hover:bg-zinc-700 transition-colors"><KeyRound size={20} /></div> 
-                      Administración
+                      <div className="bg-zinc-900 p-2 rounded-lg group-hover:bg-zinc-700 transition-colors"><KeyRound size={20} /></div> Administración
                     </Link>
                   </motion.div>
                 )}
@@ -257,11 +237,8 @@ export default function UltimateEmperadorLanding() {
         </div>
       </nav>
 
-      {/* BOTÓN FLOTANTE PULSANTE */}
-      <motion.div 
-        initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 2, type: "spring", stiffness: 100 }}
-        className="fixed bottom-6 right-6 md:bottom-10 md:right-10 z-[100]"
-      >
+      {/* BOTÓN FLOTANTE */}
+      <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 2, type: "spring", stiffness: 100 }} className="fixed bottom-6 right-6 md:bottom-10 md:right-10 z-[100]">
         <Link href="/reservar" className="relative flex items-center justify-center w-16 h-16 md:w-20 md:h-20 bg-amber-500 rounded-full shadow-[0_0_30px_rgba(217,119,6,0.8)] hover:scale-110 transition-transform group border-2 border-amber-300">
           <motion.div animate={{ scale: [1, 1.3, 1], opacity: [0.6, 0, 0] }} transition={{ repeat: Infinity, duration: 1.5 }} className="absolute inset-0 rounded-full bg-amber-500"></motion.div>
           <Scissors size={28} className="text-black relative z-10 group-hover:rotate-180 transition-transform duration-500" />
@@ -269,196 +246,320 @@ export default function UltimateEmperadorLanding() {
       </motion.div>
 
       {/* ========================================================================= */}
-      {/* 2. NUEVO HERO: TIENDA & PRODUCTOS DESTACADOS (Estilo MacOnline Banner)  */}
+      {/* 1. HERO TOTALMENTE PERSONALIZADO (Full Width) */}
       {/* ========================================================================= */}
-      <section className="relative h-[100svh] flex items-center justify-center overflow-hidden bg-[#0a0a0a]">
-        {/* Fondo abstracto con onda suave */}
-        <div className="absolute inset-0 z-0">
-          <div className="absolute top-0 right-0 w-[70%] h-full bg-gradient-to-l from-zinc-900/50 to-transparent skew-x-12 translate-x-32 scale-150" />
-          <motion.div animate={{ opacity: [0.3, 0.5, 0.3] }} transition={{ duration: 6, repeat: Infinity }} className="absolute top-[20%] right-[10%] w-[600px] h-[600px] bg-amber-500/5 blur-[120px] rounded-full pointer-events-none" />
-        </div>
+      <section className="relative w-full h-screen flex items-center justify-center overflow-hidden bg-black">
+        {/* IMAGEN DE FONDO FULL WIDTH */}
+        <motion.div style={{ y: yHero }} className="absolute inset-0 w-full h-full z-0">
+          <Image 
+            src="https://images.unsplash.com/photo-1593702275687-f8b402bf1fb5?q=80&w=2070&auto=format&fit=crop" 
+            alt="Emperador Barbershop" 
+            fill 
+            className="object-cover object-center grayscale-[30%] contrast-125 scale-105"
+            priority
+          />
+          {/* OVERLAYS PARA OSCURECER Y DAR ESTILO PREMIUM */}
+          <div className="absolute inset-0 bg-black/50" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-black/40 to-transparent" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,#050505_100%)] opacity-80" />
+        </motion.div>
 
-        <div className="relative z-10 w-full max-w-[1400px] px-6 mt-16 md:mt-20">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={currentHeroSlide}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.5 }}
-              className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center h-full"
-            >
-              {/* IZQUIERDA: IMAGEN DEL PRODUCTO */}
-              <div className="relative h-[30vh] lg:h-[60vh] w-full flex items-center justify-center">
-                 <div className="absolute inset-0 bg-gradient-to-tr from-amber-500/20 to-transparent rounded-full blur-[80px] z-0" />
-                 <Image 
-                   src={STORE_SLIDES[currentHeroSlide].image} 
-                   alt="Producto Destacado" 
-                   fill 
-                   className="object-contain drop-shadow-2xl z-10 p-4 hover:scale-105 transition-transform duration-700"
-                   priority
-                 />
-              </div>
-
-              {/* DERECHA: INFORMACIÓN Y PRECIOS */}
-              <div className="flex flex-col items-center lg:items-end text-center lg:text-right w-full">
-                <motion.h2 
-                  initial={{ scale: 0.9 }} animate={{ scale: 1 }}
-                  className="text-amber-500 font-black text-4xl md:text-5xl lg:text-6xl uppercase tracking-tighter mb-8 lg:mb-12 drop-shadow-[0_0_15px_rgba(217,119,6,0.5)]"
-                >
-                  {STORE_SLIDES[currentHeroSlide].tag}
-                </motion.h2>
-                
-                <div className="grid grid-cols-2 gap-4 md:gap-12 w-full max-w-xl mb-8">
-                  {/* Columna Izquierda (Producto 1) */}
-                  <div className="flex flex-col items-center lg:items-end">
-                    <h3 className="text-white font-bold text-lg md:text-2xl leading-tight">{STORE_SLIDES[currentHeroSlide].titleLeft}</h3>
-                    <p className="text-zinc-400 font-medium text-xs md:text-sm mb-2">{STORE_SLIDES[currentHeroSlide].subtitleLeft}</p>
-                    <p className="text-amber-500 font-black text-3xl md:text-5xl tracking-tighter mb-1">{STORE_SLIDES[currentHeroSlide].priceLeft}</p>
-                    <p className="text-zinc-500 font-medium text-[10px] md:text-xs uppercase tracking-widest">Normal: <span className="line-through">{STORE_SLIDES[currentHeroSlide].oldPriceLeft}</span></p>
-                  </div>
-                  {/* Columna Derecha (Producto 2) */}
-                  <div className="flex flex-col items-center lg:items-end">
-                    <h3 className="text-white font-bold text-lg md:text-2xl leading-tight">{STORE_SLIDES[currentHeroSlide].titleRight}</h3>
-                    <p className="text-zinc-400 font-medium text-xs md:text-sm mb-2">{STORE_SLIDES[currentHeroSlide].subtitleRight}</p>
-                    <p className="text-amber-500 font-black text-3xl md:text-5xl tracking-tighter mb-1">{STORE_SLIDES[currentHeroSlide].priceRight}</p>
-                    <p className="text-zinc-500 font-medium text-[10px] md:text-xs uppercase tracking-widest">Normal: <span className="line-through">{STORE_SLIDES[currentHeroSlide].oldPriceRight}</span></p>
-                  </div>
-                </div>
-
-                <Link href="/tienda" className="px-8 py-3 bg-amber-500 text-black font-black uppercase tracking-[0.2em] text-xs md:text-sm rounded-full hover:scale-105 transition-all shadow-[0_0_30px_rgba(217,119,6,0.4)] mb-8 flex items-center gap-2 group">
-                  <ShoppingCart size={18} className="group-hover:-rotate-12 transition-transform" /> Comprar Ahora
-                </Link>
-
-                <div className="text-zinc-300 font-medium text-xs md:text-sm max-w-md lg:ml-auto leading-relaxed">
-                  {STORE_SLIDES[currentHeroSlide].promoText} <br className="hidden md:block"/>
-                  <span className="text-amber-500 font-black text-lg md:text-xl px-1">{STORE_SLIDES[currentHeroSlide].promoHighlight}</span> {STORE_SLIDES[currentHeroSlide].promoEnd}
-                  <p className="text-zinc-600 text-[9px] md:text-[10px] uppercase tracking-widest mt-3">{STORE_SLIDES[currentHeroSlide].sku}</p>
-                </div>
-              </div>
+        <div className="relative z-10 w-full max-w-[1400px] px-6 flex flex-col items-center justify-center text-center mt-20">
+          <motion.div initial="hidden" animate="visible" variants={staggerContainer} className="flex flex-col items-center">
+            
+            {/* DIRECCIÓN SOBRE EL TÍTULO */}
+            <motion.div variants={popUp} className="mb-8 inline-flex items-center gap-3 bg-black/60 border border-amber-500/30 px-6 py-2.5 rounded-full text-xs md:text-sm font-black text-amber-500 uppercase tracking-[0.3em] backdrop-blur-md shadow-[0_0_30px_rgba(217,119,6,0.3)] hover:border-amber-500 transition-colors cursor-default">
+              <MapPin size={16} className="text-white animate-pulse" /> Peña 666, Piso 2 • Curicó
             </motion.div>
-          </AnimatePresence>
-        </div>
 
-        {/* Controles y Texto Legal en la parte inferior absoluta */}
-        <div className="absolute bottom-6 left-0 w-full px-6 flex flex-col md:flex-row justify-between items-center max-w-[1400px] mx-auto right-0 z-20 gap-4">
-          <p className="text-zinc-500 text-[10px] md:text-xs max-w-md text-center md:text-left">
-            {STORE_SLIDES[currentHeroSlide].validity}
-          </p>
-          
-          <div className="flex gap-3">
-            {STORE_SLIDES.map((_, idx) => (
-              <button 
-                key={idx} 
-                onClick={() => setCurrentHeroSlide(idx)}
-                className={`w-2 h-2 md:w-2.5 md:h-2.5 rounded-full border transition-all duration-300 ${currentHeroSlide === idx ? 'bg-amber-500 border-amber-500 w-8 md:w-10' : 'border-zinc-500 bg-transparent hover:border-amber-500'}`}
-                aria-label={`Ir al slide ${idx + 1}`}
-              />
-            ))}
-          </div>
+            {/* TÍTULO PRINCIPAL PERSONALIZADO */}
+            <motion.div variants={popUp} className="overflow-hidden mb-6 flex flex-col items-center">
+              <h1 className="text-6xl md:text-[8rem] lg:text-[10rem] font-serif font-black text-white leading-[0.85] tracking-tighter uppercase drop-shadow-[0_10px_30px_rgba(0,0,0,0.8)]">
+                EMPERADOR
+              </h1>
+              <h2 className="text-3xl md:text-6xl lg:text-7xl font-sans font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-500 to-amber-700 leading-tight tracking-[0.2em] uppercase mt-2 drop-shadow-lg">
+                Barbershop
+              </h2>
+            </motion.div>
+            
+            <motion.p variants={popUp} className="text-zinc-200 text-base md:text-xl font-medium max-w-2xl mx-auto mb-12 drop-shadow-md border-t border-zinc-700/50 pt-8">
+              La barbería no es un trámite, es un ritual. Disfruta de la mejor experiencia de grooming, atención premium, PS5 y mesa de Pool.
+            </motion.p>
+            
+            {/* BOTONES PERSONALIZADOS */}
+            <motion.div variants={popUp} className="flex flex-col sm:flex-row items-center gap-6 justify-center w-full">
+              <Link href="/reservar" className="w-full sm:w-auto px-10 py-5 bg-gradient-to-r from-amber-600 to-amber-500 text-black font-black uppercase tracking-[0.2em] text-sm md:text-base rounded-xl hover:scale-105 transition-all shadow-[0_0_40px_rgba(217,119,6,0.6)] flex items-center justify-center gap-3 border-b-4 border-amber-700 active:border-b-0 active:translate-y-1 group">
+                Asegura tu Trono <Crown size={22} className="group-hover:-rotate-12 transition-transform" />
+              </Link>
+              
+              <a href="#instagram" className="w-full sm:w-auto px-10 py-5 bg-black/30 backdrop-blur-xl border border-zinc-600 text-white font-black uppercase tracking-[0.2em] text-sm md:text-base rounded-xl hover:bg-white hover:text-black transition-all duration-300 flex items-center justify-center gap-3 group shadow-lg">
+                Ver Trabajos <Instagram size={22} className="group-hover:scale-110 transition-transform" />
+              </a>
+            </motion.div>
+
+          </motion.div>
         </div>
       </section>
 
-      {/* 3. INFINITE TICKER */}
-      <div className="w-full bg-amber-500 py-4 overflow-hidden border-y border-amber-400 flex relative z-20 shadow-[0_0_40px_rgba(217,119,6,0.3)]">
-        <motion.div animate={{ x: [0, -1000] }} transition={{ repeat: Infinity, ease: "linear", duration: 15 }} className="flex whitespace-nowrap items-center gap-12 text-black font-black uppercase tracking-[0.2em] text-lg md:text-xl">
+      {/* INFINITE TICKER (Bajo el Hero) */}
+      <div className="w-full bg-amber-500 py-3 md:py-4 overflow-hidden border-y border-amber-400 flex relative z-20 shadow-[0_0_40px_rgba(217,119,6,0.3)]">
+        <motion.div animate={{ x: [0, -1000] }} transition={{ repeat: Infinity, ease: "linear", duration: 15 }} className="flex whitespace-nowrap items-center gap-12 text-black font-black uppercase tracking-[0.2em] text-base md:text-xl">
           {[...Array(10)].map((_, i) => (
             <React.Fragment key={i}>
               <span>VIP Room</span> <Star size={20} fill="black" />
               <span>PS5 Libre</span> <Gamepad2 size={20} fill="black" />
               <span>Mesa de Pool</span> <Crown size={20} fill="black" />
               <span>Fades Premium</span> <Scissors size={20} fill="black" />
-              <span>Tienda Oficial</span> <ShoppingCart size={20} fill="black" />
             </React.Fragment>
           ))}
         </motion.div>
       </div>
 
       {/* ========================================================================= */}
-      {/* 4. BRANDING HYPE SECTION (El antiguo Hero, preservado como Intro a Servicios) */}
+      {/* 2. EQUIPO DE TRABAJO (THE SQUAD) */}
       {/* ========================================================================= */}
-      <section className="relative min-h-[80svh] flex items-center justify-center overflow-hidden bg-black py-32">
-        <motion.div style={{ y: yHero, opacity: opacityHero }} className="absolute inset-0 z-0">
-          <Image 
-            src="https://images.unsplash.com/photo-1593702275687-f8b402bf1fb5?q=80&w=2070&auto=format&fit=crop" 
-            alt="Barbería Emperador" fill className="object-cover grayscale contrast-125 opacity-30"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/60 to-[#0a0a0a]" />
-        </motion.div>
+      <section id="squad" className="py-24 md:py-32 bg-[#050505] relative overflow-hidden border-b border-zinc-900">
+        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-amber-600/5 blur-[150px] rounded-full pointer-events-none" />
 
-        <div className="relative z-10 w-full max-w-[1400px] px-6 text-center">
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={staggerContainer}>
-            <motion.div variants={popUp} className="mb-6 inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/50 px-6 py-2 rounded-full text-[10px] md:text-xs font-black text-amber-500 uppercase tracking-[0.4em] shadow-[0_0_20px_rgba(217,119,6,0.2)] backdrop-blur-md">
-              <MapPin size={14} /> Peña 666, Piso 2 • Curicó
-            </motion.div>
-            
-            <div className="overflow-hidden mb-2">
-              <motion.h2 variants={textReveal} className="text-[14vw] lg:text-[12rem] font-serif font-black text-white leading-[0.8] tracking-tighter uppercase drop-shadow-2xl">
-                TRUE
-              </motion.h2>
-            </div>
-            <div className="overflow-hidden mb-8">
-              <motion.h2 variants={textReveal} className="text-[14vw] lg:text-[12rem] font-serif font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-amber-500 to-amber-700 leading-[0.8] tracking-tighter uppercase drop-shadow-2xl">
-                HUSTLE.
-              </motion.h2>
-            </div>
-            
-            <motion.p variants={popUp} className="text-zinc-300 text-lg md:text-2xl font-medium max-w-2xl mx-auto mb-12 drop-shadow-md">
-              El respeto se gana. El estilo se elige. Disfruta de la mejor experiencia de grooming, PS5 y Pool en la ciudad.
-            </motion.p>
-            
-            <motion.div variants={popUp} className="flex flex-col sm:flex-row items-center gap-4 justify-center w-full">
-              <Link href="/reservar" className="relative overflow-hidden w-full sm:w-auto px-12 py-5 bg-amber-500 text-black font-black uppercase tracking-[0.2em] text-sm hover:text-black transition-all shadow-[0_0_40px_rgba(217,119,6,0.5)] flex items-center justify-center gap-3 rounded-xl group hover:scale-105">
-                <span className="relative z-10 flex items-center gap-3">Asegura tu Trono <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" /></span>
-                <div className="absolute inset-0 bg-white translate-y-full group-hover:translate-y-0 transition-transform duration-300 z-0" />
-              </Link>
-              <a href="#instagram" className="w-full sm:w-auto px-8 py-5 border border-zinc-700 bg-zinc-900/50 backdrop-blur-sm text-white font-black uppercase tracking-[0.2em] text-sm hover:border-amber-500 hover:text-amber-500 transition-all flex items-center justify-center gap-3 rounded-xl group">
-                <Instagram size={20} className="group-hover:scale-110 transition-transform" /> Ver Trabajos
-              </a>
-            </motion.div>
+        <div className="max-w-[1400px] mx-auto px-6 relative z-10">
+          <div className="text-center mb-16 md:mb-24">
+            <h2 className="text-amber-500 font-black text-sm uppercase tracking-[0.4em] mb-4">Los Arquitectos del Estilo</h2>
+            <h3 className="text-5xl md:text-8xl font-serif font-black text-white uppercase tracking-tighter leading-none">THE SQUAD.</h3>
+          </div>
+          
+          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={staggerContainer} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+            {TEAM.map((t, i) => (
+              <motion.div 
+                key={i} variants={popUp}
+                className="group relative h-[450px] md:h-[600px] rounded-[2rem] overflow-hidden border border-zinc-800 bg-zinc-900 cursor-pointer shadow-xl hover:shadow-[0_20px_50px_rgba(217,119,6,0.3)] transition-all duration-500"
+              >
+                <Image src={t.img} fill alt={t.name} className="object-cover grayscale contrast-125 group-hover:grayscale-0 group-hover:scale-110 transition-all duration-700" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/50 to-transparent opacity-90 group-hover:opacity-70 transition-opacity" />
+                
+                <div className="absolute top-6 left-6"><span className="px-4 py-2 bg-amber-500 text-black text-[10px] font-black uppercase tracking-[0.2em] rounded-lg shadow-lg">{t.tag}</span></div>
+                
+                <div className="absolute bottom-8 left-8 right-8">
+                  <h4 className="text-3xl md:text-4xl font-black text-white uppercase tracking-tighter mb-1">{t.name}</h4>
+                  <p className="text-amber-500 font-bold uppercase text-[10px] tracking-[0.3em] mb-6">{t.role}</p>
+                  
+                  <div className="overflow-hidden">
+                     <Link href={`/reservar?barber=${t.id}`} className="w-full py-4 bg-white text-black font-black uppercase text-xs tracking-widest rounded-xl flex justify-center items-center gap-2 opacity-0 translate-y-full group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 hover:bg-amber-500 shadow-xl hover:scale-105 active:scale-95">
+                       Agendar con él <Zap size={14} fill="currentColor" />
+                     </Link>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
           </motion.div>
         </div>
       </section>
 
-      {/* 5. THE VIBE (Instalaciones VIP) */}
-      <section id="flow" className="py-32 relative border-t border-zinc-900">
-        <div className="max-w-[1400px] mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-20 items-center relative z-10">
+      {/* ========================================================================= */}
+      {/* 3. SERVICIOS (MENÚ) */}
+      {/* ========================================================================= */}
+      <section id="servicios" className="py-24 md:py-32 bg-zinc-950 relative">
+        <div className="max-w-[1400px] mx-auto px-6 relative z-10">
+          <div className="flex flex-col md:flex-row justify-between items-end mb-16 md:mb-24 gap-8">
+             <div>
+               <motion.h2 initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} className="text-amber-500 font-black text-sm uppercase tracking-[0.4em] mb-4">El Menú Completo</motion.h2>
+               <motion.h3 initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} className="text-5xl md:text-9xl font-serif font-black text-white uppercase tracking-tighter leading-none">SERVICIOS.</motion.h3>
+             </div>
+             <motion.p initial={{ opacity: 0, x: 20 }} whileInView={{ opacity: 1, x: 0 }} className="text-zinc-500 font-bold uppercase tracking-widest text-xs border-l-2 border-amber-500 pl-6 max-w-sm">
+               Técnicas de vanguardia y productos premium para garantizar un resultado de nivel imperial.
+             </motion.p>
+          </div>
+          
+          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-50px" }} variants={staggerContainer} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+             {SERVICES.map((s, i) => (
+               <motion.div 
+                 key={i} variants={popUp} whileHover={{ y: -10, scale: 1.02 }}
+                 className="group p-8 bg-zinc-900/40 border border-zinc-800 rounded-[2rem] hover:bg-zinc-900 hover:border-amber-500 transition-all duration-300 flex flex-col justify-between shadow-lg relative overflow-hidden"
+               >
+                  <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
+
+                  <div className="relative z-10">
+                    <div className="w-14 h-14 bg-black border border-zinc-800 rounded-xl flex items-center justify-center text-amber-500 group-hover:bg-amber-500 group-hover:text-black group-hover:border-amber-400 transition-colors mb-6 shadow-lg duration-300">
+                      {s.icon}
+                    </div>
+                    <h4 className="text-xl font-black text-white uppercase mb-3 leading-tight group-hover:text-amber-500 transition-colors line-clamp-2">{s.name}</h4>
+                    <p className="text-zinc-500 font-medium mb-8 text-sm leading-relaxed">{s.desc}</p>
+                  </div>
+                  <div className="relative z-10">
+                    <div className="flex justify-between items-end pt-6 border-t border-zinc-800 mb-6 group-hover:border-amber-500/30 transition-colors">
+                      <div>
+                        <span className="block text-[10px] text-zinc-600 font-black uppercase tracking-widest mb-1">{s.time}</span>
+                        <span className="text-3xl font-black text-amber-500 tracking-tighter">{s.price}</span>
+                      </div>
+                    </div>
+                    <Link href="/reservar" className="w-full py-4 bg-black text-white font-black uppercase text-[10px] tracking-widest rounded-xl flex justify-center items-center gap-2 group-hover:bg-white group-hover:text-black transition-colors border border-zinc-800 active:scale-95">
+                       Seleccionar <ChevronRight size={14} />
+                    </Link>
+                  </div>
+               </motion.div>
+             ))}
+          </motion.div>
+        </div>
+      </section>
+
+      {/* ========================================================================= */}
+      {/* 4. VIP ROOM (THE VIBE) */}
+      {/* ========================================================================= */}
+      <section id="flow" className="py-24 md:py-32 relative bg-[#050505] border-t border-zinc-900">
+        <div className="max-w-[1400px] mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-16 md:gap-20 items-center relative z-10">
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-100px" }} variants={staggerContainer}>
             <motion.h2 variants={fadeUp} className="text-amber-500 font-black text-sm uppercase tracking-[0.4em] mb-4">El Club Privado</motion.h2>
             <motion.h3 variants={fadeUp} className="text-5xl md:text-8xl font-serif font-black text-white uppercase tracking-tighter leading-[0.9] mb-8">
               EL VIP ES <br /> <span className="text-transparent bg-clip-text bg-gradient-to-b from-zinc-500 to-zinc-800">PARA TODOS.</span>
             </motion.h3>
             <motion.p variants={fadeUp} className="text-zinc-400 text-lg md:text-xl font-medium leading-relaxed mb-12 max-w-lg">
-              La espera aburrida es del pasado. Hemos transformado el segundo piso en un santuario. Llega temprano, es un privilegio.
+              La espera aburrida es del pasado. Hemos transformado nuestro salón en un santuario. Llega temprano a tu cita, es un privilegio.
             </motion.p>
             <motion.div variants={fadeUp} className="space-y-6">
-              <motion.div whileHover={{ scale: 1.02 }} className="flex items-center gap-6 p-6 bg-zinc-900/50 border border-zinc-800/50 rounded-3xl hover:border-amber-500/50 transition-colors group cursor-default shadow-lg">
-                <div className="w-16 h-16 bg-black rounded-2xl flex items-center justify-center text-amber-500 shrink-0 shadow-[inset_0_0_20px_rgba(217,119,6,0.1)] group-hover:shadow-[inset_0_0_20px_rgba(217,119,6,0.5)] transition-all group-hover:scale-110"><Gamepad2 size={32} /></div>
+              <div className="flex items-center gap-6 p-6 bg-zinc-900/50 border border-zinc-800/50 rounded-2xl hover:border-amber-500/50 transition-colors group shadow-lg">
+                <div className="w-16 h-16 bg-black rounded-xl flex items-center justify-center text-amber-500 shrink-0 group-hover:scale-110 transition-transform"><Gamepad2 size={32} /></div>
                 <div><h4 className="text-white font-black text-xl uppercase tracking-tight">PlayStation 5 Libre</h4><p className="text-zinc-500 text-sm font-medium mt-1">Últimos títulos. Juega mientras esperas.</p></div>
-              </motion.div>
-              <motion.div whileHover={{ scale: 1.02 }} className="flex items-center gap-6 p-6 bg-zinc-900/50 border border-zinc-800/50 rounded-3xl hover:border-amber-500/50 transition-colors group cursor-default shadow-lg">
-                <div className="w-16 h-16 bg-black rounded-2xl flex items-center justify-center text-amber-500 shrink-0 shadow-[inset_0_0_20px_rgba(217,119,6,0.1)] group-hover:shadow-[inset_0_0_20px_rgba(217,119,6,0.5)] transition-all group-hover:scale-110"><Crown size={32} /></div>
+              </div>
+              <div className="flex items-center gap-6 p-6 bg-zinc-900/50 border border-zinc-800/50 rounded-2xl hover:border-amber-500/50 transition-colors group shadow-lg">
+                <div className="w-16 h-16 bg-black rounded-xl flex items-center justify-center text-amber-500 shrink-0 group-hover:scale-110 transition-transform"><Crown size={32} /></div>
                 <div><h4 className="text-white font-black text-xl uppercase tracking-tight">Mesa de Pool Premium</h4><p className="text-zinc-500 text-sm font-medium mt-1">Desafía a tus panas. 100% gratuita.</p></div>
-              </motion.div>
+              </div>
             </motion.div>
           </motion.div>
           
-          <motion.div initial={{ opacity: 0, x: 50 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 1 }} className="relative h-[700px] w-full group">
+          <motion.div initial={{ opacity: 0, x: 50 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 1 }} className="relative h-[500px] md:h-[700px] w-full group">
             <div className="absolute inset-0 bg-amber-500 translate-x-4 translate-y-4 rounded-[3rem] opacity-20 group-hover:translate-x-6 group-hover:translate-y-6 transition-transform duration-500" />
             <div className="relative h-full w-full rounded-[3rem] overflow-hidden border border-zinc-800 shadow-2xl">
                <Image src="https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=2071&auto=format&fit=crop" fill alt="PS5 Experience" className="object-cover grayscale group-hover:grayscale-0 transition-all duration-1000 group-hover:scale-105" />
-               <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/40 to-transparent" />
+               <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-transparent to-transparent" />
             </div>
           </motion.div>
         </div>
       </section>
 
-      {/* 6. INSTAGRAM SHOWCASE REALISTA */}
-      <section id="instagram" className="py-32 bg-black border-y border-zinc-900 relative overflow-hidden">
+      {/* ========================================================================= */}
+      {/* 5. TIENDA BREVE (Productos Destacados) */}
+      {/* ========================================================================= */}
+      <section id="tienda" className="py-24 relative overflow-hidden bg-zinc-950 border-t border-zinc-900">
+        <div className="absolute top-0 right-0 w-[50%] h-full bg-gradient-to-l from-zinc-900/40 to-transparent skew-x-12 translate-x-32" />
+        
+        <div className="max-w-[1400px] mx-auto px-6 relative z-10">
+          <div className="flex flex-col md:flex-row justify-between items-end mb-12 gap-8">
+             <div>
+               <h2 className="text-amber-500 font-black text-sm uppercase tracking-[0.4em] mb-4">Emperador Store</h2>
+               <h3 className="text-4xl md:text-6xl font-serif font-black text-white uppercase tracking-tighter leading-none">DESTACADOS.</h3>
+             </div>
+             <Link href="/tienda" className="px-6 py-3 bg-zinc-900 border border-zinc-700 text-white font-bold uppercase text-xs tracking-widest rounded-lg hover:border-amber-500 hover:text-amber-500 transition-colors flex items-center gap-2">
+               Ver toda la tienda <ChevronRight size={14} />
+             </Link>
+          </div>
+
+          <div className="bg-[#0a0a0a] border border-zinc-800 rounded-[2rem] overflow-hidden shadow-2xl relative min-h-[500px] flex items-center">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={currentStoreSlide}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.5 }}
+                className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center w-full p-8 md:p-12"
+              >
+                {/* IZQUIERDA: IMAGEN DEL PRODUCTO */}
+                <div className="relative h-[250px] lg:h-[400px] w-full flex items-center justify-center">
+                   <div className="absolute inset-0 bg-gradient-to-tr from-amber-500/10 to-transparent rounded-full blur-[60px] z-0" />
+                   <Image 
+                     src={STORE_SLIDES[currentStoreSlide].image} 
+                     alt="Producto Destacado" 
+                     fill 
+                     className="object-contain drop-shadow-2xl z-10 p-2 hover:scale-105 transition-transform duration-700"
+                   />
+                </div>
+
+                {/* DERECHA: INFO Y PRECIOS */}
+                <div className="flex flex-col items-center lg:items-start text-center lg:text-left w-full">
+                  <motion.h4 
+                    initial={{ scale: 0.9 }} animate={{ scale: 1 }}
+                    className="text-amber-500 font-black text-2xl md:text-3xl uppercase tracking-tighter mb-6 drop-shadow-lg"
+                  >
+                    {STORE_SLIDES[currentStoreSlide].tag}
+                  </motion.h4>
+                  
+                  <div className="grid grid-cols-2 gap-6 md:gap-10 w-full mb-8 border-b border-zinc-800/50 pb-8">
+                    <div className="flex flex-col">
+                      <h5 className="text-white font-bold text-lg md:text-xl leading-tight">{STORE_SLIDES[currentStoreSlide].titleLeft}</h5>
+                      <p className="text-zinc-500 font-medium text-xs mb-2">{STORE_SLIDES[currentStoreSlide].subtitleLeft}</p>
+                      <p className="text-amber-500 font-black text-2xl md:text-3xl tracking-tighter mb-1">{STORE_SLIDES[currentStoreSlide].priceLeft}</p>
+                      <p className="text-zinc-600 font-medium text-[10px] uppercase tracking-widest line-through">{STORE_SLIDES[currentStoreSlide].oldPriceLeft}</p>
+                    </div>
+                    <div className="flex flex-col">
+                      <h5 className="text-white font-bold text-lg md:text-xl leading-tight">{STORE_SLIDES[currentStoreSlide].titleRight}</h5>
+                      <p className="text-zinc-500 font-medium text-xs mb-2">{STORE_SLIDES[currentStoreSlide].subtitleRight}</p>
+                      <p className="text-amber-500 font-black text-2xl md:text-3xl tracking-tighter mb-1">{STORE_SLIDES[currentStoreSlide].priceRight}</p>
+                      <p className="text-zinc-600 font-medium text-[10px] uppercase tracking-widest line-through">{STORE_SLIDES[currentStoreSlide].oldPriceRight}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row items-center gap-6 w-full">
+                    <Link href="/tienda" className="px-8 py-3 bg-amber-500 text-black font-black uppercase tracking-[0.2em] text-xs rounded-full hover:scale-105 transition-all shadow-[0_0_20px_rgba(217,119,6,0.3)] flex items-center gap-2 group w-full sm:w-auto justify-center">
+                      <ShoppingCart size={16} className="group-hover:-rotate-12 transition-transform" /> Lo Quiero
+                    </Link>
+                    <div className="text-zinc-400 font-medium text-[11px] md:text-xs leading-relaxed max-w-xs">
+                      {STORE_SLIDES[currentStoreSlide].promoText} <br/>
+                      <span className="text-amber-500 font-black">{STORE_SLIDES[currentStoreSlide].promoHighlight}</span> {STORE_SLIDES[currentStoreSlide].promoEnd}
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            </AnimatePresence>
+
+            {/* Controles del Slider */}
+            <div className="absolute bottom-6 w-full flex justify-center gap-3 z-20">
+              {STORE_SLIDES.map((_, idx) => (
+                <button 
+                  key={idx} 
+                  onClick={() => setCurrentStoreSlide(idx)}
+                  className={`h-2 rounded-full transition-all duration-300 ${currentStoreSlide === idx ? 'bg-amber-500 w-8' : 'bg-zinc-700 w-2 hover:bg-amber-500/50'}`}
+                  aria-label={`Ir al slide ${idx + 1}`}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ========================================================================= */}
+      {/* 6. REVIEWS & TRUST */}
+      {/* ========================================================================= */}
+      <section className="py-24 bg-zinc-900/30 border-t border-zinc-900">
+        <div className="max-w-[1400px] mx-auto px-6">
+           <div className="text-center mb-16">
+             <h2 className="text-amber-500 font-black text-sm uppercase tracking-[0.4em]">El Respeto se Gana</h2>
+           </div>
+           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={staggerContainer} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {REVIEWS.map((r, i) => (
+                <motion.div key={i} variants={fadeUp} className="p-10 bg-zinc-950 border border-zinc-800 rounded-[2rem] relative overflow-hidden group hover:border-amber-500 transition-colors shadow-xl hover:-translate-y-2 duration-300">
+                   <div className="absolute -top-6 -right-6 text-zinc-900 group-hover:text-amber-500/10 transition-colors group-hover:rotate-12 duration-500"><MessageSquare size={120} /></div>
+                   <div className="flex gap-1 mb-6 text-amber-500 relative z-10">
+                     {[...Array(r.rating)].map((_, j) => <Star key={j} size={16} fill="currentColor" />)}
+                   </div>
+                   <p className="text-white text-lg font-medium leading-relaxed italic mb-8 relative z-10">"{r.text}"</p>
+                   <div className="flex items-center gap-4 relative z-10">
+                      <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-amber-500 font-black text-xs border border-zinc-700">{r.name[0]}</div>
+                      <span className="text-zinc-400 font-black uppercase text-[10px] tracking-widest">{r.name}</span>
+                   </div>
+                </motion.div>
+              ))}
+           </motion.div>
+        </div>
+      </section>
+
+      {/* ========================================================================= */}
+      {/* 7. INSTAGRAM (Showcase) */}
+      {/* ========================================================================= */}
+      <section id="instagram" className="py-24 md:py-32 bg-black relative overflow-hidden">
          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[1200px] h-[500px] bg-gradient-to-r from-purple-600/10 via-pink-600/10 to-amber-500/10 blur-[120px] rounded-full pointer-events-none" />
          
          <div className="max-w-[1000px] mx-auto px-6 relative z-10">
-            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} className="flex flex-col md:flex-row items-center md:items-start gap-8 mb-12 p-8 md:p-12 bg-zinc-950/80 border border-zinc-800/80 rounded-[3rem] backdrop-blur-xl shadow-2xl">
+            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} className="flex flex-col md:flex-row items-center md:items-start gap-8 mb-12 p-8 md:p-12 bg-zinc-950/80 border border-zinc-800/80 rounded-[2rem] backdrop-blur-xl shadow-2xl">
                <div className="relative w-32 h-32 md:w-40 md:h-40 shrink-0">
                   <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-yellow-400 via-red-500 to-purple-500 animate-spin-slow"></div>
                   <div className="absolute inset-1 rounded-full bg-black flex items-center justify-center overflow-hidden border-[3px] border-black">
@@ -473,12 +574,8 @@ export default function UltimateEmperadorLanding() {
                        <CheckCircle size={20} className="text-blue-500 fill-blue-500/20" />
                      </h3>
                      <div className="flex gap-2 justify-center">
-                       <a href="https://www.instagram.com/emperador_barbershop/?hl=es" target="_blank" rel="noopener noreferrer" className="px-8 py-2.5 bg-blue-500 hover:bg-blue-600 text-white font-bold text-sm rounded-xl transition-all flex items-center justify-center hover:scale-105 shadow-lg shadow-blue-500/30">
-                          Seguir
-                       </a>
-                       <a href="https://www.instagram.com/emperador_barbershop/?hl=es" target="_blank" rel="noopener noreferrer" className="px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white font-bold text-sm rounded-xl transition-all flex items-center justify-center hover:scale-105">
-                          <ExternalLink size={18} />
-                       </a>
+                       <a href="https://www.instagram.com/emperador_barbershop/" target="_blank" rel="noopener noreferrer" className="px-8 py-2.5 bg-blue-500 hover:bg-blue-600 text-white font-bold text-sm rounded-xl transition-all flex items-center justify-center hover:scale-105 shadow-lg shadow-blue-500/30">Seguir</a>
+                       <a href="https://www.instagram.com/emperador_barbershop/" target="_blank" rel="noopener noreferrer" className="px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white font-bold text-sm rounded-xl transition-all flex items-center justify-center hover:scale-105"><ExternalLink size={18} /></a>
                      </div>
                   </div>
                   
@@ -508,23 +605,20 @@ export default function UltimateEmperadorLanding() {
                </button>
             </div>
 
-            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={staggerContainer} className="grid grid-cols-2 md:grid-cols-3 gap-1 md:gap-4">
+            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={staggerContainer} className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-4">
                {INSTA_REELS.filter(item => activeTab === 'reels' ? true : item.type === 'post').map((post) => (
                   <motion.a 
-                    key={post.id} href="https://www.instagram.com/emperador_barbershop/?hl=es" target="_blank" rel="noopener noreferrer"
-                    variants={popUp}
-                    className="group relative aspect-[9/16] bg-zinc-900 overflow-hidden cursor-pointer md:rounded-2xl"
+                    key={post.id} href="https://www.instagram.com/emperador_barbershop/" target="_blank" rel="noopener noreferrer"
+                    variants={popUp} className="group relative aspect-[9/16] bg-zinc-900 overflow-hidden cursor-pointer rounded-xl md:rounded-2xl"
                   >
                      <Image src={post.img} fill alt="Instagram Content" className="object-cover grayscale-[20%] group-hover:grayscale-0 transition-all duration-700 group-hover:scale-110" />
-                     
                      <div className="absolute top-3 right-3 text-white drop-shadow-md bg-black/40 p-1.5 rounded-full backdrop-blur-sm">
                         {post.type === 'reel' ? <Clapperboard size={16} fill="currentColor" /> : <LayoutGrid size={16} fill="currentColor" />}
                      </div>
-
                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center gap-2 backdrop-blur-sm">
                         <div className="flex gap-6">
-                           <div className="flex items-center gap-2 text-white font-bold text-xl"><Heart fill="currentColor" size={28} className="hover:scale-125 transition-transform cursor-pointer" /> {post.likes}</div>
-                           <div className="flex items-center gap-2 text-white font-bold text-xl"><MessageCircle fill="currentColor" size={28} className="hover:scale-125 transition-transform cursor-pointer" /> {post.comments}</div>
+                           <div className="flex items-center gap-2 text-white font-bold text-xl"><Heart fill="currentColor" size={28} /> {post.likes}</div>
+                           <div className="flex items-center gap-2 text-white font-bold text-xl"><MessageCircle fill="currentColor" size={28} /> {post.comments}</div>
                         </div>
                      </div>
                   </motion.a>
@@ -533,180 +627,85 @@ export default function UltimateEmperadorLanding() {
          </div>
       </section>
 
-      {/* 7. SERVICES GRID EXTENDIDO */}
-      <section id="servicios" className="py-32 bg-zinc-950 border-y border-zinc-900 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-amber-500/5 blur-[150px] rounded-full pointer-events-none"></div>
-
-        <div className="max-w-[1400px] mx-auto px-6 relative z-10">
-          <div className="flex flex-col md:flex-row justify-between items-end mb-24 gap-8">
-             <div>
-               <motion.h2 initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} className="text-amber-500 font-black text-sm uppercase tracking-[0.4em] mb-4">El Menú Completo</motion.h2>
-               <motion.h3 initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} className="text-6xl md:text-9xl font-serif font-black text-white uppercase tracking-tighter leading-none">SERVICIOS.</motion.h3>
-             </div>
-             <motion.p initial={{ opacity: 0, x: 20 }} whileInView={{ opacity: 1, x: 0 }} className="text-zinc-500 font-bold uppercase tracking-widest text-xs border-l-2 border-amber-500 pl-6 max-w-sm">
-               Técnicas de vanguardia y productos premium para garantizar un resultado de nivel imperial.
-             </motion.p>
-          </div>
-          
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-50px" }} variants={staggerContainer} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-             {SERVICES.map((s, i) => (
-               <motion.div 
-                 key={i} variants={popUp} whileHover={{ y: -10, scale: 1.02 }}
-                 className="group p-8 bg-zinc-900/40 border border-zinc-800 rounded-[2.5rem] hover:bg-zinc-900 hover:border-amber-500 transition-all duration-300 flex flex-col justify-between shadow-lg hover:shadow-[0_20px_40px_rgba(217,119,6,0.15)] relative overflow-hidden"
-               >
-                  <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
-
-                  <div className="relative z-10">
-                    <div className="w-14 h-14 bg-black border border-zinc-800 rounded-2xl flex items-center justify-center text-amber-500 group-hover:bg-amber-500 group-hover:text-black group-hover:border-amber-400 transition-colors mb-6 shadow-lg group-hover:scale-110 duration-300">
-                      {s.icon}
-                    </div>
-                    <h4 className="text-xl font-black text-white uppercase mb-3 leading-tight group-hover:text-amber-500 transition-colors line-clamp-2">{s.name}</h4>
-                    <p className="text-zinc-500 font-medium mb-8 text-sm leading-relaxed">{s.desc}</p>
-                  </div>
-                  <div className="relative z-10">
-                    <div className="flex justify-between items-end pt-6 border-t border-zinc-800 mb-6 group-hover:border-amber-500/30 transition-colors">
-                      <div>
-                        <span className="block text-[10px] text-zinc-600 font-black uppercase tracking-widest mb-1">{s.time}</span>
-                        <span className="text-3xl font-black text-amber-500 tracking-tighter">{s.price}</span>
-                      </div>
-                    </div>
-                    <Link href="/reservar" className="w-full py-4 bg-black text-white font-black uppercase text-[10px] tracking-widest rounded-xl flex justify-center items-center gap-2 group-hover:bg-white group-hover:text-black transition-colors border border-zinc-800 hover:scale-105 active:scale-95">
-                       Seleccionar <ChevronRight size={14} />
-                    </Link>
-                  </div>
-               </motion.div>
-             ))}
-          </motion.div>
-        </div>
-      </section>
-
-      {/* 8. THE SQUAD (PERSONAJES) */}
-      <section id="squad" className="py-32 bg-[#050505]">
-        <div className="max-w-[1400px] mx-auto px-6">
-          <div className="text-center mb-24">
-            <h2 className="text-amber-500 font-black text-sm uppercase tracking-[0.4em] mb-4">Conoce a los Maestros</h2>
-            <h3 className="text-5xl md:text-8xl font-serif font-black text-white uppercase tracking-tighter leading-none">THE SQUAD.</h3>
-          </div>
-          
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={staggerContainer} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-            {TEAM.map((t, i) => (
-              <motion.div 
-                key={i} variants={popUp}
-                className="group relative h-[500px] md:h-[600px] rounded-[3rem] overflow-hidden border border-zinc-800 bg-zinc-900 cursor-pointer shadow-2xl hover:shadow-[0_20px_50px_rgba(217,119,6,0.3)] transition-all duration-500"
-              >
-                <Image src={t.img} fill alt={t.name} className="object-cover grayscale contrast-125 group-hover:grayscale-0 group-hover:scale-110 transition-all duration-700" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent opacity-90 group-hover:opacity-70 transition-opacity" />
-                
-                <div className="absolute top-6 left-6"><span className="px-4 py-2 bg-amber-500 text-black text-[10px] font-black uppercase tracking-[0.2em] rounded-lg shadow-lg">{t.tag}</span></div>
-                
-                <div className="absolute bottom-8 left-8 right-8">
-                  <h4 className="text-3xl md:text-4xl font-black text-white uppercase tracking-tighter mb-1">{t.name}</h4>
-                  <p className="text-amber-500 font-bold uppercase text-[10px] tracking-[0.3em] mb-6">{t.role}</p>
-                  
-                  <div className="overflow-hidden">
-                     <Link href={`/reservar?barber=${t.id}`} className="w-full py-4 bg-white text-black font-black uppercase text-xs tracking-widest rounded-xl flex justify-center items-center gap-2 opacity-0 translate-y-full group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 hover:bg-amber-500 shadow-xl hover:scale-105 active:scale-95">
-                       Reservar con él <Zap size={14} fill="currentColor" />
-                     </Link>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </motion.div>
-        </div>
-      </section>
-
-      {/* 9. REVIEWS & TRUST */}
-      <section className="py-32 bg-zinc-900/30 border-t border-zinc-900">
-        <div className="max-w-[1400px] mx-auto px-6">
-           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={staggerContainer} className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-              {REVIEWS.map((r, i) => (
-                <motion.div key={i} variants={fadeUp} className="p-10 bg-zinc-950 border border-zinc-800 rounded-[2.5rem] relative overflow-hidden group hover:border-amber-500 transition-colors shadow-xl hover:-translate-y-2 duration-300">
-                   <div className="absolute -top-6 -right-6 text-zinc-900 group-hover:text-amber-500/10 transition-colors group-hover:rotate-12 duration-500"><MessageSquare size={120} /></div>
-                   <div className="flex gap-1 mb-6 text-amber-500 relative z-10">
-                     {[...Array(r.rating)].map((_, j) => <Star key={j} size={16} fill="currentColor" />)}
-                   </div>
-                   <p className="text-white text-lg md:text-xl font-medium leading-relaxed italic mb-8 relative z-10">"{r.text}"</p>
-                   <div className="flex items-center gap-4 relative z-10">
-                      <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-amber-500 font-black text-xs border border-zinc-700">{r.name[0]}</div>
-                      <span className="text-zinc-400 font-black uppercase text-[10px] tracking-widest">{r.name}</span>
-                   </div>
-                </motion.div>
-              ))}
-           </motion.div>
-        </div>
-      </section>
-
-      {/* 10. FAQ ACCORDION */}
-      <section id="faq" className="py-32 bg-zinc-950 px-6 border-y border-zinc-900">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-20">
+      {/* ========================================================================= */}
+      {/* 8. AYUDA / FAQ (Completamente sólido para máxima legibilidad) */}
+      {/* ========================================================================= */}
+      <section id="faq" className="py-24 md:py-32 bg-[#0a0a0a] border-y border-zinc-900">
+        <div className="max-w-3xl mx-auto px-6">
+          <div className="text-center mb-16">
              <h2 className="text-amber-500 font-black text-sm uppercase tracking-[0.4em] mb-4">Resolviendo Dudas</h2>
              <h3 className="text-5xl md:text-8xl font-serif font-black text-white uppercase tracking-tighter">AYUDA.</h3>
+             <p className="text-zinc-400 mt-6 font-medium text-lg">Todo lo que necesitas saber antes de asegurar tu trono.</p>
           </div>
+          
           <div className="space-y-4">
-            {FAQS.map((faq, i) => <FAQItem key={i} faq={faq} index={i} />)}
+            {FAQS.map((faq, i) => <FAQItem key={i} faq={faq} />)}
           </div>
         </div>
       </section>
 
-      {/* 11. CTA FINAL & FOOTER */}
-      <footer className="bg-black pt-32 pb-12 px-6 relative overflow-hidden">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-[1200px] h-[500px] bg-amber-500/10 blur-[150px] rounded-full pointer-events-none" />
+      {/* ========================================================================= */}
+      {/* 9. CTA FINAL & FOOTER PREMIUM */}
+      {/* ========================================================================= */}
+      <footer className="bg-black pt-24 pb-12 px-6 relative overflow-hidden">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-[1200px] h-[300px] bg-amber-500/10 blur-[150px] rounded-full pointer-events-none" />
         
-        <div className="max-w-[1400px] mx-auto text-center mb-32 relative z-10">
+        <div className="max-w-[1400px] mx-auto text-center mb-20 relative z-10">
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={popUp}>
-            <div className="mx-auto w-32 h-32 md:w-48 md:h-48 mb-12 rounded-full overflow-hidden border-2 border-amber-500 shadow-[0_0_50px_rgba(217,119,6,0.6)] relative bg-zinc-950 p-2 hover:scale-105 transition-transform duration-500">
+            <div className="mx-auto w-24 h-24 md:w-32 md:h-32 mb-8 rounded-full overflow-hidden border-2 border-amber-500 shadow-[0_0_30px_rgba(217,119,6,0.4)] relative bg-zinc-950 p-2 hover:scale-105 transition-transform duration-500">
                <div className="relative w-full h-full rounded-full overflow-hidden">
                  <Image src="/logo.png" alt="Emperador Logo Final" fill className="object-cover" />
                </div>
             </div>
             
-            <h2 className="text-6xl md:text-[8rem] lg:text-[11rem] font-serif font-black text-white leading-[0.8] tracking-tighter uppercase mb-12 drop-shadow-2xl">
+            <h2 className="text-5xl md:text-[6rem] lg:text-[8rem] font-serif font-black text-white leading-[0.85] tracking-tighter uppercase mb-10 drop-shadow-xl">
               DOMINA EL <br /> <span className="text-amber-500">TRONO.</span>
             </h2>
-            <Link href="/reservar" className="px-12 md:px-20 py-6 md:py-8 bg-amber-500 text-black font-black uppercase tracking-[0.2em] text-sm md:text-lg rounded-2xl hover:bg-white hover:scale-110 transition-all duration-300 shadow-[0_0_50px_rgba(217,119,6,0.5)] inline-flex items-center gap-4 group">
-              Agenda Tu Cita <CheckCircle size={28} className="group-hover:text-green-500 transition-colors" />
+            <Link href="/reservar" className="px-10 md:px-14 py-5 md:py-6 bg-amber-500 text-black font-black uppercase tracking-[0.2em] text-xs md:text-base rounded-2xl hover:bg-white hover:scale-110 transition-all duration-300 shadow-[0_0_40px_rgba(217,119,6,0.4)] inline-flex items-center gap-4 group">
+              Agenda Tu Cita <CheckCircle size={24} className="group-hover:text-green-600 transition-colors" />
             </Link>
           </motion.div>
         </div>
 
-        <div className="max-w-[1400px] mx-auto grid grid-cols-1 md:grid-cols-3 gap-16 border-t border-zinc-900 pt-20 mb-20 relative z-10">
+        <div className="max-w-[1400px] mx-auto grid grid-cols-1 md:grid-cols-3 gap-12 border-t border-zinc-900 pt-16 mb-12 relative z-10">
+           {/* Columna 1 */}
            <div>
-              <h4 className="text-white font-black text-2xl uppercase tracking-tighter mb-8 italic">EMPERADOR</h4>
+              <h4 className="text-white font-black text-xl uppercase tracking-tighter mb-6 italic">EMPERADOR</h4>
               <div className="space-y-4 text-zinc-400 font-bold uppercase text-[10px] tracking-[0.2em]">
-                 <p className="flex items-center gap-3 hover:text-white transition-colors cursor-default"><MapPin size={16} className="text-amber-500" /> Peña 666, Piso 2, Curicó</p>
-                 <a href="https://www.instagram.com/emperador_barbershop/?hl=es" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 hover:text-amber-500 transition-colors">
-                    <Instagram size={16} className="text-amber-500" /> @emperador_barbershop
+                 <p className="flex items-center gap-3 hover:text-white transition-colors cursor-default"><MapPin size={16} className="text-amber-500 shrink-0" /> Peña 666, Piso 2, Curicó</p>
+                 <a href="https://www.instagram.com/emperador_barbershop/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 hover:text-amber-500 transition-colors">
+                    <Instagram size={16} className="text-amber-500 shrink-0" /> @emperador_barbershop
                  </a>
               </div>
            </div>
            
+           {/* Columna 2 */}
            <div>
-              <h4 className="text-zinc-600 font-black uppercase text-xs tracking-widest mb-8">Horarios</h4>
+              <h4 className="text-zinc-600 font-black uppercase text-xs tracking-widest mb-6">Horarios de Atención</h4>
               <ul className="text-white font-black text-sm uppercase tracking-tighter space-y-2">
                  <li className="flex justify-between border-b border-zinc-900 pb-3 hover:text-amber-500 transition-colors cursor-default"><span>Lunes - Sábado</span> <span className="text-amber-500">10:00 - 20:00</span></li>
-                 <li className="flex justify-between text-zinc-700 pt-3 cursor-default"><span>Domingo</span> <span>Cerrado</span></li>
+                 <li className="flex justify-between text-zinc-700 pt-3 cursor-default"><span>Domingo</span> <span>Cerrado por descanso</span></li>
               </ul>
            </div>
            
-           {/* ACCESOS RÁPIDOS FOOTER */}
-           <div className="flex flex-col items-start md:items-end justify-between gap-8 md:gap-0">
-              <div className="flex items-center gap-2 text-zinc-500"><ShieldCheck size={16} className="text-green-500" /> <span className="font-black uppercase text-[10px] tracking-widest">Reserva Segura</span></div>
+           {/* Columna 3 (Accesos Rápidos) */}
+           <div className="flex flex-col items-start md:items-end justify-between gap-6 md:gap-0">
+              <div className="flex items-center gap-2 text-zinc-500"><ShieldCheck size={16} className="text-green-500" /> <span className="font-black uppercase text-[10px] tracking-widest">Plataforma 100% Segura</span></div>
               
-              <div className="flex flex-col items-start md:items-end gap-4 w-full md:w-auto mt-auto">
+              <div className="flex flex-col items-start md:items-end gap-3 w-full md:w-auto mt-auto">
                 <Link href="/login" className="w-full md:w-auto px-6 py-3 bg-zinc-900 border border-zinc-800 hover:border-amber-500 text-zinc-400 hover:text-white rounded-xl transition-all flex items-center justify-center md:justify-end gap-3 group">
                    <Lock size={14} className="group-hover:text-amber-500 transition-colors" /> 
                    <span className="font-black uppercase text-[10px] tracking-[0.2em]">Intranet Staff</span>
                 </Link>
-                <p className="text-zinc-700 font-black uppercase text-[10px] tracking-[0.3em] mt-2">
-                  POWERED BY <a href="https://bayx.com" target="_blank" rel="noopener noreferrer" className="text-amber-700 hover:text-amber-500 transition-colors">BAYX</a>
+                <p className="text-zinc-700 font-black uppercase text-[9px] tracking-[0.3em] mt-2">
+                  DESARROLLADO POR <a href="https://bayx.com" target="_blank" rel="noopener noreferrer" className="text-amber-700 hover:text-amber-500 transition-colors">BAYX AGENCY</a>
                 </p>
               </div>
            </div>
         </div>
         
         {/* MARCA DE AGUA GIGANTE FINAL */}
-        <div className="text-center text-zinc-900/40 font-black text-[15vw] uppercase leading-none select-none relative z-0 overflow-hidden pointer-events-none mt-10">
+        <div className="text-center text-zinc-900/30 font-black text-[12vw] uppercase leading-none select-none relative z-0 overflow-hidden pointer-events-none mt-4">
            EMPERADOR
         </div>
       </footer>
