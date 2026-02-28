@@ -116,6 +116,12 @@ const staggerContainer: Variants = {
   visible: { opacity: 1, transition: { staggerChildren: 0.15 } }
 };
 
+// ACA ESTÁ LA ANIMACIÓN QUE FALTABA
+const textReveal: Variants = {
+  hidden: { opacity: 0, y: "100%" },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.33, 1, 0.68, 1] } }
+};
+
 // ============================================================================
 // COMPONENTES LÓGICOS
 // ============================================================================
