@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, Suspense } from "react";
-// 🛠️ Cambiamos NextAuth por nuestro nuevo cliente de Supabase
 import { createClient } from "@/utils/supabase/client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, ArrowLeft, UserCircle2, Scissors, Lock, ChevronRight } from "lucide-react";
@@ -11,18 +10,17 @@ import Link from "next/link";
 type PortalType = "CLIENTE" | "BARBERO" | "ADMIN" | null;
 
 // ============================================================================
-// COMPONENTE PRINCIPAL DE LOGIN (Conexión Directa a Supabase)
+// COMPONENTE PRINCIPAL DE LOGIN (Conexión Directa a Supabase y Roles Estrictos)
 // ============================================================================
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const supabase = createClient(); // Inicializamos el cliente
+  const supabase = createClient(); 
   
   const [portal, setPortal] = useState<PortalType>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Auto-seleccionar portal si viene de la Landing Page (?role=...)
   useEffect(() => {
     const roleParam = searchParams.get("role");
     if (roleParam === "client") setPortal("CLIENTE");
@@ -39,14 +37,13 @@ function LoginContent() {
     const email = formData.get("email") as string;
     const password = formData.get("password") as string;
 
-    // 🚀 LOGIC DE SUPABASE AUTH (Directo, sin intermediarios)
+    // 1. Iniciamos sesión con Supabase Auth
     const { data, error: authError } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
     if (authError) {
-      // Manejo de errores amigables de Supabase
       setError(authError.message === "Invalid login credentials" 
         ? "Correo o contraseña incorrectos. Revisa tus datos." 
         : authError.message
@@ -55,21 +52,36 @@ function LoginContent() {
       return;
     }
 
-    // Si el login es exitoso, obtenemos el perfil para saber a dónde mandarlo
-    // Buscamos en tu tabla "User" de la base de datos pública
+    // 2. Buscamos el rol del usuario en tu tabla pública "User"
     const { data: userProfile } = await supabase
       .from("User")
       .select("role")
       .eq("email", email)
       .single();
 
-    // Redirección inteligente basada en el ROL de la base de datos
-    const role = userProfile?.role;
+    // Si el usuario acaba de registrarse y no está en la tabla aún, asumimos CLIENTE
+    const dbRole = userProfile?.role || "CLIENT";
 
-    if (role === "BARBER") {
-      router.push("/dashboards/barber"); 
-    } else if (role === "ADMIN") {
+    // 3. 🔒 VALIDACIÓN ESTRICTA DE PERMISOS SEGÚN EL PORTAL SELECCIONADO
+    if (portal === "ADMIN" && dbRole !== "ADMIN") {
+      setError("Acceso denegado. No tienes credenciales de Administrador.");
+      await supabase.auth.signOut(); // Cerramos la sesión por seguridad
+      setIsLoading(false);
+      return;
+    }
+
+    if (portal === "BARBERO" && dbRole !== "BARBER" && dbRole !== "ADMIN") {
+      setError("Acceso denegado. No perteneces al Staff de Barberos.");
+      await supabase.auth.signOut();
+      setIsLoading(false);
+      return;
+    }
+
+    // 4. 🚀 REDIRECCIÓN EXACTA HACIA EL DASHBOARD SELECCIONADO
+    if (portal === "ADMIN") {
       router.push("/dashboards/admin"); 
+    } else if (portal === "BARBERO") {
+      router.push("/dashboards/barber"); 
     } else {
       router.push("/dashboards/client/book"); 
     }
@@ -77,7 +89,6 @@ function LoginContent() {
     router.refresh(); 
   };
 
-  // DATOS DE LAS TARJETAS DE SELECCIÓN
   const PORTALS = [
     {
       id: "CLIENTE" as PortalType,
@@ -104,11 +115,8 @@ function LoginContent() {
 
   return (
     <div className="min-h-screen bg-[#050505] text-zinc-300 font-sans relative overflow-hidden flex flex-col items-center justify-center p-6">
-      
-      {/* Fondos Glow sutiles */}
       <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] rounded-full bg-amber-600/10 blur-[120px] pointer-events-none z-0"></div>
       
-      {/* Botón Volver */}
       <div className="absolute top-8 left-8 z-20">
         <Link href="/" className="flex items-center gap-2 text-sm font-bold text-amber-500 hover:text-amber-400 transition-colors group">
           <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
@@ -117,7 +125,6 @@ function LoginContent() {
       </div>
 
       <AnimatePresence mode="wait">
-        
         {!portal && (
           <motion.div 
             key="selection"
