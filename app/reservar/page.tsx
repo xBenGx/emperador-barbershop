@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion, AnimatePresence, Variants } from "framer-motion";
+import * as LucideIcons from "lucide-react";
 import { 
   Scissors, Clock, Calendar as CalendarIcon, MapPin, 
   ChevronLeft, CheckCircle2, User, Sparkles, ChevronRight,
@@ -11,32 +12,29 @@ import {
   Droplets, Wand2, ShieldCheck, Lock
 } from "lucide-react";
 
+// Importamos el cliente de Supabase
+import { createClient } from "@/utils/supabase/client";
+
 // ============================================================================
-// DATA DE NEGOCIO 
+// DATA DE RESPALDO (Fallbacks) 
 // ============================================================================
-const BARBERS = [
+const FALLBACK_BARBERS = [
   { id: "cesar", name: "Cesar Luna", role: "Master Barber", img: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=800&auto=format&fit=crop" },
   { id: "jack", name: "Jack Guerra", role: "Fade Specialist", img: "https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=800&auto=format&fit=crop" },
-  { id: "jhonn", name: "Jhonn Prado", role: "Beard Expert", img: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?q=80&w=800&auto=format&fit=crop" },
-  { id: "marcos", name: "Marcos Peña", role: "Senior Barber", img: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=800&auto=format&fit=crop" },
 ];
 
-const SERVICES = [
-  { id: "s1", name: "Corte Clásico / Degradado", duration: "1 hrs", price: 12000, desc: "Clean, fresh, de líneas perfectas.", icon: <Scissors size={24} /> },
-  { id: "s2", name: "Corte + Perfilado de Cejas", duration: "1 hrs", price: 14000, desc: "Sube de nivel tu mirada. Detalles quirúrgicos.", icon: <Crosshair size={24} /> },
-  { id: "s3", name: "Barba + Vapor Caliente", duration: "30 min", price: 7000, desc: "Afeitado VIP. Poros abiertos, cero irritación.", icon: <Flame size={24} /> },
-  { id: "s4", name: "Corte + Barba + Lavado GRATIS", duration: "1 hrs 5 min", price: 17000, desc: "El combo indispensable para salir listo.", icon: <Zap size={24} /> },
-  { id: "s5", name: "Limpieza Facial + Vapor", duration: "25 min", price: 10000, desc: "Skin care masculino. Extracción y mascarilla.", icon: <Sparkles size={24} /> },
-  { id: "s6", name: "Corte + Barba + Cejas + Lavado", duration: "1 hrs 15 min", price: 20000, desc: "Mantenimiento total en una sola sesión.", icon: <Crown size={24} /> },
-  { id: "s7", name: "Servicio Emperador VIP", duration: "1 hrs 30 min", price: 35000, desc: "La experiencia definitiva. Trato de realeza.", icon: <Star size={24} /> },
-  { id: "s8", name: "Perfilado de Cejas", duration: "5 min", price: 3000, desc: "Limpieza rápida y definición de contornos.", icon: <Crosshair size={24} /> },
-  { id: "s9", name: "Lavado de Cabello", duration: "5 min", price: 3000, desc: "Lavado profundo con productos premium.", icon: <Droplets size={24} /> },
-  { id: "s10", name: "Diseño / Hair Tattoo", duration: "15 min", price: 4000, desc: "Líneas, tribales o diseños a navaja.", icon: <Wand2 size={24} /> },
-  { id: "s11", name: "Visos + Corte + Cejas", duration: "4 hrs", price: 70000, desc: "Iluminación profesional y perfilado completo.", icon: <Zap size={24} /> },
-  { id: "s12", name: "Platinado + Corte + Cejas", duration: "5 hrs", price: 90000, desc: "Decoloración nivel platino. Cambio extremo.", icon: <Flame size={24} /> },
+const FALLBACK_SERVICES = [
+  { id: "s1", name: "Corte Clásico / Degradado", time: "1 hrs", price: "$12.000", desc: "Clean, fresh, de líneas perfectas.", iconName: "Scissors" },
+  { id: "s2", name: "Barba + Vapor Caliente", time: "30 min", price: "$7.000", desc: "Afeitado VIP. Poros abiertos, cero irritación.", iconName: "Flame" },
 ];
 
-// Generamos fechas reales a partir de hoy
+// Componente para renderizar iconos dinámicos desde la BD
+const DynamicIcon = ({ name, size = 24 }: { name: string, size?: number }) => {
+  const IconComponent = (LucideIcons as any)[name] || LucideIcons.Scissors;
+  return <IconComponent size={size} />;
+};
+
+// Generador de fechas reales
 const generateDates = () => {
   const dates = [];
   const today = new Date();
@@ -66,18 +64,6 @@ const TIME_SLOTS = {
   noche: ["18:00", "19:00"]
 };
 
-// SIMULACIÓN DE BASE DE DATOS: Horas ya reservadas por barbero y fecha
-// En Supabase, esto se consultará en vivo: SELECT time FROM appointments WHERE barberId = X AND date = Y
-const BOOKED_SLOTS_DB: Record<string, Record<string, string[]>> = {
-  "cesar": {
-    [DATES[0].fullDate]: ["10:00", "15:00"], // Hoy Cesar tiene ocupadas las 10 y las 15
-    [DATES[1].fullDate]: ["12:00"]
-  },
-  "jack": {
-    [DATES[0].fullDate]: ["11:00", "18:00", "19:00"], // Jack tiene ocupada la tarde
-  }
-};
-
 // ============================================================================
 // ANIMACIONES
 // ============================================================================
@@ -91,6 +77,8 @@ const slideIn: Variants = {
 // COMPONENTE PRINCIPAL
 // ============================================================================
 export default function BookingEngine() {
+  const supabase = createClient();
+
   const [step, setStep] = useState(1);
   const [booking, setBooking] = useState({
     service: null as any,
@@ -102,6 +90,50 @@ export default function BookingEngine() {
   
   const [isConfirming, setIsConfirming] = useState(false);
 
+  // Estados de Base de Datos
+  const [dbBarbers, setDbBarbers] = useState<any[]>(FALLBACK_BARBERS);
+  const [dbServices, setDbServices] = useState<any[]>(FALLBACK_SERVICES);
+  const [bookedSlots, setBookedSlots] = useState<string[]>([]);
+
+  // 1. Cargar Barberos y Servicios desde Supabase al iniciar
+  useEffect(() => {
+    const loadInitialData = async () => {
+      try {
+        const { data: barbersData } = await supabase.from('Barbers').select('*').eq('status', 'ACTIVE');
+        if (barbersData && barbersData.length > 0) setDbBarbers(barbersData);
+
+        const { data: servicesData } = await supabase.from('Services').select('*');
+        if (servicesData && servicesData.length > 0) setDbServices(servicesData);
+      } catch (error) {
+        console.error("Usando datos de respaldo.");
+      }
+    };
+    loadInitialData();
+  }, [supabase]);
+
+  // 2. Cargar horas ocupadas cuando se selecciona Barbero y Fecha
+  useEffect(() => {
+    const fetchBookedSlots = async () => {
+      if (booking.barber && booking.date) {
+        try {
+          const { data, error } = await supabase
+            .from('Appointments')
+            .select('time')
+            .eq('barber_id', booking.barber.id)
+            .eq('date', booking.date.fullDate);
+            
+          if (data) {
+            setBookedSlots(data.map(d => d.time));
+          }
+        } catch (error) {
+          setBookedSlots([]);
+        }
+      }
+    };
+    fetchBookedSlots();
+  }, [booking.barber, booking.date, supabase]);
+
+
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [step]);
@@ -109,31 +141,38 @@ export default function BookingEngine() {
   const nextStep = () => setStep((p) => Math.min(p + 1, 5));
   const prevStep = () => setStep((p) => Math.max(p - 1, 1));
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(price);
-  };
-
-  // Función para saber si un bloque horario está ocupado para el barbero y fecha seleccionados
+  // Comprobar si la hora está en la lista de horas ocupadas de la BD
   const isSlotBooked = (time: string) => {
-    if (!booking.barber || !booking.date) return false;
-    const barberId = booking.barber.id;
-    const dateStr = booking.date.fullDate;
-    
-    // Revisamos nuestra DB simulada
-    if (BOOKED_SLOTS_DB[barberId] && BOOKED_SLOTS_DB[barberId][dateStr]) {
-      return BOOKED_SLOTS_DB[barberId][dateStr].includes(time);
-    }
-    return false;
+    return bookedSlots.includes(time);
   };
 
-  const handleFinalConfirm = () => {
+  const handleFinalConfirm = async () => {
     setIsConfirming(true);
-    // AQUÍ VA LA CONEXIÓN A SUPABASE:
-    // await supabase.from('appointments').insert({ barberId: ..., time: ... })
-    setTimeout(() => {
+    
+    try {
+      // 3. Guardar la cita en la base de datos
+      const appointmentData = {
+        barber_id: booking.barber.id,
+        barber_name: booking.barber.name,
+        service_name: booking.service.name,
+        date: booking.date.fullDate,
+        time: booking.time,
+        client_name: booking.guest.name,
+        client_phone: booking.guest.phone,
+        status: 'PENDING'
+      };
+
+      const { error } = await supabase.from('Appointments').insert([appointmentData]);
+      if (error) throw error;
+
+      // Si todo sale bien, pasamos a la pantalla de éxito
+      nextStep(); 
+    } catch (error) {
+      console.error("Error al guardar reserva:", error);
+      alert("Hubo un error al confirmar tu reserva. Intenta de nuevo.");
+    } finally {
       setIsConfirming(false);
-      nextStep(); // Va al paso 5 (Éxito)
-    }, 2000);
+    }
   };
 
   return (
@@ -188,7 +227,7 @@ export default function BookingEngine() {
               <ul className="space-y-10 relative z-10 text-left">
                 <li className={`flex gap-6 items-center transition-opacity duration-500 ${!booking.service ? 'opacity-30' : 'opacity-100'}`}>
                   <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border transition-colors ${booking.service ? 'bg-amber-500 text-black border-amber-400 shadow-[0_0_20px_rgba(217,119,6,0.3)]' : 'bg-zinc-900 text-zinc-500 border-zinc-800'}`}>
-                    {booking.service ? booking.service.icon : <Scissors size={24} />}
+                    {booking.service ? <DynamicIcon name={booking.service.iconName || "Scissors"} /> : <Scissors size={24} />}
                   </div>
                   <div className="text-left flex-1">
                     <p className="text-[10px] uppercase font-black text-zinc-500 tracking-widest mb-1">Servicio</p>
@@ -198,7 +237,7 @@ export default function BookingEngine() {
                 
                 <li className={`flex gap-6 items-center transition-opacity duration-500 ${!booking.barber ? 'opacity-30' : 'opacity-100'}`}>
                   <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border overflow-hidden transition-colors ${booking.barber ? 'border-amber-500 shadow-[0_0_20px_rgba(217,119,6,0.3)]' : 'bg-zinc-900 text-zinc-500 border-zinc-800'}`}>
-                    {booking.barber ? <Image src={booking.barber.img} alt="Barber" width={56} height={56} className="object-cover h-full w-full" /> : <UserCircle size={24} />}
+                    {booking.barber ? <Image src={booking.barber.img} alt="Barber" width={56} height={56} className="object-cover h-full w-full" unoptimized /> : <UserCircle size={24} />}
                   </div>
                   <div className="text-left">
                     <p className="text-[10px] uppercase font-black text-zinc-500 tracking-widest mb-1">Maestro</p>
@@ -224,7 +263,7 @@ export default function BookingEngine() {
                 <div className="flex justify-between items-end">
                   <span className="text-xs uppercase font-black text-zinc-400 tracking-widest">A pagar en local</span>
                   <span className="text-4xl font-black text-white tracking-tighter drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]">
-                    {booking.service ? formatPrice(booking.service.price) : "$0"}
+                    {booking.service ? booking.service.price : "$0"}
                   </span>
                 </div>
               </div>
@@ -253,7 +292,7 @@ export default function BookingEngine() {
                 </div>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6 pb-10">
-                  {SERVICES.map((srv) => (
+                  {dbServices.map((srv) => (
                     <button 
                       key={srv.id} 
                       onClick={() => { setBooking({ ...booking, service: srv }); nextStep(); }}
@@ -264,9 +303,9 @@ export default function BookingEngine() {
                       <div className="relative z-10">
                         <div className="flex justify-between items-start mb-6">
                           <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-colors shadow-inner ${booking.service?.id === srv.id ? 'bg-black text-amber-500' : 'bg-black border border-zinc-800 text-amber-500 group-hover:bg-amber-500 group-hover:text-black'}`}>
-                            {srv.icon}
+                            <DynamicIcon name={srv.iconName || "Scissors"} />
                           </div>
-                          <span className={`text-2xl font-black tracking-tighter ${booking.service?.id === srv.id ? 'text-black' : 'text-white'}`}>{formatPrice(srv.price)}</span>
+                          <span className={`text-2xl font-black tracking-tighter ${booking.service?.id === srv.id ? 'text-black' : 'text-white'}`}>{srv.price}</span>
                         </div>
                         <h3 className="text-xl md:text-2xl font-black uppercase tracking-tight mb-3 leading-tight">{srv.name}</h3>
                         <p className={`text-sm font-medium leading-relaxed ${booking.service?.id === srv.id ? 'text-black/70' : 'text-zinc-500'}`}>{srv.desc}</p>
@@ -274,7 +313,7 @@ export default function BookingEngine() {
                       
                       <div className="relative z-10 mt-8 flex justify-between items-end">
                          <div className={`flex items-center gap-2 text-[11px] font-black uppercase tracking-widest ${booking.service?.id === srv.id ? 'text-black/50' : 'text-zinc-600'}`}>
-                           <Clock size={16} /> {srv.duration}
+                           <Clock size={16} /> {srv.time}
                          </div>
                          <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${booking.service?.id === srv.id ? 'bg-black text-amber-500 scale-110' : 'bg-zinc-800 text-white opacity-0 group-hover:opacity-100 group-hover:bg-amber-500 group-hover:text-black'}`}>
                            <ChevronRight size={18} />
@@ -298,17 +337,17 @@ export default function BookingEngine() {
                 </div>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6 pb-10">
-                  {BARBERS.map((b) => (
+                  {dbBarbers.map((b) => (
                     <button 
                       key={b.id}
                       onClick={() => { setBooking({ ...booking, barber: b, time: null }); nextStep(); }}
                       className="group flex items-center gap-6 p-6 rounded-[3rem] bg-zinc-900/40 border border-zinc-800 hover:border-amber-500 transition-all duration-500 w-full text-left"
                     >
                       <div className="relative w-24 h-24 md:w-32 md:h-32 shrink-0 rounded-full overflow-hidden border-2 border-zinc-700 group-hover:border-amber-500 transition-all duration-700 shadow-[0_0_20px_rgba(0,0,0,0.5)] group-hover:shadow-[0_0_30px_rgba(217,119,6,0.3)]">
-                        <Image src={b.img} alt={b.name} fill className="object-cover grayscale contrast-125 group-hover:grayscale-0 group-hover:scale-110 transition-all duration-700" />
+                        <Image src={b.img} alt={b.name} fill className="object-cover grayscale contrast-125 group-hover:grayscale-0 group-hover:scale-110 transition-all duration-700" unoptimized />
                       </div>
                       <div>
-                        <span className="px-3 py-1 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-lg text-[10px] font-black uppercase tracking-widest mb-2 inline-block">Top Rated</span>
+                        <span className="px-3 py-1 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-lg text-[10px] font-black uppercase tracking-widest mb-2 inline-block">{b.tag || "Top Rated"}</span>
                         <h4 className="font-black text-2xl md:text-3xl text-white uppercase tracking-tighter">{b.name}</h4>
                         <p className="text-xs font-bold text-zinc-500 uppercase tracking-[0.2em] mt-1 group-hover:text-amber-500 transition-colors">{b.role}</p>
                       </div>
@@ -319,7 +358,7 @@ export default function BookingEngine() {
             )}
 
             {/* ========================================================= */}
-            {/* PASO 3: CALENDARIO Y HORA (Sincronizado) */}
+            {/* PASO 3: CALENDARIO Y HORA (Sincronizado con BD) */}
             {/* ========================================================= */}
             {step === 3 && (
               <motion.div key="s3" variants={slideIn} initial="hidden" animate="visible" exit="exit" className="space-y-12 text-left pb-32">
@@ -346,10 +385,9 @@ export default function BookingEngine() {
                   ))}
                 </div>
 
-                {/* Slots de Hora (Validación de Ocupado) */}
+                {/* Slots de Hora */}
                 {booking.date && (
                   <div className="bg-zinc-900/40 border border-zinc-800 rounded-[3rem] p-8 md:p-10 space-y-10 relative overflow-hidden">
-                    {/* Render helper block */}
                     {[
                       { title: "Jornada Mañana", slots: TIME_SLOTS.manana },
                       { title: "Jornada Tarde", slots: TIME_SLOTS.tarde },
@@ -413,12 +451,26 @@ export default function BookingEngine() {
                   
                   <div className="relative text-left group">
                     <UserCircle className="absolute left-6 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-amber-500 transition-colors" size={24} />
-                    <input required type="text" placeholder="Tu nombre y apellido" className="w-full bg-black border border-zinc-800 rounded-[2rem] pl-16 pr-6 py-6 text-white font-bold text-lg focus:outline-none focus:border-amber-500 focus:bg-zinc-950 transition-all placeholder:text-zinc-700" />
+                    <input 
+                      required 
+                      type="text" 
+                      placeholder="Tu nombre y apellido" 
+                      value={booking.guest.name}
+                      onChange={(e) => setBooking({...booking, guest: {...booking.guest, name: e.target.value}})}
+                      className="w-full bg-black border border-zinc-800 rounded-[2rem] pl-16 pr-6 py-6 text-white font-bold text-lg focus:outline-none focus:border-amber-500 focus:bg-zinc-950 transition-all placeholder:text-zinc-700" 
+                    />
                   </div>
                   
                   <div className="relative text-left group">
                     <Phone className="absolute left-6 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-amber-500 transition-colors" size={24} />
-                    <input required type="tel" placeholder="WhatsApp (+56 9...)" className="w-full bg-black border border-zinc-800 rounded-[2rem] pl-16 pr-6 py-6 text-white font-bold text-lg focus:outline-none focus:border-amber-500 focus:bg-zinc-950 transition-all placeholder:text-zinc-700" />
+                    <input 
+                      required 
+                      type="tel" 
+                      placeholder="WhatsApp (+56 9...)" 
+                      value={booking.guest.phone}
+                      onChange={(e) => setBooking({...booking, guest: {...booking.guest, phone: e.target.value}})}
+                      className="w-full bg-black border border-zinc-800 rounded-[2rem] pl-16 pr-6 py-6 text-white font-bold text-lg focus:outline-none focus:border-amber-500 focus:bg-zinc-950 transition-all placeholder:text-zinc-700" 
+                    />
                   </div>
                   
                   <div className="pt-6 mt-6 border-t border-zinc-800">
