@@ -77,7 +77,7 @@ const DynamicIcon = ({ name, size = 24, className = "" }: { name: string, size?:
   return <IconComponent size={size} className={className} />;
 };
 
-// Formateador de dinero (SOLUCIÓN AL ERROR)
+// Formateador de dinero
 const formatMoney = (amount: number) => {
   return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
 };
@@ -92,7 +92,7 @@ export default function AdminDashboard() {
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
 
-  // Estados de Datos
+  // Estados de Datos Reales
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [storePromos, setStorePromos] = useState<Promotion[]>([]);
@@ -109,7 +109,7 @@ export default function AdminDashboard() {
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
-  // Efecto Inicial
+  // Efecto Inicial: Carga los datos al iniciar la página
   useEffect(() => {
     fetchData();
   }, []);
@@ -119,18 +119,27 @@ export default function AdminDashboard() {
     try {
       // Fetch Barberos
       const { data: dbBarbers, error: errBarbers } = await supabase.from('Barbers').select('*').order('created_at', { ascending: false });
-      if (!errBarbers && dbBarbers && dbBarbers.length > 0) setBarbers(dbBarbers);
-      else setBarbers(FALLBACK_BARBERS); // Si no hay DB, usa el idéntico al inicio
+      if (!errBarbers && dbBarbers && dbBarbers.length > 0) {
+        setBarbers(dbBarbers);
+      } else {
+        setBarbers(FALLBACK_BARBERS); // Si no hay DB, usa el idéntico al inicio
+      }
 
       // Fetch Servicios
       const { data: dbServices, error: errServices } = await supabase.from('Services').select('*');
-      if (!errServices && dbServices && dbServices.length > 0) setServices(dbServices);
-      else setServices(FALLBACK_SERVICES);
+      if (!errServices && dbServices && dbServices.length > 0) {
+        setServices(dbServices);
+      } else {
+        setServices(FALLBACK_SERVICES);
+      }
 
       // Fetch Tienda / Promociones
       const { data: dbStore, error: errStore } = await supabase.from('StoreProducts').select('*');
-      if (!errStore && dbStore && dbStore.length > 0) setStorePromos(dbStore);
-      else setStorePromos(FALLBACK_STORE);
+      if (!errStore && dbStore && dbStore.length > 0) {
+        setStorePromos(dbStore);
+      } else {
+        setStorePromos(FALLBACK_STORE);
+      }
 
     } catch (error) {
       console.error("Modo desarrollo: usando mock data", error);
@@ -142,6 +151,7 @@ export default function AdminDashboard() {
     }
   };
 
+  // Previsualización de la imagen antes de subir
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
@@ -150,6 +160,7 @@ export default function AdminDashboard() {
     }
   };
 
+  // Abrir Modal de Barbero (Sirve para Crear o Editar)
   const openBarberModal = (barber: Barber | null = null) => {
     setEditingBarber(barber);
     setImagePreview(null);
@@ -157,26 +168,28 @@ export default function AdminDashboard() {
     setModalType("BARBER");
   };
 
+  // Función REAL para Eliminar Barbero
   const handleDeleteBarber = async (id: string) => {
     const isConfirmed = window.confirm("¿Estás seguro de que deseas eliminar a este barbero? Se removerá del inicio.");
     if (!isConfirmed) return;
 
     try {
-      // Intenta eliminar de Supabase
+      // 1. Eliminar de la base de datos Supabase
       const { error } = await supabase.from('Barbers').delete().eq('id', id);
       if (error) throw error;
       
-      // Actualiza estado local inmediatamente para UX o recarga db
-      await fetchData();
+      // 2. Actualizar la tabla visualmente AL INSTANTE
+      setBarbers(prev => prev.filter(b => b.id !== id));
       alert("Barbero eliminado correctamente.");
     } catch (error) {
       console.error("Error eliminando:", error);
-      // Si falla (ej. porque es un dato de prueba y no está en tu BD real aún), borrar local
+      // Fallback visual si estamos usando Mock Data
       setBarbers(prev => prev.filter(b => b.id !== id));
-      alert("Barbero removido de la vista (Simulación por falta de DB conectada).");
+      alert("Barbero removido visualmente (Modo Desarrollo).");
     }
   };
 
+  // Función REAL para Guardar o Editar Datos
   const handleSaveAction = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
@@ -184,13 +197,14 @@ export default function AdminDashboard() {
     
     try {
       if (modalType === "BARBER") {
-        // Mantiene la imagen vieja por defecto si estamos editando
+        // Mantiene la imagen actual si estamos editando y no seleccionamos una nueva
         let imageUrl = editingBarber?.img || "https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=800&auto=format&fit=crop"; 
         
-        // Si subió imagen nueva
+        // Si el usuario seleccionó una imagen NUEVA
         if (selectedImage) {
           const fileExt = selectedImage.name.split('.').pop();
-          const fileName = `${Date.now()}.${fileExt}`;
+          // SOLUCIÓN ANTI-CACHÉ: Nombre único con fecha y hora exacta
+          const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
           const filePath = `barbers/${fileName}`;
           
           const { error: uploadError } = await supabase.storage.from('barber-profiles').upload(filePath, selectedImage);
@@ -199,6 +213,7 @@ export default function AdminDashboard() {
             imageUrl = publicUrlData.publicUrl;
           } else {
              console.error("Error subiendo imagen:", uploadError);
+             throw new Error("No se pudo subir la imagen al Storage.");
           }
         }
 
@@ -213,42 +228,56 @@ export default function AdminDashboard() {
           img: imageUrl
         };
 
-        if (editingBarber && !editingBarber.id.includes("cesar")) { 
-          // UPDATE en Supabase (Solo si no es uno de los Mocks quemados como "cesar")
-          const { error } = await supabase.from('Barbers').update(barberData).eq('id', editingBarber.id);
+        if (editingBarber) {
+          // ACTUALIZAR (UPDATE)
+          const { data, error } = await supabase.from('Barbers').update(barberData).eq('id', editingBarber.id).select();
           if (error) throw error;
+          
+          // Actualización instantánea en la tabla visual
+          if (data && data.length > 0) {
+            setBarbers(prev => prev.map(b => b.id === editingBarber.id ? data[0] : b));
+          }
+          alert("¡Barbero actualizado y sincronizado correctamente!");
         } else {
-          // INSERT nuevo en Supabase
-          const { error } = await supabase.from('Barbers').insert([barberData]);
+          // CREAR (INSERT)
+          const { data, error } = await supabase.from('Barbers').insert([barberData]).select();
           if (error) throw error;
+
+          // Actualización instantánea en la tabla visual
+          if (data && data.length > 0) {
+            setBarbers(prev => [data[0], ...prev]);
+          }
+          alert("¡Barbero creado y sincronizado correctamente!");
         }
-        
-        alert(`¡Barbero ${editingBarber ? 'actualizado' : 'guardado'} y sincronizado con el Inicio!`);
       }
 
       if (modalType === "SERVICE") {
          const newService = {
-            name: formData.get("name"),
-            price: formData.get("price"),
-            time: formData.get("time"),
-            desc: formData.get("desc"),
-            iconName: formData.get("iconName") || "Scissors"
+            name: formData.get("name") as string,
+            price: formData.get("price") as string,
+            time: formData.get("time") as string,
+            desc: formData.get("desc") as string,
+            iconName: (formData.get("iconName") as string) || "Scissors"
          };
-         await supabase.from('Services').insert([newService]);
+         
+         const { data, error } = await supabase.from('Services').insert([newService]).select();
+         if (error) throw error;
+         
+         if (data && data.length > 0) {
+           setServices(prev => [data[0], ...prev]);
+         }
          alert("¡Servicio guardado exitosamente!");
       }
 
-      // IMPORTANTE: Refrescar los datos reales después de insertar/actualizar
-      await fetchData(); 
-
-      // Limpiar Modales
+      // Limpiar Modales después de guardar exitosamente
       setModalType(null);
       setEditingBarber(null);
       setSelectedImage(null);
       setImagePreview(null);
       
-    } catch (error) {
-      console.log("Simulación de guardado exitosa (No hay DB conectada aún)");
+    } catch (error: any) {
+      console.error("Error guardando:", error);
+      alert(`Error al procesar: ${error.message || 'Verifica tu conexión a Supabase.'}`);
       setModalType(null);
     } finally {
       setIsLoading(false);
@@ -306,12 +335,6 @@ export default function AdminDashboard() {
               <KpiCard icon={<Scissors />} title="Cortes Realizados (Hoy)" value={15} />
               <KpiCard icon={<Armchair />} title="Sillones Ocupados" value="1 / 4" statusColor="text-green-500" />
               <KpiCard icon={<Users />} title="Nuevos Clientes (Mes)" value={42} trend="+12% vs mes pasado" />
-            </div>
-            
-            {/* Widget Informativo */}
-            <div className="bg-amber-500/10 border border-amber-500/30 p-6 rounded-2xl flex items-center gap-4 text-amber-500">
-              <AlertCircle size={24} />
-              <p className="text-sm font-bold">Todo lo que modifiques en las pestañas "Staff", "Servicios" y "Promociones" se actualizará instantáneamente en la página de inicio (app/page.tsx).</p>
             </div>
           </motion.div>
         )}
@@ -386,8 +409,9 @@ export default function AdminDashboard() {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-4">
                           <div className="relative w-14 h-14 rounded-xl overflow-hidden border border-zinc-700 bg-zinc-800">
+                            {/* IMPORTANTE: unoptimized ayuda a evitar problemas de caché de Next.js con imágenes externas */}
                             {b.img ? (
-                              <Image src={b.img} alt={b.name} fill className="object-cover grayscale hover:grayscale-0 transition-all" />
+                              <Image src={b.img} alt={b.name} fill className="object-cover grayscale hover:grayscale-0 transition-all" unoptimized />
                             ) : (
                                <UserCircle2 className="w-full h-full p-2 text-zinc-500" />
                             )}
@@ -405,11 +429,9 @@ export default function AdminDashboard() {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        {/* BOTÓN EDITAR */}
                         <button onClick={() => openBarberModal(b)} className="p-2 text-zinc-500 hover:text-amber-500 transition-colors" title="Editar">
                           <Edit3 size={18} />
                         </button>
-                        {/* BOTÓN ELIMINAR */}
                         <button onClick={() => handleDeleteBarber(b.id)} className="p-2 text-zinc-500 hover:text-red-500 transition-colors" title="Eliminar">
                           <Trash2 size={18} />
                         </button>
@@ -426,7 +448,7 @@ export default function AdminDashboard() {
         )}
 
         {/* =================================================================== */}
-        {/* TAB 4: SERVICIOS (Controla la grilla de servicios web) */}
+        {/* TAB 4: SERVICIOS */}
         {/* =================================================================== */}
         {activeTab === "SERVICIOS" && (
           <motion.div key="servicios" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
@@ -508,7 +530,7 @@ export default function AdminDashboard() {
         )}
 
         {/* =================================================================== */}
-        {/* TAB 6: PROMOCIONES / TIENDA (Controla Slider Inicio) */}
+        {/* TAB 6: PROMOCIONES / TIENDA */}
         {/* =================================================================== */}
         {activeTab === "PROMOCIONES" && (
           <motion.div key="promociones" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
@@ -526,7 +548,7 @@ export default function AdminDashboard() {
               {storePromos.map(p => (
                 <div key={p.id} className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 relative overflow-hidden flex flex-col justify-between">
                   <div className="relative h-40 w-full rounded-xl overflow-hidden mb-4">
-                    <Image src={p.image} alt="Promo" fill className="object-cover opacity-50" />
+                    <Image src={p.image} alt="Promo" fill className="object-cover opacity-50" unoptimized />
                     <div className="absolute inset-0 flex items-center justify-center">
                       <span className="bg-amber-500 text-black px-4 py-1 rounded-full font-black text-xs uppercase">{p.tag}</span>
                     </div>
@@ -540,9 +562,6 @@ export default function AdminDashboard() {
                       <p className="text-white font-bold">{p.titleRight}</p>
                       <p className="text-amber-500 font-black">{p.priceRight}</p>
                     </div>
-                  </div>
-                  <div className="absolute top-4 right-4 flex gap-2 z-20">
-                    <button className="p-2 bg-black/50 text-white hover:text-red-500 rounded-lg backdrop-blur-md"><Trash2 size={16}/></button>
                   </div>
                 </div>
               ))}
@@ -565,7 +584,7 @@ export default function AdminDashboard() {
               
               <h3 className="text-2xl font-black text-white uppercase tracking-tighter mb-6 font-serif">
                 {modalType === "SERVICE" && "Servicio Web"}
-                {modalType === "BARBER" && (editingBarber ? "Editar Barbero" : "Añadir Barbero a la Web")}
+                {modalType === "BARBER" && (editingBarber ? "Editar Barbero" : "Añadir Barbero")}
                 {modalType === "PROMO" && "Crear Destacado de Tienda"}
               </h3>
               
@@ -580,9 +599,9 @@ export default function AdminDashboard() {
                         onClick={() => fileInputRef.current?.click()}
                       >
                         {imagePreview ? (
-                          <Image src={imagePreview} alt="Preview" fill className="object-cover" />
+                          <Image src={imagePreview} alt="Preview" fill className="object-cover" unoptimized />
                         ) : editingBarber?.img ? (
-                          <Image src={editingBarber.img} alt="Current" fill className="object-cover grayscale group-hover:grayscale-0 transition-all" />
+                          <Image src={editingBarber.img} alt="Current" fill className="object-cover grayscale group-hover:grayscale-0 transition-all" unoptimized />
                         ) : (
                           <>
                             <Upload className="text-zinc-500 mb-2 group-hover:text-amber-500 transition-colors" />
