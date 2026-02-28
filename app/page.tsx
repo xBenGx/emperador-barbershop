@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion, useScroll, useTransform, AnimatePresence, Variants } from "framer-motion";
+import * as LucideIcons from "lucide-react"; // Importamos todos los iconos para renderizado dinámico
 import { 
   Gamepad2, MapPin, Instagram, ChevronRight, 
   Crown, Star, Scissors, Zap, Flame, Crosshair,
@@ -13,11 +14,14 @@ import {
   UserCircle, Briefcase, KeyRound, ShoppingCart
 } from "lucide-react";
 
+// Importamos el cliente de Supabase desde tu estructura de carpetas
+import { createClient } from "@/utils/supabase/client";
+
 // ============================================================================
-// DATA MAESTRA 
+// DATA MAESTRA (FALLBACKS) - Se usarán si la Base de Datos está vacía
 // ============================================================================
 
-const STORE_SLIDES = [
+const FALLBACK_STORE_SLIDES = [
   {
     id: 1,
     tag: "LAST DAY!",
@@ -54,35 +58,31 @@ const STORE_SLIDES = [
   }
 ];
 
-const TEAM = [
+const FALLBACK_TEAM = [
   { id: "cesar", name: "Cesar Luna", role: "Master Barber", tag: "El Arquitecto", img: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=800&auto=format&fit=crop" },
   { id: "jack", name: "Jack Guerra", role: "Fade Specialist", tag: "Rey del Fade", img: "https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=800&auto=format&fit=crop" },
   { id: "jhonn", name: "Jhonn Prado", role: "Beard Expert", tag: "Precisión", img: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?q=80&w=800&auto=format&fit=crop" },
   { id: "marcos", name: "Marcos Peña", role: "Senior Barber", tag: "Versatilidad", img: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=800&auto=format&fit=crop" },
 ];
 
-const SERVICES = [
-  { name: "Corte Clásico / Degradado", time: "1 hrs", price: "$12.000", desc: "El corte que define tu estilo. Clean, fresh, de líneas perfectas.", icon: <Scissors size={24} /> },
-  { name: "Corte + Perfilado de Cejas", time: "1 hrs", price: "$14.000", desc: "Sube de nivel tu mirada. Detalles quirúrgicos que marcan la diferencia.", icon: <Crosshair size={24} /> },
-  { name: "Barba + Vapor Caliente", time: "30 min", price: "$7.000", desc: "Afeitado VIP. Abrimos los poros para un acabado de seda y cero irritación.", icon: <Flame size={24} /> },
-  { name: "Corte + Barba + Lavado GRATIS", time: "1h 5m", price: "$17.000", desc: "El combo indispensable para salir listo directo al fin de semana.", icon: <Zap size={24} /> },
-  { name: "Limpieza Facial + Vapor", time: "25 min", price: "$10.000", desc: "Skin care masculino. Vapor, extracción de impurezas y mascarilla.", icon: <Sparkles size={24} /> },
-  { name: "Corte + Barba + Cejas + Lavado", time: "1h 15m", price: "$20.000", desc: "Mantenimiento total. Renovación completa en una sola sesión.", icon: <Crown size={24} /> },
-  { name: "Servicio Emperador VIP", time: "1h 30m", price: "$35.000", desc: "La experiencia definitiva. Trato de realeza garantizado.", icon: <Star size={24} /> },
-  { name: "Perfilado de Cejas", time: "5 min", price: "$3.000", desc: "Limpieza rápida y definición de contornos.", icon: <Crosshair size={24} /> },
-  { name: "Lavado de Cabello", time: "5 min", price: "$3.000", desc: "Lavado profundo con productos premium.", icon: <Droplets size={24} /> },
-  { name: "Diseño / Hair Tattoo", time: "15 min", price: "$4.000", desc: "Líneas, tribales o diseños exclusivos a navaja.", icon: <Wand2 size={24} /> },
-  { name: "Visos + Corte + Cejas", time: "4 hrs", price: "$70.000", desc: "Iluminación de cabello profesional más perfilado completo.", icon: <Zap size={24} /> },
-  { name: "Platinado + Corte + Cejas", time: "5 hrs", price: "$90.000", desc: "Decoloración global nivel platino. Transformación extrema.", icon: <Flame size={24} /> },
+const FALLBACK_SERVICES = [
+  { name: "Corte Clásico / Degradado", time: "1 hrs", price: "$12.000", desc: "El corte que define tu estilo. Clean, fresh, de líneas perfectas.", iconName: "Scissors" },
+  { name: "Corte + Perfilado de Cejas", time: "1 hrs", price: "$14.000", desc: "Sube de nivel tu mirada. Detalles quirúrgicos que marcan la diferencia.", iconName: "Crosshair" },
+  { name: "Barba + Vapor Caliente", time: "30 min", price: "$7.000", desc: "Afeitado VIP. Abrimos los poros para un acabado de seda y cero irritación.", iconName: "Flame" },
+  { name: "Corte + Barba + Lavado GRATIS", time: "1h 5m", price: "$17.000", desc: "El combo indispensable para salir listo directo al fin de semana.", iconName: "Zap" },
+  { name: "Limpieza Facial + Vapor", time: "25 min", price: "$10.000", desc: "Skin care masculino. Vapor, extracción de impurezas y mascarilla.", iconName: "Sparkles" },
+  { name: "Corte + Barba + Cejas + Lavado", time: "1h 15m", price: "$20.000", desc: "Mantenimiento total. Renovación completa en una sola sesión.", iconName: "Crown" },
+  { name: "Servicio Emperador VIP", time: "1h 30m", price: "$35.000", desc: "La experiencia definitiva. Trato de realeza garantizado.", iconName: "Star" },
+  { name: "Platinado + Corte + Cejas", time: "5 hrs", price: "$90.000", desc: "Decoloración global nivel platino. Transformación extrema.", iconName: "Flame" },
 ];
 
-const REVIEWS = [
+const FALLBACK_REVIEWS = [
   { name: "Matías R.", text: "El mejor fade de Curicó. Mientras esperaba jugué una partida de PS5. Servicio 10/10.", rating: 5 },
   { name: "Carlos D.", text: "Atención de primer nivel. Cesar es un artista con la tijera. El local tiene muchísimo flow.", rating: 5 },
   { name: "Andrés M.", text: "Ritual de barba con vapor increíble. Salí renovado. Los cabros tienen un talento brutal.", rating: 5 },
 ];
 
-const FAQS = [
+const FALLBACK_FAQS = [
   { q: "¿Necesito cuenta para reservar?", a: "No, en Emperador valoramos tu tiempo. Puedes agendar como invitado en menos de 1 minuto ingresando solo tu nombre y número." },
   { q: "¿El uso de PS5 tiene costo?", a: "Para nada. PS5 y la mesa de Pool son un beneficio exclusivo y 100% gratuito para nuestros clientes mientras esperan." },
   { q: "¿Qué métodos de pago aceptan?", a: "Para tu comodidad, aceptamos Efectivo, Transferencia Electrónica y todas las tarjetas de Débito/Crédito vía Transbank." },
@@ -94,9 +94,13 @@ const INSTA_REELS = [
   { id: 2, likes: "8.2k", comments: "98", type: "post", img: "https://images.unsplash.com/photo-1622286342621-4bd786c2447c?q=80&w=600&auto=format&fit=crop" },
   { id: 3, likes: "15.1k", comments: "230", type: "reel", img: "https://images.unsplash.com/photo-1605497788044-5a32c7078486?q=80&w=600&auto=format&fit=crop" },
   { id: 4, likes: "20.5k", comments: "314", type: "reel", img: "https://images.unsplash.com/photo-1620331311520-246422fd82f9?q=80&w=600&auto=format&fit=crop" },
-  { id: 5, likes: "3.1k", comments: "89", type: "post", img: "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?q=80&w=600&auto=format&fit=crop" },
-  { id: 6, likes: "5.4k", comments: "112", type: "reel", img: "https://images.unsplash.com/photo-1534180477871-5d6cc81f3920?q=80&w=600&auto=format&fit=crop" },
 ];
+
+// Función para renderizar iconos dinámicamente desde la BD
+const DynamicIcon = ({ name, size = 24 }: { name: string, size?: number }) => {
+  const IconComponent = (LucideIcons as any)[name] || LucideIcons.Scissors;
+  return <IconComponent size={size} />;
+};
 
 // ============================================================================
 // ANIMACIONES IMPACTANTES
@@ -116,7 +120,6 @@ const staggerContainer: Variants = {
   visible: { opacity: 1, transition: { staggerChildren: 0.15 } }
 };
 
-// ACA ESTÁ LA ANIMACIÓN QUE FALTABA
 const textReveal: Variants = {
   hidden: { opacity: 0, y: "100%" },
   visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.33, 1, 0.68, 1] } }
@@ -160,30 +163,71 @@ const FAQItem = ({ faq }: { faq: any }) => {
 // ============================================================================
 
 export default function UltimateEmperadorLanding() {
+  const supabase = createClient();
+
+  // Estados Dinámicos (Conectados a BD)
   const [scrolled, setScrolled] = useState(false);
   const [activeTab, setActiveTab] = useState("reels");
   const [showLoginMenu, setShowLoginMenu] = useState(false); 
   
-  // Hero Carousel State: 0 = Hero Principal, 1... = Productos de la Tienda
+  const [team, setTeam] = useState<any[]>(FALLBACK_TEAM);
+  const [services, setServices] = useState<any[]>(FALLBACK_SERVICES);
+  const [storeSlides, setStoreSlides] = useState<any[]>(FALLBACK_STORE_SLIDES);
+  const [reviews, setReviews] = useState<any[]>(FALLBACK_REVIEWS);
+  const [faqs, setFaqs] = useState<any[]>(FALLBACK_FAQS);
+
+  // Hero Carousel State
   const [currentHeroSlide, setCurrentHeroSlide] = useState(0);
-  const totalSlides = 1 + STORE_SLIDES.length;
+  const totalSlides = 1 + storeSlides.length;
   
   const { scrollY } = useScroll();
   const yHero = useTransform(scrollY, [0, 1000], [0, 400]);
 
+  // EFECTO 1: Scroll Navbar
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 50);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Slider Automático para el Hero
+  // EFECTO 2: Slider Automático
   useEffect(() => {
     const slideInterval = setInterval(() => {
       setCurrentHeroSlide((prev) => (prev + 1) % totalSlides);
     }, 7000); 
     return () => clearInterval(slideInterval);
   }, [totalSlides]);
+
+  // EFECTO 3: Fetching desde Supabase (Control de Administrador)
+  useEffect(() => {
+    async function fetchAdminData() {
+      try {
+        // 1. Barberos
+        const { data: dbTeam, error: errTeam } = await supabase.from('Barbers').select('*');
+        if (!errTeam && dbTeam && dbTeam.length > 0) setTeam(dbTeam);
+
+        // 2. Servicios
+        const { data: dbServices, error: errServ } = await supabase.from('Services').select('*');
+        if (!errServ && dbServices && dbServices.length > 0) setServices(dbServices);
+
+        // 3. Productos Destacados
+        const { data: dbStore, error: errStore } = await supabase.from('StoreProducts').select('*');
+        if (!errStore && dbStore && dbStore.length > 0) setStoreSlides(dbStore);
+
+        // 4. Reseñas
+        const { data: dbReviews, error: errRev } = await supabase.from('Reviews').select('*');
+        if (!errRev && dbReviews && dbReviews.length > 0) setReviews(dbReviews);
+
+        // 5. FAQs
+        const { data: dbFaqs, error: errFaq } = await supabase.from('Faqs').select('*');
+        if (!errFaq && dbFaqs && dbFaqs.length > 0) setFaqs(dbFaqs);
+
+      } catch (error) {
+        console.log("Supabase tablas no encontradas o sin datos, usando datos por defecto.");
+      }
+    }
+    fetchAdminData();
+  }, [supabase]);
 
   return (
     <main className="bg-[#050505] min-h-screen font-sans selection:bg-amber-500 selection:text-black overflow-x-hidden relative">
@@ -291,18 +335,18 @@ export default function UltimateEmperadorLanding() {
                     </motion.div>
                     
                     <div className="overflow-hidden mb-2">
-                      <motion.h2 variants={textReveal} className="text-[14vw] lg:text-[12rem] font-serif font-black text-white leading-[0.8] tracking-tighter uppercase drop-shadow-2xl">
+                      <motion.h2 variants={textReveal} className="text-[14vw] lg:text-[11rem] font-serif font-black text-white leading-[0.8] tracking-tighter uppercase drop-shadow-2xl">
                         EMPERADOR
                       </motion.h2>
                     </div>
                     <div className="overflow-hidden mb-8">
-                      <motion.h2 variants={textReveal} className="text-[14vw] lg:text-[12rem] font-serif font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-amber-500 to-amber-700 leading-[0.8] tracking-tighter uppercase drop-shadow-2xl">
+                      <motion.h2 variants={textReveal} className="text-[10vw] lg:text-[8rem] font-serif font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-amber-500 to-amber-700 leading-[0.8] tracking-widest uppercase drop-shadow-2xl">
                         BARBERSHOP
                       </motion.h2>
                     </div>
                     
                     <motion.p variants={popUp} className="text-zinc-300 text-lg md:text-2xl font-medium max-w-2xl mx-auto mb-12 drop-shadow-md">
-                      El respeto se gana. El estilo se elige. Disfruta de la mejor experiencia de grooming, PS5 y Pool en la ciudad.
+                      La barbería no es un trámite, es un ritual. Disfruta de la mejor experiencia de grooming, atención premium, PS5 y mesa de Pool.
                     </motion.p>
                     
                     <motion.div variants={popUp} className="flex flex-col sm:flex-row items-center gap-4 justify-center w-full">
@@ -325,7 +369,7 @@ export default function UltimateEmperadorLanding() {
                 {/* Imagen de fondo extendida horizontalmente */}
                 <div className="absolute inset-0 z-0">
                   <Image 
-                    src={STORE_SLIDES[currentHeroSlide - 1].image} 
+                    src={storeSlides[currentHeroSlide - 1].image} 
                     alt="Producto Destacado" 
                     fill 
                     className="object-cover object-center grayscale-[20%] opacity-40 scale-105"
@@ -344,23 +388,23 @@ export default function UltimateEmperadorLanding() {
                         EMPERADOR STORE
                       </div>
                       <h2 className="text-5xl md:text-7xl font-black text-white uppercase tracking-tighter leading-none mb-2 drop-shadow-2xl">
-                        {STORE_SLIDES[currentHeroSlide - 1].tag}
+                        {storeSlides[currentHeroSlide - 1].tag}
                       </h2>
                     </motion.div>
 
                     <motion.div initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.4 }} className="mt-8 bg-black/40 p-6 md:p-8 rounded-3xl backdrop-blur-xl border border-zinc-800/50 w-full max-w-lg shadow-2xl">
                       <div className="grid grid-cols-2 gap-6 mb-6">
                         <div>
-                          <h3 className="text-white font-bold text-lg md:text-xl leading-tight">{STORE_SLIDES[currentHeroSlide - 1].titleLeft}</h3>
-                          <p className="text-zinc-400 font-medium text-xs mb-2">{STORE_SLIDES[currentHeroSlide - 1].subtitleLeft}</p>
-                          <p className="text-amber-500 font-black text-3xl tracking-tighter">{STORE_SLIDES[currentHeroSlide - 1].priceLeft}</p>
-                          <p className="text-zinc-500 font-medium text-[10px] uppercase tracking-widest line-through">{STORE_SLIDES[currentHeroSlide - 1].oldPriceLeft}</p>
+                          <h3 className="text-white font-bold text-lg md:text-xl leading-tight">{storeSlides[currentHeroSlide - 1].titleLeft}</h3>
+                          <p className="text-zinc-400 font-medium text-xs mb-2">{storeSlides[currentHeroSlide - 1].subtitleLeft}</p>
+                          <p className="text-amber-500 font-black text-3xl tracking-tighter">{storeSlides[currentHeroSlide - 1].priceLeft}</p>
+                          <p className="text-zinc-500 font-medium text-[10px] uppercase tracking-widest line-through">{storeSlides[currentHeroSlide - 1].oldPriceLeft}</p>
                         </div>
                         <div>
-                          <h3 className="text-white font-bold text-lg md:text-xl leading-tight">{STORE_SLIDES[currentHeroSlide - 1].titleRight}</h3>
-                          <p className="text-zinc-400 font-medium text-xs mb-2">{STORE_SLIDES[currentHeroSlide - 1].subtitleRight}</p>
-                          <p className="text-amber-500 font-black text-3xl tracking-tighter">{STORE_SLIDES[currentHeroSlide - 1].priceRight}</p>
-                          <p className="text-zinc-500 font-medium text-[10px] uppercase tracking-widest line-through">{STORE_SLIDES[currentHeroSlide - 1].oldPriceRight}</p>
+                          <h3 className="text-white font-bold text-lg md:text-xl leading-tight">{storeSlides[currentHeroSlide - 1].titleRight}</h3>
+                          <p className="text-zinc-400 font-medium text-xs mb-2">{storeSlides[currentHeroSlide - 1].subtitleRight}</p>
+                          <p className="text-amber-500 font-black text-3xl tracking-tighter">{storeSlides[currentHeroSlide - 1].priceRight}</p>
+                          <p className="text-zinc-500 font-medium text-[10px] uppercase tracking-widest line-through">{storeSlides[currentHeroSlide - 1].oldPriceRight}</p>
                         </div>
                       </div>
 
@@ -369,8 +413,8 @@ export default function UltimateEmperadorLanding() {
                           <ShoppingCart size={18} className="group-hover:-rotate-12 transition-transform" /> Lo Quiero
                         </Link>
                         <p className="text-zinc-400 font-medium text-[11px] leading-relaxed mt-4 text-center">
-                          {STORE_SLIDES[currentHeroSlide - 1].promoText} <br/>
-                          <span className="text-amber-500 font-black">{STORE_SLIDES[currentHeroSlide - 1].promoHighlight}</span> {STORE_SLIDES[currentHeroSlide - 1].promoEnd}
+                          {storeSlides[currentHeroSlide - 1].promoText} <br/>
+                          <span className="text-amber-500 font-black">{storeSlides[currentHeroSlide - 1].promoHighlight}</span> {storeSlides[currentHeroSlide - 1].promoEnd}
                         </p>
                       </div>
                     </motion.div>
@@ -410,7 +454,7 @@ export default function UltimateEmperadorLanding() {
       </div>
 
       {/* ========================================================================= */}
-      {/* 2. EQUIPO DE TRABAJO (THE SQUAD) */}
+      {/* 2. EQUIPO DE TRABAJO (TEAM EMPERADOR) */}
       {/* ========================================================================= */}
       <section id="squad" className="py-24 md:py-32 bg-[#050505] relative overflow-hidden border-b border-zinc-900">
         <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-amber-600/5 blur-[150px] rounded-full pointer-events-none" />
@@ -418,11 +462,11 @@ export default function UltimateEmperadorLanding() {
         <div className="max-w-[1400px] mx-auto px-6 relative z-10">
           <div className="text-center mb-16 md:mb-24">
             <h2 className="text-amber-500 font-black text-sm uppercase tracking-[0.4em] mb-4">Conoce a los Maestros</h2>
-            <h3 className="text-5xl md:text-8xl font-serif font-black text-white uppercase tracking-tighter leading-none">THE SQUAD.</h3>
+            <h3 className="text-5xl md:text-8xl font-serif font-black text-white uppercase tracking-tighter leading-none">TEAM EMPERADOR.</h3>
           </div>
           
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={staggerContainer} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-            {TEAM.map((t, i) => (
+            {team.map((t, i) => (
               <motion.div 
                 key={i} variants={popUp}
                 className="group relative h-[450px] md:h-[600px] rounded-[2rem] overflow-hidden border border-zinc-800 bg-zinc-900 cursor-pointer shadow-xl hover:shadow-[0_20px_50px_rgba(217,119,6,0.3)] transition-all duration-500"
@@ -464,7 +508,7 @@ export default function UltimateEmperadorLanding() {
           </div>
           
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-50px" }} variants={staggerContainer} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-             {SERVICES.map((s, i) => (
+             {services.map((s, i) => (
                <motion.div 
                  key={i} variants={popUp} whileHover={{ y: -10, scale: 1.02 }}
                  className="group p-8 bg-zinc-900/40 border border-zinc-800 rounded-[2rem] hover:bg-zinc-900 hover:border-amber-500 transition-all duration-300 flex flex-col justify-between shadow-lg relative overflow-hidden"
@@ -473,7 +517,7 @@ export default function UltimateEmperadorLanding() {
 
                   <div className="relative z-10">
                     <div className="w-14 h-14 bg-black border border-zinc-800 rounded-xl flex items-center justify-center text-amber-500 group-hover:bg-amber-500 group-hover:text-black group-hover:border-amber-400 transition-colors mb-6 shadow-lg duration-300">
-                      {s.icon}
+                      <DynamicIcon name={s.iconName || "Scissors"} />
                     </div>
                     <h4 className="text-xl font-black text-white uppercase mb-3 leading-tight group-hover:text-amber-500 transition-colors line-clamp-2">{s.name}</h4>
                     <p className="text-zinc-500 font-medium mb-8 text-sm leading-relaxed">{s.desc}</p>
@@ -539,7 +583,7 @@ export default function UltimateEmperadorLanding() {
              <h2 className="text-amber-500 font-black text-sm uppercase tracking-[0.4em]">El Respeto se Gana</h2>
            </div>
            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={staggerContainer} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {REVIEWS.map((r, i) => (
+              {reviews.map((r, i) => (
                 <motion.div key={i} variants={fadeUp} className="p-10 bg-zinc-950 border border-zinc-800 rounded-[2rem] relative overflow-hidden group hover:border-amber-500 transition-colors shadow-xl hover:-translate-y-2 duration-300">
                    <div className="absolute -top-6 -right-6 text-zinc-900 group-hover:text-amber-500/10 transition-colors group-hover:rotate-12 duration-500"><MessageSquare size={120} /></div>
                    <div className="flex gap-1 mb-6 text-amber-500 relative z-10">
@@ -643,7 +687,7 @@ export default function UltimateEmperadorLanding() {
           </div>
           
           <div className="space-y-4">
-            {FAQS.map((faq, i) => <FAQItem key={i} faq={faq} />)}
+            {faqs.map((faq, i) => <FAQItem key={i} faq={faq} />)}
           </div>
         </div>
       </section>
