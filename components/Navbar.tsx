@@ -12,12 +12,13 @@ interface NavLink {
   href: string;
 }
 
+// 1. Menú actualizado: Tienda después de Inicio
 const NAV_LINKS: NavLink[] = [
   { name: "Inicio", href: "/" },
+  { name: "Tienda", href: "/tienda" },
   { name: "Servicios", href: "/servicios" },
   { name: "Reservas", href: "/reservar" },
   { name: "Sobre Nosotros", href: "/nosotros" },
-  { name: "Galería", href: "/galeria" },
   { name: "Contacto", href: "/contacto" },
 ];
 
@@ -87,12 +88,12 @@ export default function Navbar() {
                 {/* Resplandor ámbar mejorado de fondo */}
                 <div className="absolute inset-0 bg-amber-500/20 blur-[40px] group-hover:bg-amber-500/40 transition-all duration-500 rounded-full scale-150 pointer-events-none"></div>
                 
-                {/* Contenedor del logo: Mantiene un tamaño fuerte y digno al hacer scroll */}
+                {/* 2. Logo más grande: Mantiene un tamaño fuerte y digno al hacer scroll */}
                 <div 
                   className={`relative z-10 rounded-full border border-amber-500/30 overflow-hidden shadow-[0_0_15px_rgba(217,119,6,0.2)] group-hover:border-amber-500/80 group-hover:shadow-[0_0_25px_rgba(217,119,6,0.4)] transition-all duration-500 ${
                     isScrolled 
-                      ? 'h-16 w-16 md:h-20 md:w-20' // Tamaño al hacer scroll (mucho más grande que antes)
-                      : 'h-24 w-24 md:h-32 md:w-32' // Tamaño inicial monumental
+                      ? 'h-20 w-20 md:h-24 md:w-24' // Tamaño agrandado al hacer scroll
+                      : 'h-28 w-28 md:h-36 md:w-36' // Tamaño inicial monumental
                   }`}
                 >
                   {/* Imagen del logo transparente */}

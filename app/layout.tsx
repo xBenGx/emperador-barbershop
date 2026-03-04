@@ -1,7 +1,8 @@
 // app/layout.tsx
 import type { Metadata } from "next";
 import { Playfair_Display, Inter } from "next/font/google";
-import Navbar from "@/components/Navbar"; // Asegúrate de que la ruta coincida
+import Navbar from "@/components/Navbar"; 
+import MusicPlayer from "@/components/MusicPlayer"; // <-- Importación del reproductor
 import "./globals.css";
 
 // Configuración de tipografías premium
@@ -37,13 +38,19 @@ export default function RootLayout({
   return (
     <html lang="es" className="scroll-smooth">
       <body 
-        className={`${inter.variable} ${playfair.variable} font-sans bg-zinc-950 text-zinc-50 antialiased overflow-x-hidden flex flex-col min-h-screen`}
+        className={`${inter.variable} ${playfair.variable} font-sans bg-[#050505] text-zinc-50 antialiased overflow-x-hidden flex flex-col min-h-screen`}
       >
-        {/* Barra de navegación global */}
+        {/* Barra de navegación global (Fija y superpuesta) */}
         <Navbar />
         
-        {/* Contenedor principal con padding para evitar que el Navbar lo tape */}
-        <main className="flex-grow pt-24 md:pt-28">
+        {/* Reproductor de Música Optimizado (Global) */}
+        <MusicPlayer />
+        
+        {/* Contenedor principal: 
+          Se eliminó el pt-24 para que el contenido pase POR DEBAJO del Navbar. 
+          Esto elimina cualquier franja o espacio blanco superior.
+        */}
+        <main className="flex-grow relative">
           {children}
         </main>
       </body>
