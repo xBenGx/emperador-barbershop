@@ -36,7 +36,7 @@ const NAV_LINKS: NavLink[] = [
 
   { name: "Reservas", href: "/reservar" },
 
-  { name: "Sobre Nosotros", href: "/nosotros" },
+  { name: "Sobre Nosotros", href: "/sobrenosotros" },
 
   { name: "Contacto", href: "/contacto" },
 
