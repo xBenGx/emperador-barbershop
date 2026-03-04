@@ -18,7 +18,7 @@ const NAV_LINKS: NavLink[] = [
   { name: "Tienda", href: "/tienda" },
   { name: "Servicios", href: "/servicios" },
   { name: "Reservas", href: "/reservar" },
-  { name: "Sobre Nosotros", href: "/nosotros" },
+  { name: "Sobre Nosotros", href: "/sobrenosotros" },
   { name: "Contacto", href: "/contacto" },
 ];
 

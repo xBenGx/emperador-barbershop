@@ -2,7 +2,7 @@
 import type { Metadata } from "next";
 import { Playfair_Display, Inter } from "next/font/google";
 import Navbar from "@/components/Navbar"; 
-import MusicPlayer from "@/components/MusicPlayer"; // <-- Importación del reproductor
+import MusicPlayer from "@/components/MusicPlayer"; 
 import "./globals.css";
 
 // Configuración de tipografías premium
@@ -46,11 +46,12 @@ export default function RootLayout({
         {/* Reproductor de Música Optimizado (Global) */}
         <MusicPlayer />
         
-        {/* Contenedor principal: 
-          Se eliminó el pt-24 para que el contenido pase POR DEBAJO del Navbar. 
-          Esto elimina cualquier franja o espacio blanco superior.
+        {/* CONTENEDOR PRINCIPAL FIX:
+          Se ha añadido pt-[120px] md:pt-[180px] lg:pt-[220px]. 
+          Esto asegura que en NINGUNA página el contenido choque o quede tapado por 
+          el logo gigante de la Navbar, manteniendo el diseño limpio en todas las rutas.
         */}
-        <main className="flex-grow relative">
+        <main className="flex-grow relative pt-[120px] md:pt-[180px] lg:pt-[220px]">
           {children}
         </main>
       </body>
