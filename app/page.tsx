@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion, useScroll, useTransform, AnimatePresence, Variants } from "framer-motion";
@@ -11,7 +11,7 @@ import {
   Minus, Plus, CheckCircle, ShieldCheck, 
   MessageSquare, Heart, MessageCircle, ExternalLink, 
   Lock, LayoutGrid, Clapperboard, Droplets, Sparkles, Wand2,
-  UserCircle, Briefcase, KeyRound, ShoppingCart
+  UserCircle, Briefcase, KeyRound, ShoppingCart, Disc, Volume2, VolumeX
 } from "lucide-react";
 
 // Importamos el cliente de Supabase desde tu estructura de carpetas
@@ -174,6 +174,11 @@ export default function UltimateEmperadorLanding() {
   const [reviews, setReviews] = useState<any[]>(FALLBACK_REVIEWS);
   const [faqs, setFaqs] = useState<any[]>(FALLBACK_FAQS);
 
+  // Estados del Reproductor de Música
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [hasInteracted, setHasInteracted] = useState(false);
+  const audioRef = useRef<HTMLAudioElement>(null);
+
   // Hero Carousel State
   const [currentHeroSlide, setCurrentHeroSlide] = useState(0);
   const totalSlides = 1 + storeSlides.length;
@@ -181,7 +186,7 @@ export default function UltimateEmperadorLanding() {
   const { scrollY } = useScroll();
   const yHero = useTransform(scrollY, [0, 1000], [0, 400]);
 
-  // EFECTO 2: Slider Automático
+  // EFECTO 1: Slider Automático
   useEffect(() => {
     const slideInterval = setInterval(() => {
       setCurrentHeroSlide((prev) => (prev + 1) % totalSlides);
@@ -189,30 +194,24 @@ export default function UltimateEmperadorLanding() {
     return () => clearInterval(slideInterval);
   }, [totalSlides]);
 
-  // EFECTO 3: Fetching desde Supabase (Sincronización con Administrador)
+  // EFECTO 2: Fetching desde Supabase (Sincronización con Administrador)
   useEffect(() => {
     async function fetchAdminData() {
       try {
-        // 1. Barberos (Con ordenamiento)
         const { data: dbTeam, error: errTeam } = await supabase.from('Barbers').select('*').order('created_at', { ascending: true });
         if (!errTeam && dbTeam && dbTeam.length > 0) setTeam(dbTeam);
 
-        // 2. Servicios
         const { data: dbServices, error: errServ } = await supabase.from('Services').select('*').order('created_at', { ascending: true });
         if (!errServ && dbServices && dbServices.length > 0) setServices(dbServices);
 
-        // 3. Productos Destacados
         const { data: dbStore, error: errStore } = await supabase.from('StoreProducts').select('*').order('created_at', { ascending: false });
         if (!errStore && dbStore && dbStore.length > 0) setStoreSlides(dbStore);
 
-        // 4. Reseñas
         const { data: dbReviews, error: errRev } = await supabase.from('Reviews').select('*');
         if (!errRev && dbReviews && dbReviews.length > 0) setReviews(dbReviews);
 
-        // 5. FAQs
         const { data: dbFaqs, error: errFaq } = await supabase.from('Faqs').select('*');
         if (!errFaq && dbFaqs && dbFaqs.length > 0) setFaqs(dbFaqs);
-
       } catch (error) {
         console.log("Supabase tablas no encontradas o sin datos, usando datos por defecto.");
       }
@@ -220,13 +219,93 @@ export default function UltimateEmperadorLanding() {
     fetchAdminData();
   }, [supabase]);
 
+  // EFECTO 3: Lógica del Reproductor de Música (Autoplay al interactuar)
+  useEffect(() => {
+    const handleInteraction = () => {
+      if (!hasInteracted && audioRef.current) {
+        audioRef.current.volume = 0.3; // Volumen moderado
+        audioRef.current.play()
+          .then(() => {
+            setIsPlaying(true);
+            setHasInteracted(true);
+          })
+          .catch(e => console.log("Autoplay bloqueado por el navegador."));
+        
+        document.removeEventListener('click', handleInteraction);
+        document.removeEventListener('scroll', handleInteraction);
+      }
+    };
+
+    document.addEventListener('click', handleInteraction);
+    document.addEventListener('scroll', handleInteraction);
+
+    return () => {
+      document.removeEventListener('click', handleInteraction);
+      document.removeEventListener('scroll', handleInteraction);
+    };
+  }, [hasInteracted]);
+
+  const togglePlay = () => {
+    if (audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.pause();
+      } else {
+        audioRef.current.volume = 0.3;
+        audioRef.current.play();
+      }
+      setIsPlaying(!isPlaying);
+      setHasInteracted(true);
+    }
+  };
+
   return (
-    <main className="bg-[#050505] min-h-screen font-sans selection:bg-amber-500 selection:text-black overflow-x-hidden relative">
+    // FIX MÁXIMO DEL ESPACIO BLANCO: El `-mt-24 md:-mt-28` jala la página hacia arriba, ignorando el padding del layout.tsx
+    <main className="bg-[#050505] min-h-screen font-sans selection:bg-amber-500 selection:text-black overflow-x-hidden relative -mt-24 md:-mt-28">
       
+      {/* ELEMENTO DE AUDIO OCULTO */}
+      <audio ref={audioRef} src="/vibe.mp3" loop preload="auto" />
+
       {/* GLOBAL BACKGROUNDS */}
       <div className="fixed inset-0 z-0 pointer-events-none bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:32px_32px]"></div>
       
-      {/* BOTÓN FLOTANTE */}
+      {/* ========================================================================= */}
+      {/* COMPONENTES FLOTANTES (MÚSICA Y AGENDAR) */}
+      {/* ========================================================================= */}
+      
+      {/* Reproductor de Música (Izquierda) */}
+      <motion.button
+        initial={{ opacity: 0, x: -50 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ delay: 1 }}
+        onClick={togglePlay}
+        className="fixed bottom-6 left-6 md:bottom-10 md:left-10 z-[100] flex items-center gap-3 bg-zinc-900/80 backdrop-blur-md border border-zinc-800 p-2 md:p-3 rounded-full shadow-2xl hover:border-amber-500 transition-colors group"
+      >
+        <div className="relative flex items-center justify-center w-12 h-12 md:w-14 md:h-14 bg-black rounded-full border border-zinc-700">
+          <Disc size={28} className={`text-amber-500 transition-all ${isPlaying ? 'animate-[spin_3s_linear_infinite]' : ''}`} />
+          <div className="absolute w-2 h-2 bg-zinc-900 rounded-full"></div>
+        </div>
+        
+        <div className="pr-4 hidden sm:block text-left">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 group-hover:text-amber-500 transition-colors">
+            {isPlaying ? 'Emperador Vibe' : 'Play Music'}
+          </p>
+          <div className="flex items-center gap-2 mt-1">
+            {isPlaying ? <Volume2 size={14} className="text-white" /> : <VolumeX size={14} className="text-zinc-600" />}
+            <div className="flex gap-1">
+              {[1, 2, 3].map((bar) => (
+                <motion.div 
+                  key={bar}
+                  animate={isPlaying ? { height: ["4px", "12px", "4px"] } : { height: "4px" }}
+                  transition={{ repeat: Infinity, duration: 0.8, delay: bar * 0.2 }}
+                  className={`w-1 rounded-full ${isPlaying ? 'bg-amber-500' : 'bg-zinc-700'}`}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      </motion.button>
+
+      {/* Botón Agendar (Derecha) */}
       <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 2, type: "spring", stiffness: 100 }} className="fixed bottom-6 right-6 md:bottom-10 md:right-10 z-[100]">
         <Link href="/reservar" className="relative flex items-center justify-center w-16 h-16 md:w-20 md:h-20 bg-amber-500 rounded-full shadow-[0_0_30px_rgba(217,119,6,0.8)] hover:scale-110 transition-transform group border-2 border-amber-300">
           <motion.div animate={{ scale: [1, 1.3, 1], opacity: [0.6, 0, 0] }} transition={{ repeat: Infinity, duration: 1.5 }} className="absolute inset-0 rounded-full bg-amber-500"></motion.div>
@@ -237,7 +316,7 @@ export default function UltimateEmperadorLanding() {
       {/* ========================================================================= */}
       {/* 1. HERO GLOBAL (Carrusel: Marca + Tienda Destacados de Fondo Completo) */}
       {/* ========================================================================= */}
-      <section className="relative w-full h-screen flex items-center justify-center overflow-hidden bg-black -mt-24 md:-mt-28">
+      <section className="relative w-full h-[100dvh] flex items-center justify-center overflow-hidden bg-black">
         
         <AnimatePresence mode="wait">
           <motion.div
@@ -250,9 +329,8 @@ export default function UltimateEmperadorLanding() {
           >
             {/* SLIDE 0: HERO ORIGINAL DE LA MARCA */}
             {currentHeroSlide === 0 && (
-              <div className="w-full h-full relative flex items-center justify-center pt-20">
+              <div className="w-full h-full relative flex items-center justify-center">
                 <motion.div style={{ y: yHero }} className="absolute inset-0 w-full h-full z-0">
-                  {/* IMPORTANTE: unoptimized agregado a la imagen estática también para consistencia */}
                   <Image 
                     src="https://images.unsplash.com/photo-1599351431202-1e0f0137899a?q=80&w=2000&auto=format&fit=crop" 
                     alt="Barbería Emperador" 
@@ -264,7 +342,7 @@ export default function UltimateEmperadorLanding() {
                   <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/60 to-transparent" />
                 </motion.div>
 
-                <div className="relative z-10 w-full max-w-[1400px] px-6 text-center">
+                <div className="relative z-10 w-full max-w-[1400px] px-6 text-center mt-20">
                   <motion.div initial="hidden" animate="visible" variants={staggerContainer}>
                     <motion.div variants={popUp} className="mb-6 inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/50 px-6 py-2 rounded-full text-[10px] md:text-xs font-black text-amber-500 uppercase tracking-[0.4em] shadow-[0_0_20px_rgba(217,119,6,0.2)] backdrop-blur-md">
                       <MapPin size={14} /> Peña 666, Piso 2 • Curicó
@@ -301,10 +379,8 @@ export default function UltimateEmperadorLanding() {
 
             {/* SLIDE > 0: PRODUCTOS DESTACADOS A PANTALLA COMPLETA */}
             {currentHeroSlide > 0 && (
-              <div className="w-full h-full relative flex items-center justify-center pt-20">
-                {/* Imagen de fondo extendida horizontalmente */}
+              <div className="w-full h-full relative flex items-center justify-center">
                 <div className="absolute inset-0 z-0">
-                  {/* IMPORTANTE: unoptimized previene que Next.js bloquee la URL de Supabase */}
                   <Image 
                     src={storeSlides[currentHeroSlide - 1].image} 
                     alt="Producto Destacado" 
@@ -312,14 +388,12 @@ export default function UltimateEmperadorLanding() {
                     className="object-cover object-center grayscale-[20%] opacity-40 scale-105"
                     unoptimized
                   />
-                  {/* Gradiente para asegurar lectura de texto, oscuro en bordes */}
                   <div className="absolute inset-0 bg-gradient-to-r from-[#050505] via-transparent to-[#050505]" />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/80 to-transparent" />
                 </div>
                 
-                <div className="relative z-10 w-full max-w-[1400px] px-6 mt-16 md:mt-0 flex flex-col md:flex-row items-center justify-between gap-10">
+                <div className="relative z-10 w-full max-w-[1400px] px-6 mt-24 flex flex-col md:flex-row items-center justify-between gap-10">
                   
-                  {/* Panel Izquierdo: Información Destacada */}
                   <div className="w-full md:w-1/2 flex flex-col items-center md:items-start text-center md:text-left">
                     <motion.div initial={{ x: -50, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.2 }}>
                       <div className="inline-block px-4 py-1.5 border border-amber-500 text-amber-500 font-black text-[10px] uppercase tracking-[0.3em] rounded-full mb-6 backdrop-blur-md bg-black/40">

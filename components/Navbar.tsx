@@ -67,8 +67,8 @@ export default function Navbar() {
         transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
         className={`fixed top-0 w-full z-[100] transition-all duration-500 border-b ${
           isScrolled 
-            ? "bg-[#050505]/90 backdrop-blur-xl border-amber-500/20 shadow-[0_10px_40px_-10px_rgba(217,119,6,0.15)] py-3" 
-            : "bg-gradient-to-b from-black/80 via-black/40 to-transparent border-transparent py-6"
+            ? "bg-[#050505]/90 backdrop-blur-xl border-amber-500/20 shadow-[0_10px_40px_-10px_rgba(217,119,6,0.15)] py-4" 
+            : "bg-gradient-to-b from-black/80 via-black/40 to-transparent border-transparent py-8"
         }`}
       >
         <div className="max-w-[1400px] mx-auto px-6 lg:px-12 relative">
@@ -78,20 +78,24 @@ export default function Navbar() {
             <Link href="/" className="relative z-10 block group perspective-1000">
               <motion.div
                 animate={{
-                  // El logo es un 10% más grande que el tamaño base al inicio (no scrolled)
-                  scale: isScrolled ? 0.85 : 1.1,
-                  // Pequeña corrección de posición cuando es grande
-                  y: isScrolled ? 0 : 10,
+                  // Eliminamos el 'scale' para evitar la reducción doble. Solo controlamos posición (Y).
+                  y: isScrolled ? 0 : 15,
                 }}
-                transition={{ duration: 0.4, ease: "easeOut" }}
+                transition={{ duration: 0.5, ease: "easeOut" }}
                 className="relative flex items-center justify-center"
               >
                 {/* Resplandor ámbar mejorado de fondo */}
                 <div className="absolute inset-0 bg-amber-500/20 blur-[40px] group-hover:bg-amber-500/40 transition-all duration-500 rounded-full scale-150 pointer-events-none"></div>
                 
-                {/* Contenedor del logo con bordes definidos. AQUÍ ESTABA EL ERROR: cambié 'scrolled' por 'isScrolled' */}
-                <div className={`relative z-10 rounded-full border border-amber-500/30 overflow-hidden shadow-[0_0_15px_rgba(217,119,6,0.2)] group-hover:border-amber-500/80 group-hover:shadow-[0_0_25px_rgba(217,119,6,0.4)] transition-all duration-500 ${isScrolled ? 'h-16 w-16' : 'h-24 w-24 md:h-28 md:w-28'}`}>
-                  {/* Imagen del logo sin fondo negro interno forzado, ahora es transparente */}
+                {/* Contenedor del logo: Mantiene un tamaño fuerte y digno al hacer scroll */}
+                <div 
+                  className={`relative z-10 rounded-full border border-amber-500/30 overflow-hidden shadow-[0_0_15px_rgba(217,119,6,0.2)] group-hover:border-amber-500/80 group-hover:shadow-[0_0_25px_rgba(217,119,6,0.4)] transition-all duration-500 ${
+                    isScrolled 
+                      ? 'h-16 w-16 md:h-20 md:w-20' // Tamaño al hacer scroll (mucho más grande que antes)
+                      : 'h-24 w-24 md:h-32 md:w-32' // Tamaño inicial monumental
+                  }`}
+                >
+                  {/* Imagen del logo transparente */}
                   <img 
                     src="/logo.png" 
                     alt="Emperador Barbershop Logo" 
