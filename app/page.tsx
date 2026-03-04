@@ -11,10 +11,10 @@ import {
   Minus, Plus, CheckCircle, ShieldCheck, 
   MessageSquare, Heart, MessageCircle, ExternalLink, 
   Lock, LayoutGrid, Clapperboard, Droplets, Sparkles, Wand2,
-  UserCircle, Briefcase, KeyRound, ShoppingCart, Disc, Volume2, VolumeX
+  UserCircle, Briefcase, KeyRound, ShoppingCart, Disc, Volume2, VolumeX, Volume1, Music
 } from "lucide-react";
 
-// Importamos el cliente de Supabase desde tu estructura de carpetas
+// Importamos el cliente de Supabase
 import { createClient } from "@/utils/supabase/client";
 
 // ============================================================================
@@ -89,54 +89,34 @@ const FALLBACK_FAQS = [
   { q: "¿Puedo comprar productos online?", a: "Sí, contamos con una tienda integrada donde puedes adquirir ceras, pomadas y máquinas profesionales con retiro en tienda o envío a domicilio." },
 ];
 
+// IG Grid de 6 elementos cuadrados perfectos
 const INSTA_REELS = [
-  { id: 1, likes: "12.4k", comments: "145", type: "reel", img: "https://images.unsplash.com/photo-1593702275687-f8b402bf1fb5?q=80&w=600&auto=format&fit=crop" },
-  { id: 2, likes: "8.2k", comments: "98", type: "post", img: "https://images.unsplash.com/photo-1622286342621-4bd786c2447c?q=80&w=600&auto=format&fit=crop" },
-  { id: 3, likes: "15.1k", comments: "230", type: "reel", img: "https://images.unsplash.com/photo-1605497788044-5a32c7078486?q=80&w=600&auto=format&fit=crop" },
-  { id: 4, likes: "20.5k", comments: "314", type: "reel", img: "https://images.unsplash.com/photo-1620331311520-246422fd82f9?q=80&w=600&auto=format&fit=crop" },
+  { id: 1, likes: "12.4k", comments: "145", type: "post", img: "https://images.unsplash.com/photo-1593702275687-f8b402bf1fb5?q=80&w=600&h=600&auto=format&fit=crop" },
+  { id: 2, likes: "8.2k", comments: "98", type: "reel", img: "https://images.unsplash.com/photo-1622286342621-4bd786c2447c?q=80&w=600&h=600&auto=format&fit=crop" },
+  { id: 3, likes: "15.1k", comments: "230", type: "post", img: "https://images.unsplash.com/photo-1605497788044-5a32c7078486?q=80&w=600&h=600&auto=format&fit=crop" },
+  { id: 4, likes: "20.5k", comments: "314", type: "reel", img: "https://images.unsplash.com/photo-1620331311520-246422fd82f9?q=80&w=600&h=600&auto=format&fit=crop" },
+  { id: 5, likes: "9.8k", comments: "112", type: "post", img: "https://images.unsplash.com/photo-1585747860715-2ba37e788b70?q=80&w=600&h=600&auto=format&fit=crop" },
+  { id: 6, likes: "18.3k", comments: "289", type: "reel", img: "https://images.unsplash.com/photo-1595152772835-219674b2a8a6?q=80&w=600&h=600&auto=format&fit=crop" },
 ];
 
-// Función para renderizar iconos dinámicamente desde la BD
 const DynamicIcon = ({ name, size = 24 }: { name: string, size?: number }) => {
   const IconComponent = (LucideIcons as any)[name] || LucideIcons.Scissors;
   return <IconComponent size={size} />;
 };
 
 // ============================================================================
-// ANIMACIONES IMPACTANTES
+// ANIMACIONES
 // ============================================================================
-const popUp: Variants = {
-  hidden: { opacity: 0, y: 50, scale: 0.95 },
-  visible: { opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 100, damping: 20 } }
-};
-
-const fadeUp: Variants = {
-  hidden: { opacity: 0, y: 30 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: "easeOut" } }
-};
-
-const staggerContainer: Variants = {
-  hidden: { opacity: 0 },
-  visible: { opacity: 1, transition: { staggerChildren: 0.15 } }
-};
-
-const textReveal: Variants = {
-  hidden: { opacity: 0, y: "100%" },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.33, 1, 0.68, 1] } }
-};
-
-// ============================================================================
-// COMPONENTES LÓGICOS
-// ============================================================================
+const popUp: Variants = { hidden: { opacity: 0, y: 50, scale: 0.95 }, visible: { opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 100, damping: 20 } } };
+const fadeUp: Variants = { hidden: { opacity: 0, y: 30 }, visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: "easeOut" } } };
+const staggerContainer: Variants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.15 } } };
+const textReveal: Variants = { hidden: { opacity: 0, y: "100%" }, visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.33, 1, 0.68, 1] } } };
 
 const FAQItem = ({ faq }: { faq: any }) => {
   const [isOpen, setIsOpen] = useState(false);
   return (
     <motion.div variants={fadeUp} className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden hover:border-amber-500 transition-colors duration-300">
-      <button 
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-6 py-6 flex justify-between items-center text-left group"
-      >
+      <button onClick={() => setIsOpen(!isOpen)} className="w-full px-6 py-6 flex justify-between items-center text-left group">
         <span className="text-lg md:text-xl font-bold text-white group-hover:text-amber-500 transition-colors">{faq.q}</span>
         <div className={`p-2 rounded-full transition-all duration-300 flex-shrink-0 ${isOpen ? 'bg-amber-500 text-black rotate-180' : 'bg-black text-amber-500 border border-zinc-700 group-hover:border-amber-500'}`}>
           {isOpen ? <Minus size={18} /> : <Plus size={18} />}
@@ -144,12 +124,7 @@ const FAQItem = ({ faq }: { faq: any }) => {
       </button>
       <AnimatePresence>
         {isOpen && (
-          <motion.div 
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden bg-[#050505]"
-          >
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden bg-[#050505]">
             <p className="px-6 pb-6 pt-4 text-zinc-300 font-medium leading-relaxed border-t border-zinc-800/50">{faq.a}</p>
           </motion.div>
         )}
@@ -159,153 +134,213 @@ const FAQItem = ({ faq }: { faq: any }) => {
 };
 
 // ============================================================================
-// VISTA PRINCIPAL (Landing Page Urbana & Premium)
+// VISTA PRINCIPAL
 // ============================================================================
-
 export default function UltimateEmperadorLanding() {
   const supabase = createClient();
 
-  // Estados Dinámicos (Conectados a BD)
-  const [activeTab, setActiveTab] = useState("reels");
-  
   const [team, setTeam] = useState<any[]>(FALLBACK_TEAM);
   const [services, setServices] = useState<any[]>(FALLBACK_SERVICES);
   const [storeSlides, setStoreSlides] = useState<any[]>(FALLBACK_STORE_SLIDES);
   const [reviews, setReviews] = useState<any[]>(FALLBACK_REVIEWS);
   const [faqs, setFaqs] = useState<any[]>(FALLBACK_FAQS);
 
-  // Estados del Reproductor de Música
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [hasInteracted, setHasInteracted] = useState(false);
-  const audioRef = useRef<HTMLAudioElement>(null);
-
-  // Hero Carousel State
   const [currentHeroSlide, setCurrentHeroSlide] = useState(0);
   const totalSlides = 1 + storeSlides.length;
-  
   const { scrollY } = useScroll();
   const yHero = useTransform(scrollY, [0, 1000], [0, 400]);
 
-  // EFECTO 1: Slider Automático
+  // ============================================================================
+  // ESTADOS DEL REPRODUCTOR DE MÚSICA AVANZADO
+  // ============================================================================
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const fadeInterval = useRef<NodeJS.Timeout | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isMusicHovered, setIsMusicHovered] = useState(false);
+  const [hasInteracted, setHasInteracted] = useState(false);
+  const [volume, setVolume] = useState(0.3); 
+  const [isMuted, setIsMuted] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
   useEffect(() => {
-    const slideInterval = setInterval(() => {
-      setCurrentHeroSlide((prev) => (prev + 1) % totalSlides);
-    }, 7000); 
+    setIsMounted(true);
+    const savedVolume = localStorage.getItem('emperador_volume');
+    const savedMuted = localStorage.getItem('emperador_muted');
+    if (savedVolume) setVolume(parseFloat(savedVolume));
+    if (savedMuted === 'true') setIsMuted(true);
+  }, []);
+
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.volume = isMuted ? 0 : volume;
+  }, [volume, isMuted]);
+
+  const fadeInAudio = (targetVolume: number) => {
+    if (!audioRef.current) return;
+    if (fadeInterval.current) clearInterval(fadeInterval.current);
+    let vol = 0;
+    audioRef.current.volume = vol;
+    fadeInterval.current = setInterval(() => {
+      vol += 0.05;
+      if (vol >= targetVolume) {
+        if (audioRef.current) audioRef.current.volume = targetVolume;
+        if (fadeInterval.current) clearInterval(fadeInterval.current);
+      } else {
+        if (audioRef.current) audioRef.current.volume = vol;
+      }
+    }, 100);
+  };
+
+  const fadeOutAudioAndPause = () => {
+    if (!audioRef.current) return;
+    if (fadeInterval.current) clearInterval(fadeInterval.current);
+    let vol = audioRef.current.volume;
+    fadeInterval.current = setInterval(() => {
+      vol -= 0.05;
+      if (vol <= 0) {
+        if (audioRef.current) {
+          audioRef.current.volume = 0;
+          audioRef.current.pause();
+        }
+        setIsPlaying(false);
+        if (fadeInterval.current) clearInterval(fadeInterval.current);
+      } else {
+        if (audioRef.current) audioRef.current.volume = vol;
+      }
+    }, 50);
+  };
+
+  useEffect(() => {
+    const handleInteraction = () => {
+      if (!hasInteracted && audioRef.current && !isPlaying) {
+        audioRef.current.volume = 0;
+        audioRef.current.play().then(() => {
+          setIsPlaying(true);
+          setHasInteracted(true);
+          fadeInAudio(isMuted ? 0 : volume);
+        }).catch(() => console.log("Autoplay bloqueado."));
+      }
+      document.removeEventListener('click', handleInteraction);
+      document.removeEventListener('scroll', handleInteraction);
+    };
+    document.addEventListener('click', handleInteraction);
+    document.addEventListener('scroll', handleInteraction, { once: true });
+    return () => {
+      document.removeEventListener('click', handleInteraction);
+      document.removeEventListener('scroll', handleInteraction);
+    };
+  }, [hasInteracted, volume, isMuted, isPlaying]);
+
+  const togglePlay = () => {
+    if (!audioRef.current) return;
+    if (isPlaying) {
+      fadeOutAudioAndPause();
+    } else {
+      audioRef.current.play();
+      fadeInAudio(isMuted ? 0 : volume);
+      setIsPlaying(true);
+    }
+    setHasInteracted(true);
+  };
+
+  const toggleMute = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newMutedState = !isMuted;
+    setIsMuted(newMutedState);
+    localStorage.setItem('emperador_muted', newMutedState.toString());
+  };
+
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newVolume = parseFloat(e.target.value);
+    setVolume(newVolume);
+    if (newVolume > 0 && isMuted) {
+      setIsMuted(false);
+      localStorage.setItem('emperador_muted', 'false');
+    }
+    localStorage.setItem('emperador_volume', newVolume.toString());
+  };
+
+  // ============================================================================
+  // FETCH Y SLIDERS
+  // ============================================================================
+  useEffect(() => {
+    const slideInterval = setInterval(() => setCurrentHeroSlide((prev) => (prev + 1) % totalSlides), 7000); 
     return () => clearInterval(slideInterval);
   }, [totalSlides]);
 
-  // EFECTO 2: Fetching desde Supabase (Sincronización con Administrador)
   useEffect(() => {
     async function fetchAdminData() {
       try {
-        const { data: dbTeam, error: errTeam } = await supabase.from('Barbers').select('*').order('created_at', { ascending: true });
-        if (!errTeam && dbTeam && dbTeam.length > 0) setTeam(dbTeam);
-
-        const { data: dbServices, error: errServ } = await supabase.from('Services').select('*').order('created_at', { ascending: true });
-        if (!errServ && dbServices && dbServices.length > 0) setServices(dbServices);
-
-        const { data: dbStore, error: errStore } = await supabase.from('StoreProducts').select('*').order('created_at', { ascending: false });
-        if (!errStore && dbStore && dbStore.length > 0) setStoreSlides(dbStore);
-
-        const { data: dbReviews, error: errRev } = await supabase.from('Reviews').select('*');
-        if (!errRev && dbReviews && dbReviews.length > 0) setReviews(dbReviews);
-
-        const { data: dbFaqs, error: errFaq } = await supabase.from('Faqs').select('*');
-        if (!errFaq && dbFaqs && dbFaqs.length > 0) setFaqs(dbFaqs);
+        const { data: dbTeam } = await supabase.from('Barbers').select('*').order('created_at', { ascending: true });
+        if (dbTeam?.length) setTeam(dbTeam);
+        const { data: dbServices } = await supabase.from('Services').select('*').order('created_at', { ascending: true });
+        if (dbServices?.length) setServices(dbServices);
+        const { data: dbStore } = await supabase.from('StoreProducts').select('*').order('created_at', { ascending: false });
+        if (dbStore?.length) setStoreSlides(dbStore);
+        const { data: dbReviews } = await supabase.from('Reviews').select('*');
+        if (dbReviews?.length) setReviews(dbReviews);
+        const { data: dbFaqs } = await supabase.from('Faqs').select('*');
+        if (dbFaqs?.length) setFaqs(dbFaqs);
       } catch (error) {
-        console.log("Supabase tablas no encontradas o sin datos, usando datos por defecto.");
+        console.log("Usando datos por defecto.");
       }
     }
     fetchAdminData();
   }, [supabase]);
 
-  // EFECTO 3: Lógica del Reproductor de Música (Autoplay al interactuar)
-  useEffect(() => {
-    const handleInteraction = () => {
-      if (!hasInteracted && audioRef.current) {
-        audioRef.current.volume = 0.3; // Volumen moderado
-        audioRef.current.play()
-          .then(() => {
-            setIsPlaying(true);
-            setHasInteracted(true);
-          })
-          .catch(e => console.log("Autoplay bloqueado por el navegador."));
-        
-        document.removeEventListener('click', handleInteraction);
-        document.removeEventListener('scroll', handleInteraction);
-      }
-    };
-
-    document.addEventListener('click', handleInteraction);
-    document.addEventListener('scroll', handleInteraction);
-
-    return () => {
-      document.removeEventListener('click', handleInteraction);
-      document.removeEventListener('scroll', handleInteraction);
-    };
-  }, [hasInteracted]);
-
-  const togglePlay = () => {
-    if (audioRef.current) {
-      if (isPlaying) {
-        audioRef.current.pause();
-      } else {
-        audioRef.current.volume = 0.3;
-        audioRef.current.play();
-      }
-      setIsPlaying(!isPlaying);
-      setHasInteracted(true);
-    }
-  };
+  const VolumeIcon = isMuted || volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
 
   return (
-    // FIX MÁXIMO DEL ESPACIO BLANCO: El `-mt-24 md:-mt-28` jala la página hacia arriba, ignorando el padding del layout.tsx
     <main className="bg-[#050505] min-h-screen font-sans selection:bg-amber-500 selection:text-black overflow-x-hidden relative -mt-24 md:-mt-28">
       
-      {/* ELEMENTO DE AUDIO OCULTO */}
       <audio ref={audioRef} src="/vibe.mp3" loop preload="auto" />
-
-      {/* GLOBAL BACKGROUNDS */}
       <div className="fixed inset-0 z-0 pointer-events-none bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:32px_32px]"></div>
       
       {/* ========================================================================= */}
-      {/* COMPONENTES FLOTANTES (MÚSICA Y AGENDAR) */}
+      {/* COMPONENTES FLOTANTES */}
       {/* ========================================================================= */}
       
-      {/* Reproductor de Música (Izquierda) */}
-      <motion.button
-        initial={{ opacity: 0, x: -50 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ delay: 1 }}
-        onClick={togglePlay}
-        className="fixed bottom-6 left-6 md:bottom-10 md:left-10 z-[100] flex items-center gap-3 bg-zinc-900/80 backdrop-blur-md border border-zinc-800 p-2 md:p-3 rounded-full shadow-2xl hover:border-amber-500 transition-colors group"
-      >
-        <div className="relative flex items-center justify-center w-12 h-12 md:w-14 md:h-14 bg-black rounded-full border border-zinc-700">
-          <Disc size={28} className={`text-amber-500 transition-all ${isPlaying ? 'animate-[spin_3s_linear_infinite]' : ''}`} />
-          <div className="absolute w-2 h-2 bg-zinc-900 rounded-full"></div>
-        </div>
-        
-        <div className="pr-4 hidden sm:block text-left">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 group-hover:text-amber-500 transition-colors">
-            {isPlaying ? 'Emperador Vibe' : 'Play Music'}
-          </p>
-          <div className="flex items-center gap-2 mt-1">
-            {isPlaying ? <Volume2 size={14} className="text-white" /> : <VolumeX size={14} className="text-zinc-600" />}
-            <div className="flex gap-1">
-              {[1, 2, 3].map((bar) => (
-                <motion.div 
-                  key={bar}
-                  animate={isPlaying ? { height: ["4px", "12px", "4px"] } : { height: "4px" }}
-                  transition={{ repeat: Infinity, duration: 0.8, delay: bar * 0.2 }}
-                  className={`w-1 rounded-full ${isPlaying ? 'bg-amber-500' : 'bg-zinc-700'}`}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-      </motion.button>
+      {/* MÚSICA (Avanzado) */}
+      {isMounted && (
+        <motion.div
+          initial={{ y: 100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ type: "spring", stiffness: 100, damping: 20, delay: 1 }}
+          onMouseEnter={() => setIsMusicHovered(true)} onMouseLeave={() => setIsMusicHovered(false)}
+          className="fixed bottom-6 left-6 md:bottom-10 md:left-10 z-[100] flex items-center"
+        >
+          <motion.div layout className={`flex items-center bg-[#050505]/90 backdrop-blur-xl border border-zinc-800 rounded-full shadow-[0_10px_40px_rgba(0,0,0,0.8)] transition-all duration-500 overflow-hidden ${isMusicHovered ? 'pr-6' : 'pr-1'}`}>
+            <button onClick={togglePlay} className="relative flex items-center justify-center w-14 h-14 bg-black rounded-full border border-zinc-800 shrink-0 group hover:border-amber-500 transition-colors m-1 z-10 focus:outline-none">
+              <Disc size={28} className={`text-amber-500 transition-all ${isPlaying ? 'animate-[spin_4s_linear_infinite]' : 'opacity-60'}`} />
+              <div className="absolute w-2.5 h-2.5 bg-zinc-900 rounded-full border border-zinc-700"></div>
+              {isPlaying && <div className="absolute inset-0 bg-amber-500/10 rounded-full blur-md animate-pulse"></div>}
+            </button>
 
-      {/* Botón Agendar (Derecha) */}
+            <AnimatePresence>
+              {isMusicHovered && (
+                <motion.div initial={{ width: 0, opacity: 0, paddingLeft: 0 }} animate={{ width: "auto", opacity: 1, paddingLeft: 12 }} exit={{ width: 0, opacity: 0, paddingLeft: 0 }} className="flex items-center gap-4 overflow-hidden whitespace-nowrap">
+                  <div className="flex flex-col justify-center">
+                    <div className="flex items-center gap-2">
+                      <Music size={12} className="text-amber-500" />
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white">Emperador Vibe</p>
+                    </div>
+                    <div className="flex items-end gap-1 h-3 mt-1.5 opacity-80">
+                      {[1, 2, 3, 4, 5].map((bar) => (
+                        <motion.div key={bar} animate={isPlaying ? { height: ["4px", "12px", "4px", "8px"] } : { height: "2px" }} transition={{ repeat: Infinity, duration: 0.8 + (bar * 0.1), ease: "easeInOut" }} className={`w-1 rounded-t-sm ${isPlaying ? 'bg-amber-500' : 'bg-zinc-700'}`} />
+                      ))}
+                      <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest ml-2">Vol. 1</span>
+                    </div>
+                  </div>
+                  <div className="w-px h-8 bg-zinc-800 mx-2"></div>
+                  <div className="flex items-center gap-2">
+                    <button onClick={toggleMute} className="text-zinc-400 hover:text-amber-500 transition-colors focus:outline-none p-1"><VolumeIcon size={16} /></button>
+                    <input type="range" min="0" max="1" step="0.01" value={isMuted ? 0 : volume} onChange={handleVolumeChange} className="w-16 md:w-20 h-1 bg-zinc-800 rounded-full appearance-none cursor-pointer accent-amber-500 hover:bg-zinc-700 transition-colors [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-amber-500 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:hover:scale-125 transition-transform" />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        </motion.div>
+      )}
+
+      {/* BOTÓN AGENDAR (Derecha) */}
       <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 2, type: "spring", stiffness: 100 }} className="fixed bottom-6 right-6 md:bottom-10 md:right-10 z-[100]">
         <Link href="/reservar" className="relative flex items-center justify-center w-16 h-16 md:w-20 md:h-20 bg-amber-500 rounded-full shadow-[0_0_30px_rgba(217,119,6,0.8)] hover:scale-110 transition-transform group border-2 border-amber-300">
           <motion.div animate={{ scale: [1, 1.3, 1], opacity: [0.6, 0, 0] }} transition={{ repeat: Infinity, duration: 1.5 }} className="absolute inset-0 rounded-full bg-amber-500"></motion.div>
@@ -314,35 +349,23 @@ export default function UltimateEmperadorLanding() {
       </motion.div>
 
       {/* ========================================================================= */}
-      {/* 1. HERO GLOBAL (Carrusel: Marca + Tienda Destacados de Fondo Completo) */}
+      {/* 1. HERO GLOBAL (Carrusel) */}
       {/* ========================================================================= */}
       <section className="relative w-full h-[100dvh] flex items-center justify-center overflow-hidden bg-black">
         
         <AnimatePresence mode="wait">
-          <motion.div
-            key={currentHeroSlide}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.8, ease: "easeInOut" }}
-            className="absolute inset-0 w-full h-full"
-          >
-            {/* SLIDE 0: HERO ORIGINAL DE LA MARCA */}
+          <motion.div key={currentHeroSlide} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.8, ease: "easeInOut" }} className="absolute inset-0 w-full h-full">
+            
+            {/* SLIDE 0: HERO MARCA */}
             {currentHeroSlide === 0 && (
               <div className="w-full h-full relative flex items-center justify-center">
                 <motion.div style={{ y: yHero }} className="absolute inset-0 w-full h-full z-0">
-                  <Image 
-                    src="https://images.unsplash.com/photo-1599351431202-1e0f0137899a?q=80&w=2000&auto=format&fit=crop" 
-                    alt="Barbería Emperador" 
-                    fill 
-                    className="object-cover grayscale contrast-125 opacity-50 scale-105"
-                    priority
-                    unoptimized
-                  />
+                  <Image src="https://images.unsplash.com/photo-1599351431202-1e0f0137899a?q=80&w=2000&auto=format&fit=crop" alt="Barbería Emperador" fill className="object-cover grayscale contrast-125 opacity-50 scale-105" priority unoptimized />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/60 to-transparent" />
                 </motion.div>
 
-                <div className="relative z-10 w-full max-w-[1400px] px-6 text-center mt-20">
+                {/* FIX DEL ESPACIO: Agregado mt-32 md:mt-48 para empujar el texto debajo de la Navbar, sin mover el fondo */}
+                <div className="relative z-10 w-full max-w-[1400px] px-6 text-center mt-32 md:mt-48">
                   <motion.div initial="hidden" animate="visible" variants={staggerContainer}>
                     <motion.div variants={popUp} className="mb-6 inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/50 px-6 py-2 rounded-full text-[10px] md:text-xs font-black text-amber-500 uppercase tracking-[0.4em] shadow-[0_0_20px_rgba(217,119,6,0.2)] backdrop-blur-md">
                       <MapPin size={14} /> Peña 666, Piso 2 • Curicó
@@ -381,30 +404,20 @@ export default function UltimateEmperadorLanding() {
             {currentHeroSlide > 0 && (
               <div className="w-full h-full relative flex items-center justify-center">
                 <div className="absolute inset-0 z-0">
-                  <Image 
-                    src={storeSlides[currentHeroSlide - 1].image} 
-                    alt="Producto Destacado" 
-                    fill 
-                    className="object-cover object-center grayscale-[20%] opacity-40 scale-105"
-                    unoptimized
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-r from-[#050505] via-transparent to-[#050505]" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/80 to-transparent" />
+                  <Image src={storeSlides[currentHeroSlide - 1].image} alt="Producto Destacado" fill className="object-cover object-center grayscale-[20%] opacity-40 scale-105" unoptimized />
+                  <div className="absolute inset-0 bg-gradient-to-r from-[#050505] via-[#050505]/40 to-[#050505]" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/60 to-transparent" />
                 </div>
                 
-                <div className="relative z-10 w-full max-w-[1400px] px-6 mt-24 flex flex-col md:flex-row items-center justify-between gap-10">
-                  
+                {/* FIX DEL ESPACIO: mt-32 md:mt-40 agregado aquí también para empujar el recuadro bajo la Navbar */}
+                <div className="relative z-10 w-full max-w-[1400px] px-6 mt-32 md:mt-40 flex flex-col md:flex-row items-center justify-between gap-10">
                   <div className="w-full md:w-1/2 flex flex-col items-center md:items-start text-center md:text-left">
                     <motion.div initial={{ x: -50, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.2 }}>
-                      <div className="inline-block px-4 py-1.5 border border-amber-500 text-amber-500 font-black text-[10px] uppercase tracking-[0.3em] rounded-full mb-6 backdrop-blur-md bg-black/40">
-                        EMPERADOR STORE
-                      </div>
-                      <h2 className="text-5xl md:text-7xl font-black text-white uppercase tracking-tighter leading-none mb-2 drop-shadow-2xl">
-                        {storeSlides[currentHeroSlide - 1].tag}
-                      </h2>
+                      <div className="inline-block px-4 py-1.5 border border-amber-500 text-amber-500 font-black text-[10px] uppercase tracking-[0.3em] rounded-full mb-6 backdrop-blur-md bg-black/40">EMPERADOR STORE</div>
+                      <h2 className="text-5xl md:text-7xl font-black text-white uppercase tracking-tighter leading-none mb-2 drop-shadow-2xl">{storeSlides[currentHeroSlide - 1].tag}</h2>
                     </motion.div>
 
-                    <motion.div initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.4 }} className="mt-8 bg-black/40 p-6 md:p-8 rounded-3xl backdrop-blur-xl border border-zinc-800/50 w-full max-w-lg shadow-2xl">
+                    <motion.div initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.4 }} className="mt-8 bg-[#050505]/80 p-6 md:p-8 rounded-3xl backdrop-blur-xl border border-zinc-800/80 w-full max-w-lg shadow-2xl">
                       <div className="grid grid-cols-2 gap-6 mb-6">
                         <div>
                           <h3 className="text-white font-bold text-lg md:text-xl leading-tight">{storeSlides[currentHeroSlide - 1].titleLeft}</h3>
@@ -437,20 +450,14 @@ export default function UltimateEmperadorLanding() {
           </motion.div>
         </AnimatePresence>
 
-        {/* CONTROLES DEL SLIDER GLOBALES */}
         <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex gap-4 z-50">
           {[...Array(totalSlides)].map((_, idx) => (
-            <button
-              key={idx}
-              onClick={() => setCurrentHeroSlide(idx)}
-              className={`h-2 rounded-full transition-all duration-500 ${currentHeroSlide === idx ? 'bg-amber-500 w-12 shadow-[0_0_10px_rgba(217,119,6,0.8)]' : 'bg-zinc-600/50 hover:bg-amber-500/50 w-3 backdrop-blur-md'}`}
-              aria-label={`Ir al slide ${idx + 1}`}
-            />
+            <button key={idx} onClick={() => setCurrentHeroSlide(idx)} className={`h-2 rounded-full transition-all duration-500 ${currentHeroSlide === idx ? 'bg-amber-500 w-12 shadow-[0_0_10px_rgba(217,119,6,0.8)]' : 'bg-zinc-600/50 hover:bg-amber-500/50 w-3 backdrop-blur-md'}`} aria-label={`Ir al slide ${idx + 1}`} />
           ))}
         </div>
       </section>
 
-      {/* INFINITE TICKER (Separador visual bajo el Hero) */}
+      {/* INFINITE TICKER */}
       <div className="w-full bg-amber-500 py-3 md:py-4 overflow-hidden border-y border-amber-400 flex relative z-20 shadow-[0_0_40px_rgba(217,119,6,0.3)]">
         <motion.div animate={{ x: [0, -1000] }} transition={{ repeat: Infinity, ease: "linear", duration: 15 }} className="flex whitespace-nowrap items-center gap-12 text-black font-black uppercase tracking-[0.2em] text-base md:text-xl">
           {[...Array(10)].map((_, i) => (
@@ -479,14 +486,9 @@ export default function UltimateEmperadorLanding() {
           
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={staggerContainer} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
             {team.map((t, i) => (
-              <motion.div 
-                key={t.id || i} variants={popUp}
-                className="group relative h-[450px] md:h-[600px] rounded-[2rem] overflow-hidden border border-zinc-800 bg-zinc-900 cursor-pointer shadow-xl hover:shadow-[0_20px_50px_rgba(217,119,6,0.3)] transition-all duration-500"
-              >
-                {/* IMPORTANTE: unoptimized previene que Next.js bloquee la URL de Supabase */}
+              <motion.div key={t.id || i} variants={popUp} className="group relative h-[450px] md:h-[600px] rounded-[2rem] overflow-hidden border border-zinc-800 bg-zinc-900 cursor-pointer shadow-xl hover:shadow-[0_20px_50px_rgba(217,119,6,0.3)] transition-all duration-500">
                 <Image src={t.img} fill alt={t.name} className="object-cover grayscale contrast-125 group-hover:grayscale-0 group-hover:scale-110 transition-all duration-700" unoptimized />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/50 to-transparent opacity-90 group-hover:opacity-70 transition-opacity" />
-                
                 <div className="absolute top-6 left-6"><span className="px-4 py-2 bg-amber-500 text-black text-[10px] font-black uppercase tracking-[0.2em] rounded-lg shadow-lg">{t.tag}</span></div>
                 
                 <div className="absolute bottom-8 left-8 right-8">
@@ -522,10 +524,7 @@ export default function UltimateEmperadorLanding() {
           
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-50px" }} variants={staggerContainer} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
              {services.map((s, i) => (
-               <motion.div 
-                 key={s.id || i} variants={popUp} whileHover={{ y: -10, scale: 1.02 }}
-                 className="group p-8 bg-zinc-900/40 border border-zinc-800 rounded-[2rem] hover:bg-zinc-900 hover:border-amber-500 transition-all duration-300 flex flex-col justify-between shadow-lg relative overflow-hidden"
-               >
+               <motion.div key={s.id || i} variants={popUp} whileHover={{ y: -10, scale: 1.02 }} className="group p-8 bg-zinc-900/40 border border-zinc-800 rounded-[2rem] hover:bg-zinc-900 hover:border-amber-500 transition-all duration-300 flex flex-col justify-between shadow-lg relative overflow-hidden">
                   <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
 
                   <div className="relative z-10">
@@ -614,82 +613,104 @@ export default function UltimateEmperadorLanding() {
       </section>
 
       {/* ========================================================================= */}
-      {/* 6. INSTAGRAM (Showcase) */}
+      {/* 6. INSTAGRAM V2 (DISEÑO REPLICA WEB OFICIAL) */}
       {/* ========================================================================= */}
-      <section id="instagram" className="py-24 md:py-32 bg-black relative overflow-hidden">
-         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[1200px] h-[500px] bg-gradient-to-r from-purple-600/10 via-pink-600/10 to-amber-500/10 blur-[120px] rounded-full pointer-events-none" />
+      <section id="instagram" className="py-24 md:py-32 bg-black relative overflow-hidden border-b border-zinc-900">
+         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[1000px] h-[400px] bg-gradient-to-r from-purple-600/10 via-pink-600/10 to-amber-500/10 blur-[120px] rounded-full pointer-events-none" />
          
-         <div className="max-w-[1000px] mx-auto px-6 relative z-10">
-            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} className="flex flex-col md:flex-row items-center md:items-start gap-8 mb-12 p-8 md:p-12 bg-zinc-950/80 border border-zinc-800/80 rounded-[2rem] backdrop-blur-xl shadow-2xl">
-               <div className="relative w-32 h-32 md:w-40 md:h-40 shrink-0">
-                  <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-yellow-400 via-red-500 to-purple-500 animate-spin-slow"></div>
-                  <div className="absolute inset-1 rounded-full bg-black flex items-center justify-center overflow-hidden border-[3px] border-black">
-                      <Image src="/logo.png" alt="Emperador Logo Instagram" width={150} height={150} className="object-cover" />
+         <div className="max-w-[950px] mx-auto px-4 md:px-6 relative z-10">
+            
+            {/* Cabecera Tipo Instagram */}
+            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} className="flex flex-col sm:flex-row items-center sm:items-start gap-6 sm:gap-10 mb-12">
+               
+               {/* Foto de perfil con anillo de historia */}
+               <div className="relative w-28 h-28 sm:w-36 sm:h-36 shrink-0">
+                  <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-[#fdf497] via-[#fd5949] to-[#d6249f] p-[3px]">
+                     <div className="bg-black w-full h-full rounded-full border-2 border-black overflow-hidden relative">
+                        <Image src="/logo.png" alt="Emperador Logo Instagram" fill className="object-cover p-2" />
+                     </div>
                   </div>
                </div>
                
-               <div className="flex-1 text-center md:text-left w-full">
-                  <div className="flex flex-col md:flex-row md:items-center gap-4 md:gap-6 mb-6">
-                     <h3 className="text-2xl md:text-3xl font-bold text-white tracking-tight flex items-center justify-center gap-2">
+               {/* Info del perfil */}
+               <div className="flex-1 text-white text-center sm:text-left w-full">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-5">
+                     <h2 className="text-xl sm:text-2xl font-medium tracking-wide flex items-center justify-center sm:justify-start gap-2">
                        emperador_barbershop 
-                       <CheckCircle size={20} className="text-blue-500 fill-blue-500/20" />
-                     </h3>
-                     <div className="flex gap-2 justify-center">
-                       <a href="https://www.instagram.com/emperador_barbershop/" target="_blank" rel="noopener noreferrer" className="px-8 py-2.5 bg-blue-500 hover:bg-blue-600 text-white font-bold text-sm rounded-xl transition-all flex items-center justify-center hover:scale-105 shadow-lg shadow-blue-500/30">Seguir</a>
-                       <a href="https://www.instagram.com/emperador_barbershop/" target="_blank" rel="noopener noreferrer" className="px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white font-bold text-sm rounded-xl transition-all flex items-center justify-center hover:scale-105"><ExternalLink size={18} /></a>
+                       <CheckCircle size={18} className="text-blue-500 fill-blue-500/20" />
+                     </h2>
+                     <div className="flex gap-2 justify-center sm:justify-start">
+                       <a href="https://www.instagram.com/emperador_barbershop/?hl=es" target="_blank" rel="noopener noreferrer" className="bg-[#0095f6] hover:bg-[#1877f2] text-white font-bold text-sm py-1.5 px-6 rounded-lg transition-colors">
+                         Seguir
+                       </a>
+                       <a href="https://www.instagram.com/emperador_barbershop/?hl=es" target="_blank" rel="noopener noreferrer" className="bg-zinc-800 hover:bg-zinc-700 text-white font-bold text-sm py-1.5 px-4 rounded-lg transition-colors">
+                         Mensaje
+                       </a>
                      </div>
                   </div>
                   
-                  <div className="flex justify-center md:justify-start gap-8 text-white mb-6 border-y border-zinc-800/50 py-4 md:border-0 md:py-0">
-                     <span className="font-medium text-sm md:text-base"><strong className="font-black text-lg text-amber-500">849</strong> posts</span>
-                     <span className="font-medium text-sm md:text-base"><strong className="font-black text-lg text-amber-500">12.5k</strong> followers</span>
-                     <span className="font-medium text-sm md:text-base"><strong className="font-black text-lg text-amber-500">120</strong> following</span>
+                  {/* Contadores */}
+                  <div className="flex justify-center sm:justify-start gap-6 sm:gap-10 mb-5 text-sm sm:text-base border-y border-zinc-800/50 py-3 sm:border-0 sm:py-0">
+                     <span><span className="font-bold">849</span> publicaciones</span>
+                     <span><span className="font-bold">12.5 mil</span> seguidores</span>
+                     <span><span className="font-bold">120</span> seguidos</span>
                   </div>
                   
-                  <div className="text-zinc-300 font-medium text-sm md:text-base leading-relaxed max-w-lg mx-auto md:mx-0">
-                     <p className="font-bold text-white mb-1">Emperador BarberShop</p>
-                     Barbería Premium en Curicó 💈<br/>
-                     ✂️ Fades & Grooming de Alto Nivel<br/>
-                     🎮 PS5 & Pool Room VIP<br/>
-                     📍 Peña 666, Piso 2 (Costado Falabella)<br/>
-                     <Link href="/reservar" className="text-blue-400 font-bold hover:underline mt-2 inline-block">🔗 Agenda tu cita aquí</Link>
+                  {/* Bio */}
+                  <div className="text-sm sm:text-base leading-snug">
+                     <p className="font-bold mb-1">Emperador BarberShop</p>
+                     <p className="text-zinc-200 whitespace-pre-line">
+                       Barbería Premium en Curicó 💈<br/>
+                       ✂️ Fades & Grooming de Alto Nivel<br/>
+                       🎮 PS5 & Pool Room VIP<br/>
+                       📍 Peña 666, Piso 2 (Costado Falabella)
+                     </p>
+                     <a href="https://www.instagram.com/emperador_barbershop/?hl=es" target="_blank" rel="noopener noreferrer" className="text-[#e0f1ff] font-bold hover:underline mt-1 block">
+                       instagram.com/emperador_barbershop
+                     </a>
                   </div>
                </div>
             </motion.div>
 
-            <div className="flex justify-center border-b border-zinc-800 mb-8 gap-12">
-               <button onClick={() => setActiveTab('reels')} className={`flex items-center gap-2 pb-4 font-bold text-sm uppercase tracking-widest transition-all ${activeTab === 'reels' ? 'text-white border-b-2 border-white' : 'text-zinc-600 hover:text-zinc-400'}`}>
-                 <Clapperboard size={16} /> Reels
+            {/* Pestañas de Navegación Instagram */}
+            <div className="flex justify-center border-t border-zinc-800 mb-1 gap-12">
+               <button className="flex items-center gap-2 pt-4 font-bold text-xs uppercase tracking-widest text-white border-t border-white -mt-px">
+                 <LayoutGrid size={14} /> Publicaciones
                </button>
-               <button onClick={() => setActiveTab('posts')} className={`flex items-center gap-2 pb-4 font-bold text-sm uppercase tracking-widest transition-all ${activeTab === 'posts' ? 'text-white border-b-2 border-white' : 'text-zinc-600 hover:text-zinc-400'}`}>
-                 <LayoutGrid size={16} /> Posts
+               <button className="flex items-center gap-2 pt-4 font-bold text-xs uppercase tracking-widest text-zinc-500 hover:text-zinc-300 transition-colors">
+                 <Clapperboard size={14} /> Reels
                </button>
             </div>
 
-            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={staggerContainer} className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-4">
-               {INSTA_REELS.filter(item => activeTab === 'reels' ? true : item.type === 'post').map((post) => (
+            {/* Grid 3x2 Perfecto de Instagram */}
+            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={staggerContainer} className="grid grid-cols-3 gap-1 md:gap-2">
+               {INSTA_REELS.map((post) => (
                   <motion.a 
-                    key={post.id} href="https://www.instagram.com/emperador_barbershop/" target="_blank" rel="noopener noreferrer"
-                    variants={popUp} className="group relative aspect-[9/16] bg-zinc-900 overflow-hidden cursor-pointer rounded-xl md:rounded-2xl"
+                    key={post.id} href="https://www.instagram.com/emperador_barbershop/?hl=es" target="_blank" rel="noopener noreferrer"
+                    variants={popUp} className="group relative aspect-square bg-zinc-900 overflow-hidden cursor-pointer"
                   >
-                     <Image src={post.img} fill alt="Instagram Content" className="object-cover grayscale-[20%] group-hover:grayscale-0 transition-all duration-700 group-hover:scale-110" unoptimized />
-                     <div className="absolute top-3 right-3 text-white drop-shadow-md bg-black/40 p-1.5 rounded-full backdrop-blur-sm">
-                        {post.type === 'reel' ? <Clapperboard size={16} fill="currentColor" /> : <LayoutGrid size={16} fill="currentColor" />}
+                     <Image src={post.img} fill alt="Instagram Content" className="object-cover group-hover:scale-105 transition-transform duration-700" unoptimized />
+                     <div className="absolute top-2 right-2 text-white drop-shadow-md">
+                        {post.type === 'reel' ? <Clapperboard size={18} fill="currentColor" /> : null}
                      </div>
-                     <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center gap-2 backdrop-blur-sm">
-                        <div className="flex gap-6">
-                           <div className="flex items-center gap-2 text-white font-bold text-xl"><Heart fill="currentColor" size={28} /> {post.likes}</div>
-                           <div className="flex items-center gap-2 text-white font-bold text-xl"><MessageCircle fill="currentColor" size={28} /> {post.comments}</div>
-                        </div>
+                     <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-6 backdrop-blur-[2px]">
+                        <div className="flex items-center gap-2 text-white font-bold text-lg"><Heart fill="currentColor" size={22} /> {post.likes}</div>
+                        <div className="flex items-center gap-2 text-white font-bold text-lg"><MessageCircle fill="currentColor" size={22} /> {post.comments}</div>
                      </div>
                   </motion.a>
                ))}
             </motion.div>
+            
+            <div className="text-center mt-12">
+               <a href="https://www.instagram.com/emperador_barbershop/?hl=es" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-zinc-400 hover:text-amber-500 text-sm font-bold uppercase tracking-widest transition-colors">
+                 Ver más en Instagram <ExternalLink size={16} />
+               </a>
+            </div>
          </div>
       </section>
 
       {/* ========================================================================= */}
-      {/* 7. AYUDA / FAQ (Completamente sólido para máxima legibilidad) */}
+      {/* 7. AYUDA / FAQ */}
       {/* ========================================================================= */}
       <section id="faq" className="py-24 md:py-32 bg-[#0a0a0a] border-y border-zinc-900">
         <div className="max-w-3xl mx-auto px-6">
@@ -734,7 +755,7 @@ export default function UltimateEmperadorLanding() {
               <h4 className="text-white font-black text-xl uppercase tracking-tighter mb-6 italic">EMPERADOR</h4>
               <div className="space-y-4 text-zinc-400 font-bold uppercase text-[10px] tracking-[0.2em]">
                  <p className="flex items-center gap-3 hover:text-white transition-colors cursor-default"><MapPin size={16} className="text-amber-500 shrink-0" /> Peña 666, Piso 2, Curicó</p>
-                 <a href="https://www.instagram.com/emperador_barbershop/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 hover:text-amber-500 transition-colors">
+                 <a href="https://www.instagram.com/emperador_barbershop/?hl=es" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 hover:text-amber-500 transition-colors">
                     <Instagram size={16} className="text-amber-500 shrink-0" /> @emperador_barbershop
                  </a>
               </div>
