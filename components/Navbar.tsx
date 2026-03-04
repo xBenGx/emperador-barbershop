@@ -4,8 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { Menu, X, Zap, User, ShieldCheck } from "lucide-react";
-import { createClient } from "@/utils/supabase/client";
+import { Menu, X, Zap, User } from "lucide-react";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 
 interface NavLink {
@@ -37,9 +36,7 @@ const linkItemVariants: Variants = {
 export default function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [user, setUser] = useState<any>(null);
   const pathname = usePathname();
-  const supabase = createClient();
 
   // 1. Manejo del Scroll para efectos de la Navbar
   useEffect(() => {
@@ -47,26 +44,11 @@ export default function Navbar() {
       setIsScrolled(window.scrollY > 30);
     };
     window.addEventListener("scroll", handleScroll);
-    handleScroll();
+    handleScroll(); // Verificar estado inicial
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // 2. Sincronización en Tiempo Real de la Sesión (Supabase)
-  useEffect(() => {
-    const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user || null);
-    };
-    checkUser();
-    
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user || null);
-    });
-    
-    return () => subscription.unsubscribe();
-  }, [supabase.auth]);
-
-  // 3. Bloqueo de scroll preventivo para el menú móvil
+  // 2. Bloqueo de scroll preventivo para el menú móvil
   useEffect(() => {
     if (isMobileMenuOpen) {
       document.body.style.overflow = "hidden";
@@ -92,13 +74,13 @@ export default function Navbar() {
             : "bg-gradient-to-b from-black/95 via-black/50 to-transparent border-transparent py-6 md:py-8"
         }`}
       >
-        <div className="max-w-[1400px] mx-auto px-6 lg:px-12 relative">
+        <div className="max-w-[1400px] mx-auto px-6 lg:px-8 xl:px-12 relative">
           <div className="flex items-center justify-between relative z-10">
             
             {/* ========================================== */}
             {/* LOGO DINÁMICO Y MONUMENTAL */}
             {/* ========================================== */}
-            <Link href="/" className="relative z-10 block group perspective-1000">
+            <Link href="/" className="relative z-10 block group perspective-1000 shrink-0">
               <motion.div
                 animate={{ y: isScrolled ? 0 : 15 }}
                 transition={{ duration: 0.5, ease: "easeOut" }}
@@ -107,7 +89,7 @@ export default function Navbar() {
                 {/* Aura de resplandor bajo el logo */}
                 <div className="absolute inset-0 bg-amber-500/25 blur-[45px] group-hover:bg-amber-500/40 transition-all duration-500 rounded-full scale-150 pointer-events-none"></div>
                 
-                {/* Contenedor del logo con proporciones responsivas */}
+                {/* Contenedor del logo */}
                 <div 
                   className={`relative z-10 rounded-full border border-amber-500/30 overflow-hidden shadow-[0_0_20px_rgba(217,119,6,0.15)] group-hover:border-amber-500/80 group-hover:shadow-[0_0_35px_rgba(217,119,6,0.4)] transition-all duration-500 bg-black ${
                     isScrolled 
@@ -115,7 +97,6 @@ export default function Navbar() {
                       : 'h-24 w-24 md:h-32 md:w-32 lg:h-40 lg:w-40' 
                   }`}
                 >
-                  {/* Se mejoró la etiqueta img a Image nativo de Next.js para mejor rendimiento */}
                   <Image 
                     src="/logo.png" 
                     alt="Emperador Barbershop Logo" 
@@ -131,16 +112,18 @@ export default function Navbar() {
             {/* ========================================== */}
             {/* ENLACES DE NAVEGACIÓN - DESKTOP */}
             {/* ========================================== */}
-            <div className="hidden lg:flex items-center justify-center space-x-10 xl:space-x-12 flex-1 ml-16">
+            {/* FIX: Se usa flex-1 y flex-wrap: nowrap, combinado con whitespace-nowrap en los links */}
+            <div className="hidden lg:flex items-center justify-center gap-5 xl:gap-8 flex-1 ml-8 xl:ml-12 overflow-hidden">
               {NAV_LINKS.map((link) => {
                 const isActive = pathname === link.href;
                 return (
                   <Link
                     key={link.name}
                     href={link.href}
-                    className="relative group py-2"
+                    // FIX DEFINITIVO: whitespace-nowrap fuerza que el texto "SOBRE NOSOTROS" no se rompa
+                    className="relative group py-2 whitespace-nowrap shrink-0"
                   >
-                    <span className={`text-[12px] xl:text-[13px] font-black tracking-[0.25em] uppercase transition-colors duration-300 drop-shadow-lg ${
+                    <span className={`text-[11px] xl:text-[13px] font-black tracking-[0.25em] uppercase transition-colors duration-300 drop-shadow-lg ${
                       isActive ? "text-amber-500" : "text-zinc-300 group-hover:text-white"
                     }`}>
                       {link.name}
@@ -157,27 +140,19 @@ export default function Navbar() {
             {/* ========================================== */}
             {/* BOTONES DE ACCIÓN - DESKTOP */}
             {/* ========================================== */}
-            <div className="hidden lg:flex items-center space-x-6">
+            <div className="hidden lg:flex items-center gap-4 shrink-0">
+              {/* FIX DEL BOTÓN: Directo a /login, texto estático "INGRESAR" */}
               <Link 
-                href={user ? "/dashboards/admin" : "/login"} 
-                className={`group flex items-center gap-3 px-6 py-3 backdrop-blur-md border rounded-xl text-[11px] font-black uppercase tracking-[0.2em] transition-all duration-300 shadow-xl ${
-                  user 
-                    ? "bg-amber-500/10 border-amber-500/50 text-amber-500 hover:bg-amber-500 hover:text-black" 
-                    : "bg-[#0a0a0a]/60 border-zinc-800 text-zinc-300 hover:border-amber-500/50 hover:text-white"
-                }`}
+                href="/login" 
+                className="group flex items-center gap-2 px-5 py-3 bg-[#0a0a0a]/60 backdrop-blur-md border border-zinc-800 text-zinc-300 rounded-xl text-[11px] font-black uppercase tracking-[0.2em] hover:border-amber-500/50 hover:text-white transition-all duration-300 shadow-xl whitespace-nowrap"
               >
-                {user ? (
-                  <><ShieldCheck size={16} /> Panel Admin</>
-                ) : (
-                  <><User size={16} className="group-hover:text-amber-500 transition-colors" /> Ingresar</>
-                )}
+                <User size={16} className="group-hover:text-amber-500 transition-colors" /> Ingresar
               </Link>
               
               <Link 
                 href="/reservar" 
-                className="relative overflow-hidden group flex items-center gap-3 px-10 py-4 bg-amber-500 text-black rounded-xl text-[11px] font-black uppercase tracking-[0.2em] transition-all duration-300 shadow-[0_15px_30px_-10px_rgba(217,119,6,0.4)] hover:shadow-[0_20px_40px_-10px_rgba(217,119,6,0.6)] hover:-translate-y-1 active:scale-95"
+                className="relative overflow-hidden group flex items-center gap-2 px-6 xl:px-8 py-3 bg-amber-500 text-black rounded-xl text-[11px] font-black uppercase tracking-[0.2em] transition-all duration-300 shadow-[0_15px_30px_-10px_rgba(217,119,6,0.4)] hover:shadow-[0_20px_40px_-10px_rgba(217,119,6,0.6)] hover:-translate-y-1 active:scale-95 whitespace-nowrap"
               >
-                {/* Efecto de brillo shimmer al pasar el mouse */}
                 <span className="absolute inset-0 w-full h-full bg-white/20 -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></span>
                 <span className="relative z-10">Agendar</span>
                 <Zap size={16} className="relative z-10 fill-black group-hover:animate-bounce" />
@@ -242,7 +217,7 @@ export default function Navbar() {
                     <Link
                       href={link.href}
                       onClick={() => setIsMobileMenuOpen(false)}
-                      className={`block text-3xl md:text-4xl font-black tracking-widest uppercase transition-colors drop-shadow-md ${
+                      className={`block text-3xl md:text-4xl font-black tracking-widest uppercase transition-colors drop-shadow-md whitespace-nowrap ${
                         isActive 
                           ? "text-amber-500 scale-110" 
                           : "text-white hover:text-amber-500"
@@ -271,26 +246,17 @@ export default function Navbar() {
                 <Link 
                   href="/reservar" 
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className="flex items-center justify-center gap-3 w-full py-6 bg-amber-500 text-black rounded-2xl text-sm font-black uppercase tracking-widest shadow-[0_20px_40px_-10px_rgba(217,119,6,0.4)] active:scale-95 transition-transform"
+                  className="flex items-center justify-center gap-3 w-full py-6 bg-amber-500 text-black rounded-2xl text-sm font-black uppercase tracking-widest shadow-[0_20px_40px_-10px_rgba(217,119,6,0.4)] active:scale-95 transition-transform whitespace-nowrap"
                 >
                   Agendar Mi Cita <Zap size={20} className="fill-black" />
                 </Link>
 
-                {/* BOTÓN INGRESAR RESTAURADO Y MEJORADO PARA MÓVIL */}
                 <Link 
-                  href={user ? "/dashboards/admin" : "/login"} 
+                  href="/login" 
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className={`flex items-center justify-center gap-3 w-full py-5 rounded-2xl text-xs font-bold uppercase tracking-widest active:scale-95 transition-all border ${
-                    user 
-                      ? "bg-amber-500/10 border-amber-500/30 text-amber-500" 
-                      : "bg-[#0a0a0a] border-zinc-800 text-zinc-400 hover:text-white"
-                  }`}
+                  className="flex items-center justify-center gap-3 w-full py-5 rounded-2xl text-xs font-bold uppercase tracking-widest active:scale-95 transition-all border bg-[#0a0a0a] border-zinc-800 text-zinc-400 hover:text-white whitespace-nowrap"
                 >
-                  {user ? (
-                    <><ShieldCheck size={18} /> Ir al Panel Admin</>
-                  ) : (
-                    <><User size={18} /> Ingreso Staff</>
-                  )}
+                  <User size={18} /> Ingresar
                 </Link>
               </motion.div>
             </div>
