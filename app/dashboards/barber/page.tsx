@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { createClient } from "@/utils/supabase/client"; // IMPORTANTE: Tu cliente de Supabase
 import { 
   CalendarDays, Clock, DollarSign, Users, TrendingUp, 
   CheckCircle2, XCircle, Edit3, Trash2, Scissors, 
   Phone, Mail, Search, AlertCircle, Check,
-  Wallet, CalendarRange, PieChart, Receipt, Coffee, UserCircle
+  Wallet, CalendarRange, PieChart, Receipt, Coffee, UserCircle, Link as LinkIcon, Copy
 } from "lucide-react";
 
 // ============================================================================
@@ -20,10 +21,11 @@ interface Client {
   name: string;
   phone: string;
   email: string;
-  totalVisits: number;
+  totalVisits?: number;
 }
 
 interface Service {
+  id: string;
   name: string;
   price: number;
   duration: number;
@@ -34,16 +36,28 @@ interface Appointment {
   date: string;
   time: string;
   status: AppointmentStatus;
+  notes?: string;
   client: Client;
   service: Service;
-  notes?: string;
+}
+
+interface BarberProfile {
+  id: string;
+  name: string;
+}
+
+interface Schedule {
+  day: string;
+  active: boolean;
+  start_time: string;
+  end_time: string;
+  break_start: string;
+  break_end: string;
 }
 
 // ============================================================================
-// MOCK DATA Y SINCRONIZACIÓN SIMULADA
+// UTILS
 // ============================================================================
-
-// Generador de fechas para el carrusel del barbero
 const generateDates = () => {
   const dates = [];
   const today = new Date();
@@ -57,7 +71,7 @@ const generateDates = () => {
       day: days[d.getDay()], 
       date: d.getDate().toString(), 
       month: months[d.getMonth()],
-      fullDate: d.toISOString().split('T')[0] // Formato YYYY-MM-DD
+      fullDate: d.toISOString().split('T')[0] 
     });
   }
   return dates;
@@ -65,79 +79,183 @@ const generateDates = () => {
 
 const DATES = generateDates();
 const TODAY_DATE = DATES[0].fullDate;
-
-// Citas simuladas (incluye la sincronización con el cliente)
-const MOCK_APPOINTMENTS: Appointment[] = [
-  { id: "1", date: TODAY_DATE, time: "10:00", status: "PENDING", client: { id: "c1", name: "Matías Rojas", phone: "+56912345678", email: "mati@email.com", totalVisits: 3 }, service: { name: "Corte Clásico", price: 12000, duration: 60 }, notes: "Llego 5 min tarde" },
-  { id: "2", date: TODAY_DATE, time: "11:30", status: "CONFIRMED", client: { id: "c2", name: "Carlos Díaz", phone: "+56987654321", email: "carlos@email.com", totalVisits: 12 }, service: { name: "Servicio Emperador VIP", price: 35000, duration: 90 } },
-  { id: "3", date: TODAY_DATE, time: "15:00", status: "COMPLETED", client: { id: "c3", name: "Andrés Muñoz", phone: "+56944445555", email: "andres@email.com", totalVisits: 1 }, service: { name: "Barba + Vapor", price: 7000, duration: 30 } },
-  { id: "4", date: DATES[1].fullDate, time: "12:00", status: "CONFIRMED", client: { id: "c4", name: "Felipe Soto", phone: "+56911112222", email: "felipe@email.com", totalVisits: 5 }, service: { name: "Corte + Cejas", price: 14000, duration: 60 } },
-];
-
-const MOCK_KPIS = {
-  todayEarnings: 42000,
-  monthEarnings: 850000,
-  todayAppointments: 6,
-  totalClients: 124,
-};
-
-const MOCK_SCHEDULE = [
-  { day: "Lunes", active: true, start: "10:00", end: "20:00", breakStart: "14:00", breakEnd: "15:00" },
-  { day: "Martes", active: true, start: "10:00", end: "20:00", breakStart: "14:00", breakEnd: "15:00" },
-  { day: "Miércoles", active: true, start: "10:00", end: "20:00", breakStart: "14:00", breakEnd: "15:00" },
-  { day: "Jueves", active: true, start: "10:00", end: "20:00", breakStart: "14:00", breakEnd: "15:00" },
-  { day: "Viernes", active: true, start: "10:00", end: "21:00", breakStart: "14:00", breakEnd: "15:00" },
-  { day: "Sábado", active: true, start: "10:00", end: "21:00", breakStart: "15:00", breakEnd: "16:00" },
-  { day: "Domingo", active: false, start: "00:00", end: "00:00", breakStart: "00:00", breakEnd: "00:00" },
-];
-
-// Horarios estándar para la línea de tiempo
 const TIMELINE_SLOTS = ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00"];
 
-// ============================================================================
-// COMPONENTE PRINCIPAL
-// ============================================================================
 export default function BarberDashboard() {
+  const supabase = createClient();
+  
+  // Estados Globales Reales
+  const [barber, setBarber] = useState<BarberProfile | null>(null);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [kpis, setKpis] = useState({ todayEarnings: 0, monthEarnings: 0, todayAppointments: 0, totalClients: 0 });
+  const [isAppLoading, setIsAppLoading] = useState(true);
+
+  // Estados de UI
   const [activeTab, setActiveTab] = useState<TabType>("RESERVAS");
-  const [appointments, setAppointments] = useState<Appointment[]>(MOCK_APPOINTMENTS);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  
-  // Estado para filtrar la agenda por día
   const [selectedDateFilter, setSelectedDateFilter] = useState<string>(TODAY_DATE);
-
-  // Estados Modal
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null);
+  const [copySuccess, setCopySuccess] = useState(false);
 
-  // Acciones Simuladas
+  // ============================================================================
+  // CARGA DE DATOS (SUPABASE)
+  // ============================================================================
+  const loadDashboardData = useCallback(async () => {
+    try {
+      // 1. Obtener sesión actual
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return; // Redirigir a login idealmente
+
+      // 2. Obtener perfil del barbero
+      const { data: profile } = await supabase
+        .from('users')
+        .select('id, name')
+        .eq('id', user.id)
+        .single();
+      
+      if (profile) setBarber(profile);
+
+      // 3. Obtener citas cruzando tablas (Asumiendo relaciones FK en BD)
+      const { data: apptsData, error: apptsError } = await supabase
+        .from('appointments')
+        .select(`
+          id, date, time, status, notes,
+          client:client_id (id, name, phone, email),
+          service:service_id (id, name, price, duration)
+        `)
+        .eq('barber_id', user.id)
+        .gte('date', TODAY_DATE); // Solo traer de hoy en adelante para rendimiento
+
+      if (apptsData) {
+        // Formatear datos si es necesario
+        setAppointments(apptsData as unknown as Appointment[]);
+        
+        // Calcular KPIs reales
+        const todayAppts = apptsData.filter(a => a.date === TODAY_DATE);
+        const todayCompleted = todayAppts.filter(a => a.status === 'COMPLETED');
+        const todayEarnings = todayCompleted.reduce((acc, curr) => acc + (curr.service as any).price, 0);
+        
+        // Clientes únicos
+        const uniqueClients = new Set(apptsData.map(a => (a.client as any).id)).size;
+
+        setKpis({
+          todayEarnings,
+          monthEarnings: todayEarnings * 20, // Simulando mes temporalmente, requiere query aparte
+          todayAppointments: todayAppts.length,
+          totalClients: uniqueClients
+        });
+      }
+
+      // 4. Obtener Horario configurado
+      const { data: scheduleData } = await supabase
+        .from('barber_schedules')
+        .select('*')
+        .eq('barber_id', user.id);
+        
+      if (scheduleData && scheduleData.length > 0) {
+        setSchedules(scheduleData);
+      }
+
+    } catch (error) {
+      console.error("Error cargando datos:", error);
+    } finally {
+      setIsAppLoading(false);
+    }
+  }, [supabase]);
+
+  useEffect(() => {
+    loadDashboardData();
+
+    // ============================================================================
+    // SINCRONIZACIÓN EN TIEMPO REAL
+    // ============================================================================
+    let channel: any;
+    const setupRealtime = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      channel = supabase.channel('custom-all-channel')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'appointments', filter: `barber_id=eq.${user.id}` },
+          (payload) => {
+            console.log('Cambio detectado en citas!', payload);
+            loadDashboardData(); // Recarga la data cuando alguien agenda o cancela
+          }
+        )
+        .subscribe();
+    };
+
+    setupRealtime();
+
+    return () => {
+      if (channel) supabase.removeChannel(channel);
+    };
+  }, [loadDashboardData, supabase]);
+
+  // ============================================================================
+  // ACCIONES CON SUPABASE
+  // ============================================================================
   const handleUpdateStatus = async (id: string, newStatus: AppointmentStatus) => {
     setIsLoading(true);
-    setTimeout(() => {
+    const { error } = await supabase
+      .from('appointments')
+      .update({ status: newStatus })
+      .eq('id', id);
+      
+    if (!error) {
       setAppointments(prev => prev.map(app => app.id === id ? { ...app, status: newStatus } : app));
-      setIsLoading(false);
-    }, 500);
+    }
+    setIsLoading(false);
   };
 
   const handleDelete = async (id: string) => {
-    if(!confirm("¿Estás seguro de eliminar esta reserva permanentemente?")) return;
+    if(!confirm("¿Estás seguro de cancelar y eliminar esta reserva permanentemente?")) return;
     setIsLoading(true);
-    setTimeout(() => {
+    const { error } = await supabase.from('appointments').delete().eq('id', id);
+    if (!error) {
       setAppointments(prev => prev.filter(app => app.id !== id));
-      setIsLoading(false);
-    }, 500);
+    }
+    setIsLoading(false);
   };
 
-  const handleEditSave = (e: React.FormEvent) => {
+  const handleEditSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedAppt) return;
+    
     setIsLoading(true);
-    setTimeout(() => {
+    const form = e.target as HTMLFormElement;
+    const newDate = (form.elements.namedItem('date') as HTMLInputElement).value;
+    const newTime = (form.elements.namedItem('time') as HTMLInputElement).value;
+
+    const { error } = await supabase
+      .from('appointments')
+      .update({ date: newDate, time: newTime })
+      .eq('id', selectedAppt.id);
+
+    if (!error) {
+      loadDashboardData(); // Recargar para traer todo fresco
       setIsEditModalOpen(false);
-      setIsLoading(false);
       alert("Reserva modificada con éxito.");
-    }, 500);
+    } else {
+      alert("Error al modificar reserva.");
+    }
+    setIsLoading(false);
   };
 
+  const copyUniqueLink = () => {
+    if (!barber) return;
+    // Genera el link apuntando a tu vista de clientes
+    const link = `${window.location.origin}/client/book?barber=${barber.id}`;
+    navigator.clipboard.writeText(link);
+    setCopySuccess(true);
+    setTimeout(() => setCopySuccess(false), 3000);
+  };
+
+  // Helpers UI
   const formatMoney = (amount: number) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
   
   const getStatusBadge = (status: AppointmentStatus) => {
@@ -148,29 +266,34 @@ export default function BarberDashboard() {
       CANCELLED: <span className="px-3 py-1 bg-red-500/10 text-red-500 border border-red-500/20 rounded-full text-xs font-bold flex items-center gap-1"><XCircle size={12}/> Cancelado</span>,
       NO_SHOW: <span className="px-3 py-1 bg-zinc-500/10 text-zinc-500 border border-zinc-500/20 rounded-full text-xs font-bold flex items-center gap-1"><AlertCircle size={12}/> No Asistió</span>,
     };
-    return badges[status];
+    return badges[status] || badges.PENDING;
   };
 
-  // Filtrar citas por el día seleccionado
-  const filteredAppointments = appointments.filter(a => a.date === selectedDateFilter && a.client.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredAppointments = appointments.filter(a => a.date === selectedDateFilter && a.client?.name.toLowerCase().includes(searchQuery.toLowerCase()));
+
+  if (isAppLoading) return <div className="min-h-screen flex items-center justify-center text-amber-500"><Clock className="animate-spin" size={32}/></div>;
 
   return (
-    <div className="max-w-7xl mx-auto pb-20">
+    <div className="max-w-7xl mx-auto pb-20 pt-8 px-4 sm:px-6 lg:px-8">
       
       {/* HEADER PERSONALIZADO */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-4">
         <div>
           <h1 className="text-4xl md:text-5xl font-black text-white tracking-tighter uppercase font-serif">
-            Hola, <span className="text-amber-500">Cesar Luna</span>
+            Hola, <span className="text-amber-500">{barber?.name || 'Barbero'}</span>
           </h1>
           <p className="text-zinc-400 mt-2 flex items-center gap-2 font-medium">
             <CalendarDays size={16} className="text-amber-500" />
             Hoy es {new Date().toLocaleDateString('es-CL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
         </div>
-        <div className="flex gap-3">
-          <button className="px-5 py-3 bg-zinc-900 border border-zinc-800 text-white rounded-xl text-sm font-bold hover:border-amber-500 transition-colors">
-            Cerrar Turno
+        <div className="flex gap-3 flex-wrap">
+          <button 
+            onClick={copyUniqueLink}
+            className={`px-5 py-3 border rounded-xl text-sm font-bold flex items-center gap-2 transition-colors ${copySuccess ? 'bg-green-500/10 text-green-500 border-green-500' : 'bg-zinc-900 border-zinc-800 text-white hover:border-amber-500'}`}
+          >
+            {copySuccess ? <Check size={16} /> : <LinkIcon size={16} />}
+            {copySuccess ? 'Enlace Copiado!' : 'Copiar Mi Enlace'}
           </button>
         </div>
       </div>
@@ -201,10 +324,10 @@ export default function BarberDashboard() {
         {activeTab === "RESUMEN" && (
           <motion.div key="resumen" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <KpiCard icon={<DollarSign size={24} />} title="Generado Hoy" value={formatMoney(MOCK_KPIS.todayEarnings)} trend="+12% vs ayer" />
-              <KpiCard icon={<TrendingUp size={24} />} title="Generado Mes" value={formatMoney(MOCK_KPIS.monthEarnings)} />
-              <KpiCard icon={<Scissors size={24} />} title="Citas Hoy" value={MOCK_KPIS.todayAppointments} />
-              <KpiCard icon={<Users size={24} />} title="Mis Clientes" value={MOCK_KPIS.totalClients} />
+              <KpiCard icon={<DollarSign size={24} />} title="Generado Hoy" value={formatMoney(kpis.todayEarnings)} />
+              <KpiCard icon={<TrendingUp size={24} />} title="Generado Mes" value={formatMoney(kpis.monthEarnings)} />
+              <KpiCard icon={<Scissors size={24} />} title="Citas Hoy" value={kpis.todayAppointments} />
+              <KpiCard icon={<Users size={24} />} title="Mis Clientes" value={kpis.totalClients} />
             </div>
 
             {/* PRÓXIMA CITA WIDGET */}
@@ -213,25 +336,34 @@ export default function BarberDashboard() {
               <h3 className="text-xl font-black text-white uppercase tracking-tighter mb-6 flex items-center gap-3 relative z-10">
                 <Clock className="text-amber-500" /> Tu Próximo Corte
               </h3>
-              {appointments.filter(a => a.date === TODAY_DATE && (a.status === "CONFIRMED" || a.status === "PENDING"))[0] ? (
-                <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-zinc-950 border border-zinc-800 p-6 rounded-2xl relative z-10">
-                  <div className="flex items-center gap-6 w-full md:w-auto">
-                    <div className="w-16 h-16 bg-amber-500 text-black rounded-2xl flex flex-col items-center justify-center font-black leading-none shadow-[0_0_20px_rgba(217,119,6,0.3)]">
-                      <span className="text-xl">{appointments[0].time.split(':')[0]}</span>
-                      <span className="text-xs">{appointments[0].time.split(':')[1]}</span>
+              
+              {(() => {
+                const nextAppt = appointments
+                  .filter(a => a.date === TODAY_DATE && (a.status === "CONFIRMED" || a.status === "PENDING"))
+                  .sort((a, b) => a.time.localeCompare(b.time))[0];
+
+                if (nextAppt) {
+                  return (
+                    <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-zinc-950 border border-zinc-800 p-6 rounded-2xl relative z-10">
+                      <div className="flex items-center gap-6 w-full md:w-auto">
+                        <div className="w-16 h-16 bg-amber-500 text-black rounded-2xl flex flex-col items-center justify-center font-black leading-none shadow-[0_0_20px_rgba(217,119,6,0.3)]">
+                          <span className="text-xl">{nextAppt.time.split(':')[0]}</span>
+                          <span className="text-xs">{nextAppt.time.split(':')[1]}</span>
+                        </div>
+                        <div>
+                          <h4 className="text-2xl font-bold text-white">{nextAppt.client.name}</h4>
+                          <p className="text-zinc-400 font-medium">{nextAppt.service.name}</p>
+                        </div>
+                      </div>
+                      <button onClick={() => handleUpdateStatus(nextAppt.id, "COMPLETED")} disabled={isLoading} className="w-full md:w-auto px-8 py-4 bg-green-500 hover:bg-green-400 text-black font-black uppercase text-xs tracking-widest rounded-xl transition-all shadow-[0_0_20px_rgba(34,197,94,0.3)] disabled:opacity-50">
+                        Marcar Completado
+                      </button>
                     </div>
-                    <div>
-                      <h4 className="text-2xl font-bold text-white">{appointments[0].client.name}</h4>
-                      <p className="text-zinc-400 font-medium">{appointments[0].service.name}</p>
-                    </div>
-                  </div>
-                  <button onClick={() => handleUpdateStatus(appointments[0].id, "COMPLETED")} className="w-full md:w-auto px-8 py-4 bg-green-500 hover:bg-green-400 text-black font-black uppercase text-xs tracking-widest rounded-xl transition-all shadow-[0_0_20px_rgba(34,197,94,0.3)]">
-                    Marcar Completado
-                  </button>
-                </div>
-              ) : (
-                <p className="text-zinc-500 font-medium relative z-10">No tienes cortes próximos para hoy.</p>
-              )}
+                  );
+                } else {
+                  return <p className="text-zinc-500 font-medium relative z-10">No tienes cortes próximos para hoy.</p>;
+                }
+              })()}
             </div>
           </motion.div>
         )}
@@ -274,11 +406,10 @@ export default function BarberDashboard() {
               
               <div className="space-y-4">
                 {TIMELINE_SLOTS.map(time => {
-                  // Buscamos si hay una cita a esta hora específica en el día seleccionado
                   const appAtThisTime = filteredAppointments.find(a => a.time.startsWith(time.split(':')[0]));
 
                   if (appAtThisTime) {
-                    // SLT OCUPADO (RESERVA EXISTENTE)
+                    // SLOT OCUPADO
                     return (
                       <div key={time} className="flex gap-4 items-stretch group">
                         <div className="w-16 flex flex-col items-center">
@@ -287,15 +418,14 @@ export default function BarberDashboard() {
                         </div>
                         
                         <div className="flex-1 bg-zinc-950 border border-amber-500/30 rounded-2xl p-5 mb-4 shadow-[0_0_15px_rgba(217,119,6,0.05)] relative overflow-hidden">
-                           {/* Info del Cliente */}
                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
                              <div>
                                <div className="flex items-center gap-3 mb-1">
-                                 <h4 className="text-lg font-bold text-white">{appAtThisTime.client.name}</h4>
+                                 <h4 className="text-lg font-bold text-white">{appAtThisTime.client?.name}</h4>
                                  {getStatusBadge(appAtThisTime.status)}
                                </div>
                                <p className="text-sm font-medium text-zinc-400 flex items-center gap-2">
-                                 <Scissors size={14}/> {appAtThisTime.service.name} • <span className="text-amber-500">{formatMoney(appAtThisTime.service.price)}</span>
+                                 <Scissors size={14}/> {appAtThisTime.service?.name} • <span className="text-amber-500">{formatMoney(appAtThisTime.service?.price)}</span>
                                </p>
                              </div>
                              {appAtThisTime.notes && (
@@ -305,7 +435,6 @@ export default function BarberDashboard() {
                              )}
                            </div>
 
-                           {/* Botones de Acción Integrados */}
                            <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-zinc-800/50">
                              {appAtThisTime.status === "PENDING" && (
                                <>
@@ -317,7 +446,7 @@ export default function BarberDashboard() {
                                <button onClick={() => handleUpdateStatus(appAtThisTime.id, "COMPLETED")} disabled={isLoading} className="px-5 py-2 bg-green-500 text-black hover:bg-green-400 rounded-lg font-black text-xs uppercase tracking-widest transition-all shadow-[0_0_10px_rgba(34,197,94,0.3)]">Cobrar</button>
                              )}
                              
-                             <div className="flex-1"></div> {/* Spacer */}
+                             <div className="flex-1"></div>
                              
                              <button onClick={() => { setSelectedAppt(appAtThisTime); setIsEditModalOpen(true); }} className="p-2 text-zinc-500 hover:text-amber-500 transition-colors"><Edit3 size={16}/></button>
                              <button onClick={() => handleDelete(appAtThisTime.id)} className="p-2 text-zinc-500 hover:text-red-500 transition-colors"><Trash2 size={16}/></button>
@@ -326,7 +455,7 @@ export default function BarberDashboard() {
                       </div>
                     );
                   } else {
-                    // SLOT LIBRE (DISPONIBLE PARA QUE EL CLIENTE RESERVE)
+                    // SLOT LIBRE
                     return (
                       <div key={time} className="flex gap-4 items-stretch group opacity-50 hover:opacity-100 transition-opacity">
                         <div className="w-16 flex flex-col items-center">
@@ -351,8 +480,8 @@ export default function BarberDashboard() {
         {/* =================================================================== */}
         {activeTab === "CLIENTES" && (
           <motion.div key="clientes" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {Array.from(new Set(appointments.map(a => a.client.id))).map(clientId => {
-              const client = appointments.find(a => a.client.id === clientId)?.client;
+            {Array.from(new Set(appointments.map(a => a.client?.id))).map(clientId => {
+              const client = appointments.find(a => a.client?.id === clientId)?.client;
               if(!client) return null;
               
               return (
@@ -363,15 +492,14 @@ export default function BarberDashboard() {
                     </div>
                     <div>
                       <h4 className="text-lg font-bold text-white">{client.name}</h4>
-                      <p className="text-xs font-black text-amber-500 uppercase tracking-widest">{client.totalVisits} Cortes contigo</p>
                     </div>
                   </div>
                   <div className="space-y-3">
-                    <a href={`https://wa.me/${client.phone.replace('+','')}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 text-sm text-zinc-400 hover:text-white transition-colors bg-zinc-950 p-3 rounded-xl border border-zinc-800 hover:border-amber-500">
-                      <Phone size={16} className="text-green-500"/> {client.phone}
+                    <a href={`https://wa.me/${client.phone?.replace('+','')}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 text-sm text-zinc-400 hover:text-white transition-colors bg-zinc-950 p-3 rounded-xl border border-zinc-800 hover:border-amber-500">
+                      <Phone size={16} className="text-green-500"/> {client.phone || 'Sin número'}
                     </a>
                     <div className="flex items-center gap-3 text-sm text-zinc-400 bg-zinc-950 p-3 rounded-xl border border-zinc-800">
-                      <Mail size={16} className="text-amber-500"/> {client.email}
+                      <Mail size={16} className="text-amber-500"/> {client.email || 'Sin correo'}
                     </div>
                   </div>
                 </div>
@@ -389,24 +517,23 @@ export default function BarberDashboard() {
               <div className="bg-zinc-900/80 border border-zinc-800 rounded-3xl p-8 relative overflow-hidden">
                 <Wallet className="absolute -bottom-4 -right-4 text-zinc-800" size={120} />
                 <h4 className="text-zinc-400 font-bold uppercase tracking-widest text-sm mb-2 relative z-10">Generado Total (Día)</h4>
-                <p className="text-4xl font-black text-white relative z-10">{formatMoney(MOCK_KPIS.todayEarnings)}</p>
+                <p className="text-4xl font-black text-white relative z-10">{formatMoney(kpis.todayEarnings)}</p>
               </div>
               <div className="bg-amber-500 border border-amber-400 rounded-3xl p-8 relative overflow-hidden">
                 <PieChart className="absolute -bottom-4 -right-4 text-amber-600/50" size={120} />
                 <h4 className="text-amber-900 font-black uppercase tracking-widest text-sm mb-2 relative z-10">Tu Comisión (60%)</h4>
-                <p className="text-4xl font-black text-black relative z-10">{formatMoney(MOCK_KPIS.todayEarnings * 0.6)}</p>
+                <p className="text-4xl font-black text-black relative z-10">{formatMoney(kpis.todayEarnings * 0.6)}</p>
               </div>
               <div className="bg-zinc-900/80 border border-zinc-800 rounded-3xl p-8 relative overflow-hidden">
                 <DollarSign className="absolute -bottom-4 -right-4 text-zinc-800" size={120} />
-                <h4 className="text-zinc-400 font-bold uppercase tracking-widest text-sm mb-2 relative z-10">Propinas (Cash/Transf)</h4>
-                <p className="text-4xl font-black text-green-500 relative z-10">{formatMoney(5000)}</p>
+                <h4 className="text-zinc-400 font-bold uppercase tracking-widest text-sm mb-2 relative z-10">Citas Terminadas</h4>
+                <p className="text-4xl font-black text-green-500 relative z-10">{appointments.filter(a => a.status === 'COMPLETED' && a.date === TODAY_DATE).length}</p>
               </div>
             </div>
 
             <div className="bg-zinc-900/40 border border-zinc-800 rounded-3xl p-6 md:p-8">
               <div className="flex justify-between items-center mb-6 border-b border-zinc-800 pb-4">
                 <h3 className="text-xl font-bold text-white flex items-center gap-2"><Receipt size={20} className="text-amber-500"/> Historial de Cortes de Hoy</h3>
-                <button className="text-xs font-bold text-amber-500 hover:text-amber-400 uppercase tracking-widest">Descargar Excel</button>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm text-zinc-400">
@@ -420,13 +547,13 @@ export default function BarberDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {appointments.filter(a => a.status === "COMPLETED").map((app, i) => (
+                    {appointments.filter(a => a.status === "COMPLETED" && a.date === TODAY_DATE).map((app, i) => (
                       <tr key={i} className="border-b border-zinc-800/50 hover:bg-zinc-800/20 transition-colors">
                         <td className="px-4 py-4 font-bold text-white">{app.time}</td>
-                        <td className="px-4 py-4">{app.client.name}</td>
-                        <td className="px-4 py-4">{app.service.name}</td>
-                        <td className="px-4 py-4 font-medium">{formatMoney(app.service.price)}</td>
-                        <td className="px-4 py-4 font-bold text-amber-500">{formatMoney(app.service.price * 0.6)}</td>
+                        <td className="px-4 py-4">{app.client?.name}</td>
+                        <td className="px-4 py-4">{app.service?.name}</td>
+                        <td className="px-4 py-4 font-medium">{formatMoney(app.service?.price)}</td>
+                        <td className="px-4 py-4 font-bold text-amber-500">{formatMoney(app.service?.price * 0.6)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -445,56 +572,11 @@ export default function BarberDashboard() {
               <AlertCircle className="text-amber-500 flex-shrink-0 mt-1" />
               <div>
                 <h4 className="text-amber-500 font-bold mb-1">Configuración de Disponibilidad</h4>
-                <p className="text-zinc-400 text-sm">Los horarios que configures aquí serán los que los clientes verán al intentar agendar en la web. Los "Espacios Libres" en tu agenda dependen de esta configuración.</p>
+                <p className="text-zinc-400 text-sm">Próximamente: Estos horarios se sincronizarán para determinar qué espacios ven los clientes disponibles en tu perfil.</p>
               </div>
             </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {MOCK_SCHEDULE.map((day, idx) => (
-                <div key={idx} className={`p-6 rounded-2xl border transition-colors ${day.active ? 'bg-zinc-900/60 border-zinc-700' : 'bg-zinc-950 border-zinc-900 opacity-60'}`}>
-                  <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-xl font-bold text-white">{day.day}</h3>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" className="sr-only peer" defaultChecked={day.active} />
-                      <div className="w-11 h-6 bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
-                      <span className="ml-3 text-sm font-bold text-zinc-400 uppercase tracking-widest">{day.active ? 'Activo' : 'Descanso'}</span>
-                    </label>
-                  </div>
-
-                  {day.active && (
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-4">
-                        <div className="flex-1">
-                          <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Entrada</label>
-                          <input type="time" defaultValue={day.start} className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-amber-500 outline-none" />
-                        </div>
-                        <div className="flex-1">
-                          <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Salida</label>
-                          <input type="time" defaultValue={day.end} className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-amber-500 outline-none" />
-                        </div>
-                      </div>
-                      
-                      <div className="pt-4 border-t border-zinc-800/50">
-                        <div className="flex items-center gap-2 mb-2 text-zinc-400">
-                          <Coffee size={14} /> <span className="text-xs font-bold uppercase tracking-widest">Hora de Almuerzo / Break</span>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <input type="time" defaultValue={day.breakStart} className="flex-1 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-zinc-400 focus:text-white outline-none" />
-                          <span className="text-zinc-600">-</span>
-                          <input type="time" defaultValue={day.breakEnd} className="flex-1 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-zinc-400 focus:text-white outline-none" />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            <div className="flex justify-end mt-8">
-              <button className="px-8 py-4 bg-amber-500 hover:bg-amber-400 text-black font-black uppercase tracking-widest text-sm rounded-xl transition-all shadow-[0_0_20px_rgba(217,119,6,0.3)]">
-                Guardar Horarios
-              </button>
-            </div>
+            {/* Aquí puedes mapear 'schedules' de tu BD tal como mapeabas MOCK_SCHEDULE */}
+            <p className="text-zinc-500">Módulo de horarios en desarrollo dinámico...</p>
           </motion.div>
         )}
 
@@ -513,25 +595,17 @@ export default function BarberDashboard() {
               <form onSubmit={handleEditSave} className="space-y-5">
                 <div>
                   <label className="block text-xs font-black text-zinc-400 uppercase tracking-widest mb-2">Cliente</label>
-                  <input type="text" disabled value={selectedAppt.client.name} className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-zinc-500 cursor-not-allowed" />
+                  <input type="text" disabled value={selectedAppt.client?.name} className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-zinc-500 cursor-not-allowed" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-black text-zinc-400 uppercase tracking-widest mb-2">Fecha</label>
-                    <input type="date" defaultValue={selectedAppt.date} className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none" required />
+                    <input type="date" name="date" defaultValue={selectedAppt.date} className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none" required />
                   </div>
                   <div>
                     <label className="block text-xs font-black text-zinc-400 uppercase tracking-widest mb-2">Hora</label>
-                    <input type="time" defaultValue={selectedAppt.time} className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none" required />
+                    <input type="time" name="time" defaultValue={selectedAppt.time} className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none" required />
                   </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-black text-zinc-400 uppercase tracking-widest mb-2">Servicio</label>
-                  <select className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none">
-                    <option value="corte">Corte Clásico</option>
-                    <option value="barba">Barba + Vapor</option>
-                    <option value="vip">Servicio Emperador VIP</option>
-                  </select>
                 </div>
                 
                 <div className="flex gap-4 pt-6 border-t border-zinc-800 mt-6">
@@ -539,7 +613,7 @@ export default function BarberDashboard() {
                     Cancelar
                   </button>
                   <button type="submit" disabled={isLoading} className="flex-1 py-4 text-black font-black uppercase tracking-widest text-xs bg-amber-500 hover:bg-amber-400 rounded-xl transition-colors shadow-[0_0_20px_rgba(217,119,6,0.3)]">
-                    Guardar Cambios
+                    {isLoading ? 'Guardando...' : 'Guardar Cambios'}
                   </button>
                 </div>
               </form>
@@ -547,13 +621,11 @@ export default function BarberDashboard() {
           </div>
         )}
       </AnimatePresence>
-
     </div>
   );
 }
 
-// Componente Tarjeta KPI
-function KpiCard({ icon, title, value, trend }: { icon: React.ReactNode, title: string, value: string | number, trend?: string }) {
+function KpiCard({ icon, title, value }: { icon: React.ReactNode, title: string, value: string | number }) {
   return (
     <div className="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-6 hover:border-amber-500/50 transition-colors">
       <div className="w-12 h-12 bg-zinc-950 border border-zinc-800 rounded-xl flex items-center justify-center text-amber-500 mb-4">
@@ -561,7 +633,6 @@ function KpiCard({ icon, title, value, trend }: { icon: React.ReactNode, title: 
       </div>
       <p className="text-zinc-400 text-sm font-bold uppercase tracking-widest mb-1">{title}</p>
       <h4 className="text-3xl font-black text-white tracking-tighter">{value}</h4>
-      {trend && <p className="text-green-500 text-xs font-bold mt-2 bg-green-500/10 inline-block px-2 py-1 rounded-md">{trend}</p>}
     </div>
   );
 }
