@@ -68,30 +68,34 @@ export default function Navbar() {
         className={`fixed top-0 w-full z-[100] transition-all duration-500 border-b ${
           isScrolled 
             ? "bg-[#050505]/90 backdrop-blur-xl border-amber-500/20 shadow-[0_10px_40px_-10px_rgba(217,119,6,0.15)] py-3" 
-            : "bg-gradient-to-b from-[#050505]/90 via-[#050505]/40 to-transparent border-transparent py-6"
+            : "bg-gradient-to-b from-black/80 via-black/40 to-transparent border-transparent py-6"
         }`}
       >
-        <div className="max-w-[1400px] mx-auto px-6 lg:px-12">
-          <div className="flex items-center justify-between">
+        <div className="max-w-[1400px] mx-auto px-6 lg:px-12 relative">
+          <div className="flex items-center justify-between relative z-10">
             
-            {/* LOGO DINÁMICO (Izquierda) */}
+            {/* LOGO DINÁMICO Y GRANDE (Izquierda) */}
             <Link href="/" className="relative z-10 block group perspective-1000">
               <motion.div
                 animate={{
-                  scale: isScrolled ? 0.9 : 1.1,
-                  y: isScrolled ? 0 : 5,
+                  // El logo es un 10% más grande que el tamaño base al inicio (no scrolled)
+                  scale: isScrolled ? 0.85 : 1.1,
+                  // Pequeña corrección de posición cuando es grande
+                  y: isScrolled ? 0 : 10,
                 }}
                 transition={{ duration: 0.4, ease: "easeOut" }}
                 className="relative flex items-center justify-center"
               >
-                {/* Resplandor mejorado */}
-                <div className="absolute inset-0 bg-amber-500/20 blur-[40px] group-hover:bg-amber-500/40 transition-all duration-500 rounded-full scale-150"></div>
+                {/* Resplandor ámbar mejorado de fondo */}
+                <div className="absolute inset-0 bg-amber-500/20 blur-[40px] group-hover:bg-amber-500/40 transition-all duration-500 rounded-full scale-150 pointer-events-none"></div>
                 
-                <div className="relative z-10 h-16 w-16 md:h-20 md:w-20 rounded-full border border-amber-500/30 overflow-hidden shadow-[0_0_15px_rgba(217,119,6,0.2)] group-hover:border-amber-500/80 group-hover:shadow-[0_0_25px_rgba(217,119,6,0.4)] transition-all duration-500">
-                   <img 
+                {/* Contenedor del logo con bordes definidos */}
+                <div className={`relative z-10 rounded-full border border-amber-500/30 overflow-hidden shadow-[0_0_15px_rgba(217,119,6,0.2)] group-hover:border-amber-500/80 group-hover:shadow-[0_0_25px_rgba(217,119,6,0.4)] transition-all duration-500 ${scrolled ? 'h-16 w-16' : 'h-24 w-24 md:h-28 md:w-28'}`}>
+                  {/* Imagen del logo sin fondo negro interno forzado, ahora es transparente */}
+                  <img 
                     src="/logo.png" 
                     alt="Emperador Barbershop Logo" 
-                    className="w-full h-full object-cover bg-[#050505]"
+                    className="w-full h-full object-cover"
                   />
                 </div>
               </motion.div>
@@ -112,7 +116,7 @@ export default function Navbar() {
                     }`}>
                       {link.name}
                     </span>
-                    {/* Línea animada inferior */}
+                    {/* Línea animada inferior con sombra de neón */}
                     <span className={`absolute bottom-0 left-0 w-full h-[2px] bg-amber-500 transform origin-left transition-transform duration-300 ease-out shadow-[0_0_10px_rgba(217,119,6,0.8)] ${
                       isActive ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"
                     }`}></span>
@@ -135,14 +139,14 @@ export default function Navbar() {
                 href="/reservar" 
                 className="relative overflow-hidden group flex items-center gap-3 px-8 py-3 bg-amber-500 text-black rounded-xl text-[11px] font-black uppercase tracking-[0.2em] transition-all duration-300 shadow-[0_0_20px_rgba(217,119,6,0.4)] hover:shadow-[0_0_30px_rgba(217,119,6,0.6)] hover:-translate-y-0.5 active:scale-95 border border-amber-400"
               >
-                {/* Efecto de brillo al pasar el mouse */}
+                {/* Efecto de brillo shimer al pasar el mouse */}
                 <span className="absolute inset-0 w-full h-full bg-white/20 -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></span>
                 <span className="relative z-10">Agendar</span>
                 <Zap size={16} className="relative z-10 fill-black group-hover:animate-bounce" />
               </Link>
             </div>
 
-            {/* BOTÓN MENÚ MÓVIL */}
+            {/* BOTÓN MENÚ MÓVIL ESTILIZADO */}
             <div className="lg:hidden flex items-center z-50">
               <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -175,7 +179,7 @@ export default function Navbar() {
             transition={{ duration: 0.4 }}
             className="fixed inset-0 z-[90] bg-[#050505]/95 flex flex-col justify-center items-center lg:hidden"
           >
-            {/* Elemento decorativo de fondo */}
+            {/* Elemento decorativo de fondo circular ámbar */}
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120vw] h-[120vw] bg-amber-500/5 rounded-full blur-[100px] pointer-events-none"></div>
 
             <div className="flex flex-col items-center space-y-8 w-full px-8 relative z-10">
