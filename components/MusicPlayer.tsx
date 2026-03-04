@@ -3,38 +3,65 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Disc, Volume2, VolumeX, Volume1, Music } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+// Sincronización con BD añadida
+import { createClient } from '@/utils/supabase/client';
 
 export default function AdvancedMusicPlayer() {
+  const supabase = createClient();
+
   // Referencias
   const audioRef = useRef<HTMLAudioElement>(null);
   const fadeInterval = useRef<NodeJS.Timeout | null>(null);
 
-  // Estados
+  // Estados Base
   const [isPlaying, setIsPlaying] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [hasInteracted, setHasInteracted] = useState(false);
   const [volume, setVolume] = useState(0.3); // 30% por defecto
   const [isMuted, setIsMuted] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  
+  // Estado para la URL de la Música
+  const [audioSrc, setAudioSrc] = useState<string>("/vibe.mp3");
 
-  // 1. Inicialización y LocalStorage (Solo en cliente)
+  // 1. Inicialización: Carga LocalStorage y Supabase
   useEffect(() => {
     setIsMounted(true);
+    
+    // Recuperar preferencias locales de volumen
     const savedVolume = localStorage.getItem('emperador_volume');
     const savedMuted = localStorage.getItem('emperador_muted');
-    
     if (savedVolume) setVolume(parseFloat(savedVolume));
     if (savedMuted === 'true') setIsMuted(true);
-  }, []);
 
-  // 2. Aplicar volumen y mute al elemento de audio
+    // Recuperar la música activa desde la base de datos (Sincronizado con Admin)
+    const fetchMusicSettings = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('settings')
+          .select('value')
+          .eq('key', 'background_music')
+          .single();
+        
+        if (data && data.value && !error) {
+          setAudioSrc(data.value);
+        }
+      } catch (err) {
+        console.error("Usando música local (vibe.mp3) como respaldo.");
+      }
+    };
+
+    fetchMusicSettings();
+  }, [supabase]);
+
+  // 2. Aplicar volumen y mute al elemento de audio (se re-ejecuta si cambia la música)
   useEffect(() => {
     if (audioRef.current) {
       audioRef.current.volume = isMuted ? 0 : volume;
     }
-  }, [volume, isMuted]);
+  }, [volume, isMuted, audioSrc]);
 
-  // 3. Manejador de Autoplay Inteligente
+  // 3. Manejador de Autoplay Inteligente (Global en la página)
   useEffect(() => {
     const handleFirstInteraction = () => {
       if (!hasInteracted && audioRef.current && !isPlaying) {
@@ -45,10 +72,11 @@ export default function AdvancedMusicPlayer() {
           setHasInteracted(true);
           fadeInAudio(isMuted ? 0 : volume);
         }).catch(() => {
-          console.log("Autoplay bloqueado. El usuario debe iniciar manualmente.");
+          console.log("Autoplay bloqueado por el navegador. Se requiere click manual.");
         });
       }
-      // Limpiar listeners tras la primera interacción
+      
+      // Limpiar listeners tras la primera interacción global
       document.removeEventListener('click', handleFirstInteraction);
       document.removeEventListener('scroll', handleFirstInteraction);
       document.removeEventListener('keydown', handleFirstInteraction);
@@ -140,15 +168,15 @@ export default function AdvancedMusicPlayer() {
     localStorage.setItem('emperador_volume', newVolume.toString());
   };
 
-  if (!isMounted) return null; // Evitar errores de hidratación en Next.js
+  if (!isMounted) return null; // Evita errores de hidratación
 
   // Icono de volumen dinámico
   const VolumeIcon = isMuted || volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
 
   return (
     <>
-      {/* Etiqueta de Audio Oculta */}
-      <audio ref={audioRef} src="/vibe.mp3" loop preload="auto" />
+      {/* Etiqueta de Audio (Ahora toma el valor dinámico audioSrc) */}
+      <audio ref={audioRef} src={audioSrc} loop preload="auto" />
 
       {/* Contenedor Flotante Principal */}
       <motion.div
@@ -165,7 +193,7 @@ export default function AdvancedMusicPlayer() {
             isHovered ? 'pr-6' : 'pr-1'
           }`}
         >
-          {/* Botón Play/Pause (Vinilo) */}
+          {/* Botón Play/Pause (Vinilo Animado) */}
           <button 
             onClick={togglePlay}
             className="relative flex items-center justify-center w-14 h-14 bg-black rounded-full border border-zinc-800 shrink-0 group hover:border-amber-500 transition-colors m-1 z-10 focus:outline-none"
@@ -177,7 +205,7 @@ export default function AdvancedMusicPlayer() {
             {/* Agujero central del vinilo */}
             <div className="absolute w-2.5 h-2.5 bg-zinc-900 rounded-full border border-zinc-700"></div>
             
-            {/* Efecto de resplandor interno si está sonando */}
+            {/* Efecto de resplandor si está sonando */}
             {isPlaying && (
               <div className="absolute inset-0 bg-amber-500/10 rounded-full blur-md animate-pulse"></div>
             )}
@@ -192,7 +220,7 @@ export default function AdvancedMusicPlayer() {
                 exit={{ width: 0, opacity: 0, paddingLeft: 0 }}
                 className="flex items-center gap-4 overflow-hidden whitespace-nowrap"
               >
-                {/* Info del Track & Ecualizador */}
+                {/* Info del Track & Ecualizador Dinámico */}
                 <div className="flex flex-col justify-center">
                   <div className="flex items-center gap-2">
                     <Music size={12} className="text-amber-500" />
@@ -211,11 +239,14 @@ export default function AdvancedMusicPlayer() {
                         className={`w-1 rounded-t-sm ${isPlaying ? 'bg-amber-500' : 'bg-zinc-700'}`}
                       />
                     ))}
-                    <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest ml-2">Vol. 1</span>
+                    {/* Agregué el porcentaje exacto de volumen para que se vea más profesional */}
+                    <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest ml-2">
+                      Vol. {Math.round(volume * 100)}%
+                    </span>
                   </div>
                 </div>
 
-                {/* Separador */}
+                {/* Separador Visual */}
                 <div className="w-px h-8 bg-zinc-800 mx-2"></div>
 
                 {/* Controles de Volumen */}

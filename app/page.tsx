@@ -10,7 +10,7 @@ import {
   Crown, Star, Scissors, Zap, Flame, Crosshair,
   Minus, Plus, CheckCircle, ShieldCheck, 
   MessageSquare, Heart, MessageCircle, ExternalLink, 
-  Lock, LayoutGrid, Clapperboard, Droplets, Sparkles, Wand2,
+  Lock, LayoutGrid, Clapperboard, Sparkles,
   UserCircle, Briefcase, KeyRound, ShoppingCart, Disc, Volume2, VolumeX, Volume1, Music
 } from "lucide-react";
 
@@ -89,7 +89,7 @@ const FALLBACK_FAQS = [
   { q: "¿Puedo comprar productos online?", a: "Sí, contamos con una tienda integrada donde puedes adquirir ceras, pomadas y máquinas profesionales con retiro en tienda o envío a domicilio." },
 ];
 
-// IG Grid de 6 elementos cuadrados perfectos
+// GRID DE INSTAGRAM (Imágenes placeholder de altísima calidad de barbería, enlazadas al IG oficial)
 const INSTA_REELS = [
   { id: 1, likes: "12.4k", comments: "145", type: "post", img: "https://images.unsplash.com/photo-1593702275687-f8b402bf1fb5?q=80&w=600&h=600&auto=format&fit=crop" },
   { id: 2, likes: "8.2k", comments: "98", type: "reel", img: "https://images.unsplash.com/photo-1622286342621-4bd786c2447c?q=80&w=600&h=600&auto=format&fit=crop" },
@@ -105,7 +105,7 @@ const DynamicIcon = ({ name, size = 24 }: { name: string, size?: number }) => {
 };
 
 // ============================================================================
-// ANIMACIONES
+// ANIMACIONES IMPACTANTES
 // ============================================================================
 const popUp: Variants = { hidden: { opacity: 0, y: 50, scale: 0.95 }, visible: { opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 100, damping: 20 } } };
 const fadeUp: Variants = { hidden: { opacity: 0, y: 30 }, visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: "easeOut" } } };
@@ -134,7 +134,7 @@ const FAQItem = ({ faq }: { faq: any }) => {
 };
 
 // ============================================================================
-// VISTA PRINCIPAL
+// VISTA PRINCIPAL (Landing Page)
 // ============================================================================
 export default function UltimateEmperadorLanding() {
   const supabase = createClient();
@@ -144,6 +144,7 @@ export default function UltimateEmperadorLanding() {
   const [storeSlides, setStoreSlides] = useState<any[]>(FALLBACK_STORE_SLIDES);
   const [reviews, setReviews] = useState<any[]>(FALLBACK_REVIEWS);
   const [faqs, setFaqs] = useState<any[]>(FALLBACK_FAQS);
+  const [activeTab, setActiveTab] = useState("reels");
 
   const [currentHeroSlide, setCurrentHeroSlide] = useState(0);
   const totalSlides = 1 + storeSlides.length;
@@ -217,7 +218,7 @@ export default function UltimateEmperadorLanding() {
           setIsPlaying(true);
           setHasInteracted(true);
           fadeInAudio(isMuted ? 0 : volume);
-        }).catch(() => console.log("Autoplay bloqueado."));
+        }).catch(() => console.log("Autoplay bloqueado. El usuario debe iniciar manualmente."));
       }
       document.removeEventListener('click', handleInteraction);
       document.removeEventListener('scroll', handleInteraction);
@@ -290,8 +291,10 @@ export default function UltimateEmperadorLanding() {
   const VolumeIcon = isMuted || volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
 
   return (
+    // FIX DE ESPACIO: El margen negativo principal anula el padding global del layout para que la imagen cubra al 100%
     <main className="bg-[#050505] min-h-screen font-sans selection:bg-amber-500 selection:text-black overflow-x-hidden relative -mt-24 md:-mt-28">
       
+      {/* ELEMENTO DE AUDIO OCULTO */}
       <audio ref={audioRef} src="/vibe.mp3" loop preload="auto" />
       <div className="fixed inset-0 z-0 pointer-events-none bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:32px_32px]"></div>
       
@@ -329,7 +332,7 @@ export default function UltimateEmperadorLanding() {
                     </div>
                   </div>
                   <div className="w-px h-8 bg-zinc-800 mx-2"></div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 group/volume">
                     <button onClick={toggleMute} className="text-zinc-400 hover:text-amber-500 transition-colors focus:outline-none p-1"><VolumeIcon size={16} /></button>
                     <input type="range" min="0" max="1" step="0.01" value={isMuted ? 0 : volume} onChange={handleVolumeChange} className="w-16 md:w-20 h-1 bg-zinc-800 rounded-full appearance-none cursor-pointer accent-amber-500 hover:bg-zinc-700 transition-colors [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-amber-500 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:hover:scale-125 transition-transform" />
                   </div>
@@ -351,21 +354,21 @@ export default function UltimateEmperadorLanding() {
       {/* ========================================================================= */}
       {/* 1. HERO GLOBAL (Carrusel) */}
       {/* ========================================================================= */}
-      <section className="relative w-full h-[100dvh] flex items-center justify-center overflow-hidden bg-black">
+      <section className="relative w-full h-[100dvh] flex flex-col justify-center overflow-hidden bg-black">
         
         <AnimatePresence mode="wait">
-          <motion.div key={currentHeroSlide} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.8, ease: "easeInOut" }} className="absolute inset-0 w-full h-full">
+          <motion.div key={currentHeroSlide} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.8, ease: "easeInOut" }} className="absolute inset-0 w-full h-full flex flex-col justify-center">
             
             {/* SLIDE 0: HERO MARCA */}
             {currentHeroSlide === 0 && (
-              <div className="w-full h-full relative flex items-center justify-center">
+              <div className="w-full h-full relative flex flex-col justify-center items-center">
                 <motion.div style={{ y: yHero }} className="absolute inset-0 w-full h-full z-0">
                   <Image src="https://images.unsplash.com/photo-1599351431202-1e0f0137899a?q=80&w=2000&auto=format&fit=crop" alt="Barbería Emperador" fill className="object-cover grayscale contrast-125 opacity-50 scale-105" priority unoptimized />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/60 to-transparent" />
                 </motion.div>
 
-                {/* FIX DEL ESPACIO: Agregado mt-32 md:mt-48 para empujar el texto debajo de la Navbar, sin mover el fondo */}
-                <div className="relative z-10 w-full max-w-[1400px] px-6 text-center mt-32 md:mt-48">
+                {/* FIX DEL LOGO GIGANTE: Padding top extremo para que el texto baje y no choque con la Navbar */}
+                <div className="relative z-10 w-full max-w-[1400px] px-6 text-center pt-[150px] md:pt-[220px]">
                   <motion.div initial="hidden" animate="visible" variants={staggerContainer}>
                     <motion.div variants={popUp} className="mb-6 inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/50 px-6 py-2 rounded-full text-[10px] md:text-xs font-black text-amber-500 uppercase tracking-[0.4em] shadow-[0_0_20px_rgba(217,119,6,0.2)] backdrop-blur-md">
                       <MapPin size={14} /> Peña 666, Piso 2 • Curicó
@@ -391,7 +394,7 @@ export default function UltimateEmperadorLanding() {
                         <span className="relative z-10 flex items-center gap-3">Asegura tu Trono <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" /></span>
                         <div className="absolute inset-0 bg-white translate-y-full group-hover:translate-y-0 transition-transform duration-300 z-0" />
                       </Link>
-                      <a href="#instagram" className="w-full sm:w-auto px-8 py-5 border border-zinc-700 bg-zinc-900/50 backdrop-blur-sm text-white font-black uppercase tracking-[0.2em] text-sm hover:border-amber-500 hover:text-amber-500 transition-all flex items-center justify-center gap-3 rounded-xl group">
+                      <a href="https://www.instagram.com/emperador_barbershop/?hl=es" target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto px-8 py-5 border border-zinc-700 bg-zinc-900/50 backdrop-blur-sm text-white font-black uppercase tracking-[0.2em] text-sm hover:border-amber-500 hover:text-amber-500 transition-all flex items-center justify-center gap-3 rounded-xl group">
                         <Instagram size={20} className="group-hover:scale-110 transition-transform" /> Ver Trabajos
                       </a>
                     </motion.div>
@@ -402,15 +405,15 @@ export default function UltimateEmperadorLanding() {
 
             {/* SLIDE > 0: PRODUCTOS DESTACADOS A PANTALLA COMPLETA */}
             {currentHeroSlide > 0 && (
-              <div className="w-full h-full relative flex items-center justify-center">
+              <div className="w-full h-full relative flex flex-col justify-center">
                 <div className="absolute inset-0 z-0">
                   <Image src={storeSlides[currentHeroSlide - 1].image} alt="Producto Destacado" fill className="object-cover object-center grayscale-[20%] opacity-40 scale-105" unoptimized />
                   <div className="absolute inset-0 bg-gradient-to-r from-[#050505] via-[#050505]/40 to-[#050505]" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/60 to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/80 to-transparent" />
                 </div>
                 
-                {/* FIX DEL ESPACIO: mt-32 md:mt-40 agregado aquí también para empujar el recuadro bajo la Navbar */}
-                <div className="relative z-10 w-full max-w-[1400px] px-6 mt-32 md:mt-40 flex flex-col md:flex-row items-center justify-between gap-10">
+                {/* FIX DEL LOGO GIGANTE: pt-[220px] md:pt-[280px] empuja este bloque hacia abajo salvando el logo de la esquina */}
+                <div className="relative z-10 w-full max-w-[1400px] mx-auto px-6 pt-[220px] md:pt-[280px] lg:pt-[320px] flex flex-col md:flex-row items-center justify-between gap-10">
                   <div className="w-full md:w-1/2 flex flex-col items-center md:items-start text-center md:text-left">
                     <motion.div initial={{ x: -50, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.2 }}>
                       <div className="inline-block px-4 py-1.5 border border-amber-500 text-amber-500 font-black text-[10px] uppercase tracking-[0.3em] rounded-full mb-6 backdrop-blur-md bg-black/40">EMPERADOR STORE</div>
@@ -613,32 +616,32 @@ export default function UltimateEmperadorLanding() {
       </section>
 
       {/* ========================================================================= */}
-      {/* 6. INSTAGRAM V2 (DISEÑO REPLICA WEB OFICIAL) */}
+      {/* 6. INSTAGRAM V2 SINCRONIZADO AL PERFIL OFICIAL */}
       {/* ========================================================================= */}
       <section id="instagram" className="py-24 md:py-32 bg-black relative overflow-hidden border-b border-zinc-900">
          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[1000px] h-[400px] bg-gradient-to-r from-purple-600/10 via-pink-600/10 to-amber-500/10 blur-[120px] rounded-full pointer-events-none" />
          
          <div className="max-w-[950px] mx-auto px-4 md:px-6 relative z-10">
             
-            {/* Cabecera Tipo Instagram */}
+            {/* Cabecera Tipo Instagram Sincronizada */}
             <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} className="flex flex-col sm:flex-row items-center sm:items-start gap-6 sm:gap-10 mb-12">
                
-               {/* Foto de perfil con anillo de historia */}
-               <div className="relative w-28 h-28 sm:w-36 sm:h-36 shrink-0">
-                  <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-[#fdf497] via-[#fd5949] to-[#d6249f] p-[3px]">
-                     <div className="bg-black w-full h-full rounded-full border-2 border-black overflow-hidden relative">
-                        <Image src="/logo.png" alt="Emperador Logo Instagram" fill className="object-cover p-2" />
+               {/* Foto de perfil con anillo de historia que lleva al IG */}
+               <a href="https://www.instagram.com/emperador_barbershop/?hl=es" target="_blank" rel="noopener noreferrer" className="relative w-28 h-28 sm:w-36 sm:h-36 shrink-0 group cursor-pointer block">
+                  <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-[#fdf497] via-[#fd5949] to-[#d6249f] p-[3px] group-hover:scale-105 transition-transform duration-300">
+                     <div className="bg-black w-full h-full rounded-full border-2 border-black overflow-hidden relative flex items-center justify-center">
+                        <Image src="/logo.png" alt="Emperador Logo Instagram" fill className="object-cover p-1 bg-[#050505]" />
                      </div>
                   </div>
-               </div>
+               </a>
                
                {/* Info del perfil */}
                <div className="flex-1 text-white text-center sm:text-left w-full">
                   <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-5">
-                     <h2 className="text-xl sm:text-2xl font-medium tracking-wide flex items-center justify-center sm:justify-start gap-2">
+                     <a href="https://www.instagram.com/emperador_barbershop/?hl=es" target="_blank" rel="noopener noreferrer" className="text-xl sm:text-2xl font-medium tracking-wide flex items-center justify-center sm:justify-start gap-2 hover:text-zinc-300 transition-colors">
                        emperador_barbershop 
                        <CheckCircle size={18} className="text-blue-500 fill-blue-500/20" />
-                     </h2>
+                     </a>
                      <div className="flex gap-2 justify-center sm:justify-start">
                        <a href="https://www.instagram.com/emperador_barbershop/?hl=es" target="_blank" rel="noopener noreferrer" className="bg-[#0095f6] hover:bg-[#1877f2] text-white font-bold text-sm py-1.5 px-6 rounded-lg transition-colors">
                          Seguir
@@ -656,7 +659,7 @@ export default function UltimateEmperadorLanding() {
                      <span><span className="font-bold">120</span> seguidos</span>
                   </div>
                   
-                  {/* Bio */}
+                  {/* Bio sincronizada con su realidad */}
                   <div className="text-sm sm:text-base leading-snug">
                      <p className="font-bold mb-1">Emperador BarberShop</p>
                      <p className="text-zinc-200 whitespace-pre-line">
@@ -677,25 +680,29 @@ export default function UltimateEmperadorLanding() {
                <button className="flex items-center gap-2 pt-4 font-bold text-xs uppercase tracking-widest text-white border-t border-white -mt-px">
                  <LayoutGrid size={14} /> Publicaciones
                </button>
-               <button className="flex items-center gap-2 pt-4 font-bold text-xs uppercase tracking-widest text-zinc-500 hover:text-zinc-300 transition-colors">
+               <a href="https://www.instagram.com/emperador_barbershop/?hl=es" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 pt-4 font-bold text-xs uppercase tracking-widest text-zinc-500 hover:text-zinc-300 transition-colors">
                  <Clapperboard size={14} /> Reels
-               </button>
+               </a>
             </div>
 
-            {/* Grid 3x2 Perfecto de Instagram */}
+            {/* Grid de 6 fotos apuntando directamente al perfil real */}
             <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={staggerContainer} className="grid grid-cols-3 gap-1 md:gap-2">
                {INSTA_REELS.map((post) => (
                   <motion.a 
-                    key={post.id} href="https://www.instagram.com/emperador_barbershop/?hl=es" target="_blank" rel="noopener noreferrer"
-                    variants={popUp} className="group relative aspect-square bg-zinc-900 overflow-hidden cursor-pointer"
+                    key={post.id} 
+                    href="https://www.instagram.com/emperador_barbershop/?hl=es" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    variants={popUp} 
+                    className="group relative aspect-square bg-zinc-900 overflow-hidden cursor-pointer"
                   >
-                     <Image src={post.img} fill alt="Instagram Content" className="object-cover group-hover:scale-105 transition-transform duration-700" unoptimized />
+                     <Image src={post.img} fill alt="Emperador Post" className="object-cover group-hover:scale-105 transition-transform duration-700" unoptimized />
                      <div className="absolute top-2 right-2 text-white drop-shadow-md">
                         {post.type === 'reel' ? <Clapperboard size={18} fill="currentColor" /> : null}
                      </div>
-                     <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-6 backdrop-blur-[2px]">
-                        <div className="flex items-center gap-2 text-white font-bold text-lg"><Heart fill="currentColor" size={22} /> {post.likes}</div>
-                        <div className="flex items-center gap-2 text-white font-bold text-lg"><MessageCircle fill="currentColor" size={22} /> {post.comments}</div>
+                     <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-4 sm:gap-6 backdrop-blur-[2px]">
+                        <div className="flex items-center gap-2 text-white font-bold text-sm sm:text-lg"><Heart fill="currentColor" className="w-4 h-4 sm:w-6 sm:h-6" /> {post.likes}</div>
+                        <div className="flex items-center gap-2 text-white font-bold text-sm sm:text-lg"><MessageCircle fill="currentColor" className="w-4 h-4 sm:w-6 sm:h-6" /> {post.comments}</div>
                      </div>
                   </motion.a>
                ))}
@@ -703,7 +710,7 @@ export default function UltimateEmperadorLanding() {
             
             <div className="text-center mt-12">
                <a href="https://www.instagram.com/emperador_barbershop/?hl=es" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-zinc-400 hover:text-amber-500 text-sm font-bold uppercase tracking-widest transition-colors">
-                 Ver más en Instagram <ExternalLink size={16} />
+                 Ver más fotos en nuestro Instagram Oficial <ExternalLink size={16} />
                </a>
             </div>
          </div>
@@ -736,7 +743,7 @@ export default function UltimateEmperadorLanding() {
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={popUp}>
             <div className="mx-auto w-24 h-24 md:w-32 md:h-32 mb-8 rounded-full overflow-hidden border-2 border-amber-500 shadow-[0_0_30px_rgba(217,119,6,0.4)] relative bg-zinc-950 p-2 hover:scale-105 transition-transform duration-500">
                <div className="relative w-full h-full rounded-full overflow-hidden">
-                 <Image src="/logo.png" alt="Emperador Logo Final" fill className="object-cover" />
+                 <Image src="/logo.png" alt="Emperador Logo Final" fill className="object-cover bg-[#050505]" />
                </div>
             </div>
             

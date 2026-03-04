@@ -3,11 +3,14 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import * as LucideIcons from "lucide-react";
+// IMPORTES CORREGIDOS: Se agregaron Package, Disc, Music, Boxes, etc.
 import { 
   LayoutDashboard, Users, Scissors, Tag, 
   DollarSign, TrendingUp, UserPlus, Edit3, Trash2, 
   Search, Plus, CheckCircle2, Clock, X, Save, AlertCircle,
-  Armchair, Crown, Percent, UserCircle2, Upload, ImageIcon
+  Armchair, Crown, Percent, UserCircle2, Upload, ImageIcon,
+  Package, Boxes, BadgePercent, BarChart3, ShoppingBag,
+  Disc, Music, UploadCloud, Volume2, VolumeX, Volume1
 } from "lucide-react";
 import Image from "next/image";
 
@@ -17,13 +20,14 @@ import { createClient } from "@/utils/supabase/client";
 // ============================================================================
 // TIPADOS
 // ============================================================================
-type TabType = "RESUMEN" | "SILLONES" | "STAFF" | "SERVICIOS" | "CLIENTES" | "PROMOCIONES";
+type TabType = "RESUMEN" | "SILLONES" | "STAFF" | "SERVICIOS" | "CLIENTES" | "PROMOCIONES" | "INVENTARIO" | "MUSICA";
 
 interface Barber { id: string; name: string; email?: string; phone?: string; status: "ACTIVE" | "INACTIVE"; cutsToday: number; role: string; tag: string; img: string; }
 interface Service { id: string; name: string; desc: string; price: string | number; time: string; duration?: number; iconName: string; }
 interface Client { id: string; name: string; phone: string; visits: number; lastVisit: string; totalSpent: number; }
 interface Promotion { id: string; titleLeft: string; subtitleLeft: string; priceLeft: string; oldPriceLeft: string; titleRight: string; subtitleRight: string; priceRight: string; oldPriceRight: string; tag: string; promoText: string; promoHighlight: string; promoEnd: string; sku: string; image: string; status: "ACTIVE" | "EXPIRED"; }
 interface Chair { id: string; name: string; status: "OCCUPIED" | "FREE"; barber?: string; client?: string; timeRemaining?: string; }
+interface Product { id: string; name: string; subtitle: string; description: string; price: number; old_price?: number; discount_code?: string; stock: number; tag: string; image_url: string; category: string; sku: string; status: "ACTIVE" | "HIDDEN"; }
 
 // ============================================================================
 // MOCK DATA (Fallbacks visuales)
@@ -87,18 +91,22 @@ export default function AdminDashboard() {
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [storePromos, setStorePromos] = useState<Promotion[]>([]);
+  const [inventory, setInventory] = useState<Product[]>([]);
   const [chairs] = useState<Chair[]>(MOCK_CHAIRS); 
   const [clients] = useState<Client[]>(MOCK_CLIENTS); 
+  const [musicUrl, setMusicUrl] = useState<string>("");
 
-  // Estados Modales
-  const [modalType, setModalType] = useState<"SERVICE" | "BARBER" | "PROMO" | null>(null);
+  // Estados Modales y Búsqueda
+  const [modalType, setModalType] = useState<"SERVICE" | "BARBER" | "PROMO" | "PRODUCT" | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const musicInputRef = useRef<HTMLInputElement>(null);
   
   // Estados para Edición
-  const [editingBarber, setEditingBarber] = useState<Barber | null>(null);
+  const [editingItem, setEditingItem] = useState<any>(null);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isUploadingMusic, setIsUploadingMusic] = useState(false);
 
   // Efecto Inicial: Carga los datos al iniciar la página
   useEffect(() => {
@@ -108,20 +116,28 @@ export default function AdminDashboard() {
   const fetchData = async () => {
     setIsFetching(true);
     try {
+      // 1. Staff
       const { data: dbBarbers, error: errBarbers } = await supabase.from('Barbers').select('*').order('created_at', { ascending: false });
-      if (!errBarbers && dbBarbers && dbBarbers.length > 0) {
-        setBarbers(dbBarbers);
-      } else {
-        setBarbers(FALLBACK_BARBERS); 
-      }
+      if (!errBarbers && dbBarbers && dbBarbers.length > 0) setBarbers(dbBarbers);
+      else setBarbers(FALLBACK_BARBERS); 
 
+      // 2. Servicios
       const { data: dbServices, error: errServices } = await supabase.from('Services').select('*');
       if (!errServices && dbServices && dbServices.length > 0) setServices(dbServices);
       else setServices(FALLBACK_SERVICES);
 
+      // 3. Promociones
       const { data: dbStore, error: errStore } = await supabase.from('StoreProducts').select('*');
       if (!errStore && dbStore && dbStore.length > 0) setStorePromos(dbStore);
       else setStorePromos(FALLBACK_STORE);
+
+      // 4. Inventario
+      const { data: dbInventory } = await supabase.from('inventory').select('*').order('created_at', { ascending: false });
+      if (dbInventory) setInventory(dbInventory);
+
+      // 5. Settings de Música
+      const { data: dbSettings } = await supabase.from('settings').select('*').eq('key', 'background_music').single();
+      if (dbSettings) setMusicUrl(dbSettings.value);
 
     } catch (error) {
       console.error("Modo desarrollo: usando mock data", error);
@@ -141,26 +157,63 @@ export default function AdminDashboard() {
     }
   };
 
-  const openBarberModal = (barber: Barber | null = null) => {
-    setEditingBarber(barber);
-    setImagePreview(null);
-    setSelectedImage(null);
-    setModalType("BARBER");
+  const handleMusicUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setIsUploadingMusic(true);
+      try {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `vibe_${Date.now()}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage.from('music').upload(fileName, file);
+        
+        if (uploadError) throw uploadError;
+        
+        const { data: publicUrlData } = supabase.storage.from('music').getPublicUrl(fileName);
+        setMusicUrl(publicUrlData.publicUrl);
+        alert("¡Música subida correctamente! Recuerda darle a Guardar Configuración.");
+      } catch (error: any) {
+        alert(`Error subiendo música: ${error.message}`);
+      } finally {
+        setIsUploadingMusic(false);
+      }
+    }
   };
 
-  const handleDeleteBarber = async (id: string) => {
-    const isConfirmed = window.confirm("¿Estás seguro de que deseas eliminar a este barbero?");
+  const saveMusicSettings = async () => {
+    setIsLoading(true);
+    try {
+      const { error } = await supabase.from('settings').upsert({ key: 'background_music', value: musicUrl });
+      if (error) throw error;
+      alert("¡Configuración de música actualizada en toda la web!");
+    } catch (error: any) {
+      alert(`Error guardando configuración: ${error.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const openModal = (type: "SERVICE" | "BARBER" | "PROMO" | "PRODUCT", item: any = null) => {
+    setEditingItem(item);
+    setImagePreview(item?.img || item?.image_url || null);
+    setSelectedImage(null);
+    setModalType(type);
+  };
+
+  const handleDelete = async (table: string, id: string) => {
+    const isConfirmed = window.confirm("¿Estás seguro de que deseas eliminar este registro?");
     if (!isConfirmed) return;
 
     try {
-      // Solo intentamos borrar en la BD si es un ID válido de Supabase
       if (isValidUUID(id)) {
-        const { error } = await supabase.from('Barbers').delete().eq('id', id);
+        const { error } = await supabase.from(table).delete().eq('id', id);
         if (error) throw error;
       }
       
-      setBarbers(prev => prev.filter(b => b.id !== id));
-      alert("Barbero eliminado correctamente.");
+      if (table === 'Barbers') setBarbers(prev => prev.filter(b => b.id !== id));
+      if (table === 'Services') setServices(prev => prev.filter(s => s.id !== id));
+      if (table === 'inventory') setInventory(prev => prev.filter(p => p.id !== id));
+      
+      alert("Registro eliminado correctamente.");
     } catch (error: any) {
       console.error("Error eliminando:", error);
       alert(`No se pudo eliminar: ${error.message}`);
@@ -173,22 +226,29 @@ export default function AdminDashboard() {
     const formData = new FormData(e.currentTarget);
     
     try {
-      if (modalType === "BARBER") {
-        let imageUrl = editingBarber?.img || "https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=800&auto=format&fit=crop"; 
+      // 1. Lógica de subida de imagen compartida
+      let imageUrl = editingItem?.img || editingItem?.image_url || ""; 
+      
+      if (selectedImage) {
+        const bucket = modalType === "BARBER" ? 'barber-profiles' : 'inventory';
+        const fileExt = selectedImage.name.split('.').pop();
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+        const filePath = `${fileName}`;
         
-        if (selectedImage) {
-          const fileExt = selectedImage.name.split('.').pop();
-          const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-          const filePath = `barbers/${fileName}`;
-          
-          const { error: uploadError } = await supabase.storage.from('barber-profiles').upload(filePath, selectedImage);
-          if (!uploadError) {
-            const { data: publicUrlData } = supabase.storage.from('barber-profiles').getPublicUrl(filePath);
-            imageUrl = publicUrlData.publicUrl;
-          } else {
-             throw new Error(`Storage Error: ${uploadError.message}`);
-          }
+        const { error: uploadError } = await supabase.storage.from(bucket).upload(filePath, selectedImage);
+        if (uploadError) {
+          // Si falla el bucket, usamos placeholder
+          imageUrl = "https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=800&auto=format&fit=crop";
+          console.warn("Storage Error:", uploadError.message);
+        } else {
+          const { data: publicUrlData } = supabase.storage.from(bucket).getPublicUrl(filePath);
+          imageUrl = publicUrlData.publicUrl;
         }
+      }
+
+      // 2. Guardar BARBERO
+      if (modalType === "BARBER") {
+        if (!imageUrl) imageUrl = "https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=800&auto=format&fit=crop";
 
         const barberData = {
           name: formData.get("name") as string,
@@ -197,36 +257,27 @@ export default function AdminDashboard() {
           role: formData.get("role") as string,
           tag: formData.get("tag") as string,
           status: (formData.get("status") || "ACTIVE") as "ACTIVE" | "INACTIVE",
-          cutsToday: editingBarber ? editingBarber.cutsToday : 0,
+          cutsToday: editingItem ? editingItem.cutsToday : 0,
           img: imageUrl
         };
 
-        // Si estamos editando Y el ID es un UUID válido de la Base de datos
-        if (editingBarber && isValidUUID(editingBarber.id)) {
-          const { data, error } = await supabase.from('Barbers').update(barberData).eq('id', editingBarber.id).select();
+        if (editingItem && isValidUUID(editingItem.id)) {
+          const { data, error } = await supabase.from('Barbers').update(barberData).eq('id', editingItem.id).select();
           if (error) throw new Error(`Database Error: ${error.message}`);
-          
-          if (data && data.length > 0) {
-            setBarbers(prev => prev.map(b => b.id === editingBarber.id ? data[0] : b));
-          }
+          if (data && data.length > 0) setBarbers(prev => prev.map(b => b.id === editingItem.id ? data[0] : b));
           alert("¡Barbero actualizado exitosamente!");
         } else {
-          // Si estamos creando uno nuevo, o si estamos "editando" un mock data (como 'cesar') lo guardamos como nuevo
           const { data, error } = await supabase.from('Barbers').insert([barberData]).select();
           if (error) throw new Error(`Database Error: ${error.message}`);
-
           if (data && data.length > 0) {
-            // Si estábamos sobrescribiendo un mock, lo quitamos de la vista y ponemos el real
-            if (editingBarber && !isValidUUID(editingBarber.id)) {
-               setBarbers(prev => [data[0], ...prev.filter(b => b.id !== editingBarber.id)]);
-            } else {
-               setBarbers(prev => [data[0], ...prev]);
-            }
+            if (editingItem && !isValidUUID(editingItem.id)) setBarbers(prev => [data[0], ...prev.filter(b => b.id !== editingItem.id)]);
+            else setBarbers(prev => [data[0], ...prev]);
           }
-          alert("¡Barbero guardado en la base de datos correctamente!");
+          alert("¡Barbero guardado correctamente!");
         }
       }
 
+      // 3. Guardar SERVICIO
       if (modalType === "SERVICE") {
          const newService = {
             name: formData.get("name") as string,
@@ -236,17 +287,48 @@ export default function AdminDashboard() {
             iconName: (formData.get("iconName") as string) || "Scissors"
          };
          
-         const { data, error } = await supabase.from('Services').insert([newService]).select();
-         if (error) throw new Error(`Database Error: ${error.message}`);
-         
-         if (data && data.length > 0) {
-           setServices(prev => [data[0], ...prev]);
+         if (editingItem && isValidUUID(editingItem.id)) {
+            const { data, error } = await supabase.from('Services').update(newService).eq('id', editingItem.id).select();
+            if (error) throw new Error(`Database Error: ${error.message}`);
+            if (data && data.length > 0) setServices(prev => prev.map(s => s.id === editingItem.id ? data[0] : s));
+         } else {
+            const { data, error } = await supabase.from('Services').insert([newService]).select();
+            if (error) throw new Error(`Database Error: ${error.message}`);
+            if (data && data.length > 0) setServices(prev => [data[0], ...prev]);
          }
          alert("¡Servicio guardado exitosamente!");
       }
 
+      // 4. Guardar PRODUCTO (INVENTARIO)
+      if (modalType === "PRODUCT") {
+        const productData = {
+          name: formData.get("name"),
+          subtitle: formData.get("subtitle"),
+          description: formData.get("description"),
+          price: parseFloat(formData.get("price") as string),
+          old_price: formData.get("old_price") ? parseFloat(formData.get("old_price") as string) : null,
+          discount_code: formData.get("discount_code"),
+          stock: parseInt(formData.get("stock") as string) || 0,
+          tag: formData.get("tag"),
+          sku: formData.get("sku"),
+          category: formData.get("category") || "Tienda",
+          image_url: imageUrl,
+          status: formData.get("status") || "ACTIVE"
+        };
+
+        if (editingItem && isValidUUID(editingItem.id)) {
+          const { error } = await supabase.from('inventory').update(productData).eq('id', editingItem.id);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.from('inventory').insert([productData]);
+          if (error) throw error;
+        }
+        alert("¡Producto sincronizado en el inventario!");
+        fetchData();
+      }
+
       setModalType(null);
-      setEditingBarber(null);
+      setEditingItem(null);
       setSelectedImage(null);
       setImagePreview(null);
       
@@ -268,14 +350,14 @@ export default function AdminDashboard() {
             <Crown className="text-amber-500 w-10 h-10 md:w-12 md:h-12" />
             <span>Panel <span className="text-amber-500">Admin</span></span>
           </h1>
-          <p className="text-zinc-400 mt-2 font-medium">Control total de la web y datos de Emperador Barbershop</p>
+          <p className="text-zinc-400 mt-2 font-medium">Control total de la web, tienda y datos de Emperador Barbershop</p>
         </div>
         {isFetching && <span className="text-amber-500 text-sm font-bold animate-pulse bg-amber-500/10 px-4 py-2 rounded-full border border-amber-500/20">Sincronizando Base de Datos...</span>}
       </div>
 
-      {/* TABS DE NAVEGACIÓN */}
+      {/* TABS DE NAVEGACIÓN (Actualizados con INVENTARIO y MUSICA) */}
       <div className="flex gap-2 mb-8 border-b border-zinc-800 pb-4 overflow-x-auto hide-scrollbar scroll-smooth">
-        {(["RESUMEN", "SILLONES", "STAFF", "SERVICIOS", "CLIENTES", "PROMOCIONES"] as TabType[]).map((tab) => (
+        {(["RESUMEN", "SILLONES", "INVENTARIO", "STAFF", "SERVICIOS", "CLIENTES", "MUSICA", "PROMOCIONES"] as TabType[]).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -289,7 +371,9 @@ export default function AdminDashboard() {
             {tab === "SILLONES" && <Armchair size={16}/>}
             {tab === "STAFF" && <Users size={16}/>}
             {tab === "SERVICIOS" && <Scissors size={16}/>}
+            {tab === "INVENTARIO" && <Boxes size={16}/>}
             {tab === "CLIENTES" && <Search size={16}/>}
+            {tab === "MUSICA" && <Music size={16}/>}
             {tab === "PROMOCIONES" && <Tag size={16}/>}
             {tab}
           </button>
@@ -307,13 +391,13 @@ export default function AdminDashboard() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <KpiCard icon={<DollarSign />} title="Ingresos Totales (Hoy)" value="$245.000" trend="+8% vs ayer" />
               <KpiCard icon={<Scissors />} title="Cortes Realizados (Hoy)" value={15} />
-              <KpiCard icon={<Armchair />} title="Sillones Ocupados" value="1 / 4" statusColor="text-green-500" />
+              <KpiCard icon={<Boxes />} title="Productos en Stock" value={inventory.reduce((a, b) => a + b.stock, 0)} statusColor="text-blue-500" />
               <KpiCard icon={<Users />} title="Nuevos Clientes (Mes)" value={42} trend="+12% vs mes pasado" />
             </div>
             
             <div className="bg-amber-500/10 border border-amber-500/30 p-6 rounded-2xl flex items-center gap-4 text-amber-500">
               <AlertCircle size={24} />
-              <p className="text-sm font-bold">Asegúrate de agregar Políticas de RLS en Supabase (Storage y Base de datos) para permitir guardar cambios.</p>
+              <p className="text-sm font-bold">Asegúrate de agregar Políticas de RLS en Supabase (Storage y Base de datos) para permitir guardar cambios y subir imágenes.</p>
             </div>
           </motion.div>
         )}
@@ -358,6 +442,127 @@ export default function AdminDashboard() {
         )}
 
         {/* =================================================================== */}
+        {/* TAB NUEVA: INVENTARIO (STORE) */}
+        {/* =================================================================== */}
+        {activeTab === "INVENTARIO" && (
+          <motion.div key="inventario" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
+            <div className="flex justify-between items-center mb-8">
+              <div>
+                <h2 className="text-2xl font-bold text-white">Inventario de Tienda</h2>
+                <p className="text-sm text-zinc-500">Gestiona los productos físicos para la venta online y en local.</p>
+              </div>
+              <button onClick={() => openModal("PRODUCT", null)} className="flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-400 text-black font-black text-xs uppercase tracking-widest rounded-xl transition-all shadow-[0_0_20px_rgba(217,119,6,0.3)]">
+                <Plus size={16} /> Añadir Producto
+              </button>
+            </div>
+
+            <div className="bg-zinc-900/40 border border-zinc-800 rounded-3xl overflow-hidden">
+              <table className="w-full text-left text-sm text-zinc-400">
+                <thead className="bg-zinc-950 text-xs uppercase tracking-widest border-b border-zinc-800">
+                  <tr>
+                    <th className="px-6 py-5">Producto</th>
+                    <th className="px-6 py-5 text-center">SKU / Cupón</th>
+                    <th className="px-6 py-5">Precio</th>
+                    <th className="px-6 py-5 text-center">Stock</th>
+                    <th className="px-6 py-5 text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {inventory.map(p => (
+                    <tr key={p.id} className="border-b border-zinc-800/50 hover:bg-zinc-800/30 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-4">
+                          <div className="relative w-14 h-14 rounded-xl overflow-hidden border border-zinc-700 bg-zinc-800 flex items-center justify-center">
+                            {p.image_url ? (
+                              <Image src={p.image_url} alt={p.name} fill className="object-cover" unoptimized />
+                            ) : (
+                               <Package className="text-zinc-500" />
+                            )}
+                          </div>
+                          <div>
+                            <span className="font-bold text-white text-base block">{p.name}</span>
+                            <span className="inline-block px-2 py-0.5 bg-amber-500/10 text-amber-500 text-[9px] uppercase font-black rounded mt-1">{p.category || 'Tienda'}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <p className="text-white font-mono text-xs">{p.sku || 'N/A'}</p>
+                        {p.discount_code && <p className="text-green-500 text-[10px] font-bold mt-1">{p.discount_code}</p>}
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="text-amber-500 font-black text-lg">{formatMoney(p.price)}</p>
+                        {p.old_price && <p className="text-zinc-500 line-through text-xs font-bold">{formatMoney(p.old_price)}</p>}
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                         <span className={`px-3 py-1 rounded-lg font-black text-xs ${p.stock < 5 ? 'bg-red-500/10 text-red-500' : 'bg-zinc-800 text-white'}`}>
+                           {p.stock}
+                         </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button onClick={() => openModal("PRODUCT", p)} className="p-2 text-zinc-500 hover:text-amber-500 transition-colors" title="Editar"><Edit3 size={18} /></button>
+                        <button onClick={() => handleDelete('inventory', p.id)} className="p-2 text-zinc-500 hover:text-red-500 transition-colors" title="Eliminar"><Trash2 size={18} /></button>
+                      </td>
+                    </tr>
+                  ))}
+                  {inventory.length === 0 && (
+                     <tr><td colSpan={5} className="p-8 text-center text-zinc-500">No hay productos en el inventario.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </motion.div>
+        )}
+
+        {/* =================================================================== */}
+        {/* TAB NUEVA: MUSICA */}
+        {/* =================================================================== */}
+        {activeTab === "MUSICA" && (
+          <motion.div key="musica" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-white">Reproductor de Música Global</h2>
+                <p className="text-sm text-zinc-500">Configura la pista que suena automáticamente al entrar a la web.</p>
+              </div>
+            </div>
+
+            <div className="bg-zinc-900/50 border border-zinc-800 rounded-[2rem] p-8 max-w-4xl">
+               <label className="block text-xs font-black text-zinc-400 uppercase tracking-widest mb-4">URL del Archivo de Audio (.mp3)</label>
+               <div className="flex flex-col md:flex-row gap-4 mb-6">
+                 <input 
+                   type="text" 
+                   value={musicUrl} 
+                   onChange={(e) => setMusicUrl(e.target.value)}
+                   className="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-4 text-white focus:border-amber-500 outline-none transition-colors" 
+                   placeholder="https://tu-dominio.com/audio.mp3" 
+                 />
+                 <button onClick={() => musicInputRef.current?.click()} className="bg-zinc-800 hover:bg-zinc-700 text-white px-6 py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors shrink-0">
+                    <UploadCloud size={18} /> Subir MP3
+                 </button>
+                 <input type="file" accept="audio/mp3,audio/wav" className="hidden" ref={musicInputRef} onChange={handleMusicUpload} />
+               </div>
+               
+               <button onClick={saveMusicSettings} disabled={isLoading || isUploadingMusic} className="w-full md:w-auto px-8 py-4 bg-amber-500 hover:bg-amber-400 text-black font-black uppercase tracking-widest text-xs rounded-xl transition-all shadow-[0_0_20px_rgba(217,119,6,0.3)] flex items-center justify-center gap-2">
+                 {isLoading ? "Guardando..." : isUploadingMusic ? "Subiendo archivo..." : <><Save size={16}/> Guardar y Aplicar en Web</>}
+               </button>
+
+               {musicUrl && (
+                 <div className="mt-8 p-6 bg-zinc-950 border border-zinc-800 rounded-2xl flex flex-col md:flex-row items-center gap-6">
+                    <div className="w-14 h-14 bg-amber-500 rounded-full flex items-center justify-center text-black shrink-0 relative overflow-hidden">
+                      <Disc size={28} className="animate-[spin_4s_linear_infinite]" />
+                      <div className="absolute w-3 h-3 bg-zinc-950 rounded-full"></div>
+                    </div>
+                    <div className="flex-1 overflow-hidden">
+                      <p className="text-white font-bold mb-1">Pista actual cargada en el sistema</p>
+                      <p className="text-zinc-500 text-xs truncate break-all">{musicUrl}</p>
+                    </div>
+                    <audio src={musicUrl} controls className="w-full md:w-auto mt-4 md:mt-0" />
+                 </div>
+               )}
+            </div>
+          </motion.div>
+        )}
+
+        {/* =================================================================== */}
         {/* TAB 3: STAFF */}
         {/* =================================================================== */}
         {activeTab === "STAFF" && (
@@ -367,7 +572,7 @@ export default function AdminDashboard() {
                 <h2 className="text-2xl font-bold text-white">Equipo de Barberos</h2>
                 <p className="text-sm text-zinc-500">Crea, edita o elimina barberos. Se refleja en "Team Emperador" en la web.</p>
               </div>
-              <button onClick={() => openBarberModal(null)} className="flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-400 text-black font-black text-xs uppercase tracking-widest rounded-xl transition-all shadow-[0_0_20px_rgba(217,119,6,0.3)]">
+              <button onClick={() => openModal("BARBER", null)} className="flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-400 text-black font-black text-xs uppercase tracking-widest rounded-xl transition-all shadow-[0_0_20px_rgba(217,119,6,0.3)]">
                 <UserPlus size={16} /> Añadir Barbero
               </button>
             </div>
@@ -407,10 +612,10 @@ export default function AdminDashboard() {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <button onClick={() => openBarberModal(b)} className="p-2 text-zinc-500 hover:text-amber-500 transition-colors" title="Editar">
+                        <button onClick={() => openModal("BARBER", b)} className="p-2 text-zinc-500 hover:text-amber-500 transition-colors" title="Editar">
                           <Edit3 size={18} />
                         </button>
-                        <button onClick={() => handleDeleteBarber(b.id)} className="p-2 text-zinc-500 hover:text-red-500 transition-colors" title="Eliminar">
+                        <button onClick={() => handleDelete('Barbers', b.id)} className="p-2 text-zinc-500 hover:text-red-500 transition-colors" title="Eliminar">
                           <Trash2 size={18} />
                         </button>
                       </td>
@@ -435,7 +640,7 @@ export default function AdminDashboard() {
                 <h2 className="text-2xl font-bold text-white">Menú de Servicios</h2>
                 <p className="text-sm text-zinc-500">Administra los servicios y precios que ven los clientes.</p>
               </div>
-              <button onClick={() => setModalType("SERVICE")} className="flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-400 text-black font-black text-xs uppercase tracking-widest rounded-xl transition-all shadow-[0_0_20px_rgba(217,119,6,0.3)]">
+              <button onClick={() => openModal("SERVICE", null)} className="flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-400 text-black font-black text-xs uppercase tracking-widest rounded-xl transition-all shadow-[0_0_20px_rgba(217,119,6,0.3)]">
                 <Plus size={16} /> Nuevo Servicio
               </button>
             </div>
@@ -444,8 +649,8 @@ export default function AdminDashboard() {
               {services.map(s => (
                 <div key={s.id} className="bg-zinc-900/50 border border-zinc-800 rounded-[2rem] p-6 hover:border-amber-500/50 transition-colors relative group">
                   <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button className="p-2 bg-zinc-950 text-zinc-400 hover:text-amber-500 rounded-lg"><Edit3 size={16}/></button>
-                    <button className="p-2 bg-zinc-950 text-zinc-400 hover:text-red-500 rounded-lg"><Trash2 size={16}/></button>
+                    <button onClick={() => openModal("SERVICE", s)} className="p-2 bg-zinc-950 text-zinc-400 hover:text-amber-500 rounded-lg"><Edit3 size={16}/></button>
+                    <button onClick={() => handleDelete('Services', s.id)} className="p-2 bg-zinc-950 text-zinc-400 hover:text-red-500 rounded-lg"><Trash2 size={16}/></button>
                   </div>
                   
                   <div className="w-12 h-12 bg-black border border-zinc-800 rounded-xl flex items-center justify-center text-amber-500 mb-4">
@@ -508,18 +713,15 @@ export default function AdminDashboard() {
         )}
 
         {/* =================================================================== */}
-        {/* TAB 6: PROMOCIONES / TIENDA */}
+        {/* TAB 8: PROMOCIONES / TIENDA (HERO) */}
         {/* =================================================================== */}
         {activeTab === "PROMOCIONES" && (
           <motion.div key="promociones" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
             <div className="flex justify-between items-center mb-6">
               <div>
-                <h2 className="text-2xl font-bold text-white">Destacados de Tienda (Inicio)</h2>
-                <p className="text-sm text-zinc-500">Controla los productos que aparecen en el Hero de la web.</p>
+                <h2 className="text-2xl font-bold text-white">Destacados de Tienda (Hero)</h2>
+                <p className="text-sm text-zinc-500">Controla los banners que aparecen en pantalla completa en el inicio.</p>
               </div>
-              <button onClick={() => setModalType("PROMO")} className="flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-400 text-black font-black text-xs uppercase tracking-widest rounded-xl transition-all shadow-[0_0_20px_rgba(217,119,6,0.3)]">
-                <Plus size={16} /> Crear Diapositiva
-              </button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -550,7 +752,7 @@ export default function AdminDashboard() {
       </AnimatePresence>
 
       {/* =================================================================== */}
-      {/* MODALES REUTILIZABLES (CREACIÓN / EDICIÓN) */}
+      {/* MODAL MAESTRO REUTILIZABLE (CREACIÓN / EDICIÓN) */}
       {/* =================================================================== */}
       <AnimatePresence>
         {modalType && (
@@ -561,90 +763,106 @@ export default function AdminDashboard() {
               <button onClick={() => setModalType(null)} className="absolute top-6 right-6 text-zinc-500 hover:text-white"><X size={24}/></button>
               
               <h3 className="text-2xl font-black text-white uppercase tracking-tighter mb-6 font-serif">
-                {modalType === "SERVICE" && "Servicio Web"}
-                {modalType === "BARBER" && (editingBarber ? "Editar Barbero" : "Añadir Barbero")}
-                {modalType === "PROMO" && "Crear Destacado de Tienda"}
+                {modalType === "SERVICE" && (editingItem ? "Editar Servicio" : "Nuevo Servicio")}
+                {modalType === "BARBER" && (editingItem ? "Editar Barbero" : "Añadir Barbero")}
+                {modalType === "PRODUCT" && (editingItem ? "Editar Producto" : "Añadir Producto Inventario")}
+                {modalType === "PROMO" && "Crear Destacado"}
               </h3>
               
               <form onSubmit={handleSaveAction} className="space-y-5">
                 
+                {/* ----------------- SUBIDA DE IMAGEN (BARBERO Y PRODUCTO) ----------------- */}
+                {(modalType === "BARBER" || modalType === "PRODUCT") && (
+                  <div className="flex justify-center mb-6">
+                    <div 
+                      className={`relative rounded-3xl border-2 border-dashed border-zinc-700 bg-zinc-900 flex flex-col items-center justify-center overflow-hidden cursor-pointer hover:border-amber-500 transition-colors group ${modalType === 'PRODUCT' ? 'w-full h-48' : 'w-32 h-32'}`}
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      {imagePreview ? (
+                        <Image src={imagePreview} alt="Preview" fill className={modalType === 'PRODUCT' ? 'object-contain p-4' : 'object-cover'} unoptimized />
+                      ) : editingItem?.img || editingItem?.image_url ? (
+                        <Image src={editingItem.img || editingItem.image_url} alt="Current" fill className="object-cover grayscale group-hover:grayscale-0 transition-all" unoptimized />
+                      ) : (
+                        <>
+                          <Upload className="text-zinc-500 mb-2 group-hover:text-amber-500 transition-colors" />
+                          <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest text-center px-2 group-hover:text-amber-500">Subir Foto</span>
+                        </>
+                      )}
+                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <Edit3 className="text-white" />
+                      </div>
+                    </div>
+                    <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageChange} />
+                  </div>
+                )}
+
+                {/* ----------------- FORMULARIO: INVENTARIO ----------------- */}
+                {modalType === "PRODUCT" && (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <InputField label="Nombre del Producto" name="name" defaultValue={editingItem?.name} required placeholder="Wahl Magic Clip" />
+                      <InputField label="Categoría" name="category" defaultValue={editingItem?.category} required placeholder="Máquinas" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <InputField label="Precio Normal" name="old_price" type="number" defaultValue={editingItem?.old_price} placeholder="35000" />
+                      <InputField label="Precio Oferta (Actual)" name="price" type="number" defaultValue={editingItem?.price} required placeholder="29990" />
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                      <InputField label="SKU" name="sku" defaultValue={editingItem?.sku} placeholder="WM-01" />
+                      <InputField label="Stock" name="stock" type="number" defaultValue={editingItem?.stock} required placeholder="10" />
+                      <InputField label="Etiqueta" name="tag" defaultValue={editingItem?.tag} placeholder="NUEVO" />
+                    </div>
+                    <InputField label="Código Descuento (Opcional)" name="discount_code" defaultValue={editingItem?.discount_code} placeholder="VERANO20" />
+                    <div>
+                      <label className="block text-xs font-black text-zinc-400 uppercase tracking-widest mb-2">Descripción</label>
+                      <textarea name="description" defaultValue={editingItem?.description} className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none" rows={3} required></textarea>
+                    </div>
+                  </>
+                )}
+
                 {/* ----------------- FORMULARIO: BARBERO ----------------- */}
                 {modalType === "BARBER" && (
                   <>
-                    <div className="flex justify-center mb-6">
-                      <div 
-                        className="relative w-32 h-32 rounded-3xl border-2 border-dashed border-zinc-700 bg-zinc-900 flex flex-col items-center justify-center overflow-hidden cursor-pointer hover:border-amber-500 transition-colors group"
-                        onClick={() => fileInputRef.current?.click()}
-                      >
-                        {imagePreview ? (
-                          <Image src={imagePreview} alt="Preview" fill className="object-cover" unoptimized />
-                        ) : editingBarber?.img ? (
-                          <Image src={editingBarber.img} alt="Current" fill className="object-cover grayscale group-hover:grayscale-0 transition-all" unoptimized />
-                        ) : (
-                          <>
-                            <Upload className="text-zinc-500 mb-2 group-hover:text-amber-500 transition-colors" />
-                            <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest text-center px-2 group-hover:text-amber-500">Subir Foto</span>
-                          </>
-                        )}
-                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <Edit3 className="text-white" />
-                        </div>
-                      </div>
-                      <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageChange} />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-black text-zinc-400 uppercase tracking-widest mb-2">Nombre Mostrado</label>
-                      <input name="name" defaultValue={editingBarber?.name || ""} type="text" className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none" required placeholder="Ej: Cesar Luna" />
-                    </div>
-                    
+                    <InputField label="Nombre Mostrado" name="name" defaultValue={editingItem?.name || ""} required placeholder="Ej: Cesar Luna" />
                     <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs font-black text-zinc-400 uppercase tracking-widest mb-2">Rol</label>
-                        <input name="role" defaultValue={editingBarber?.role || ""} type="text" className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none" required placeholder="Ej: Master Barber" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-black text-zinc-400 uppercase tracking-widest mb-2">Etiqueta Naranja</label>
-                        <input name="tag" defaultValue={editingBarber?.tag || ""} type="text" className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none" required placeholder="Ej: El Arquitecto" />
-                      </div>
+                      <InputField label="Rol" name="role" defaultValue={editingItem?.role || ""} required placeholder="Ej: Master Barber" />
+                      <InputField label="Etiqueta Naranja" name="tag" defaultValue={editingItem?.tag || ""} required placeholder="Ej: El Arquitecto" />
                     </div>
 
                     <div className="pt-4 border-t border-zinc-800">
                       <p className="text-xs text-amber-500 mb-4 font-bold">Datos Opcionales (Uso Interno)</p>
-                      <div>
-                        <label className="block text-xs font-black text-zinc-400 uppercase tracking-widest mb-2">Correo Electrónico</label>
-                        <input name="email" defaultValue={editingBarber?.email || ""} type="email" className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none" />
-                      </div>
+                      <InputField label="Correo Electrónico" name="email" type="email" defaultValue={editingItem?.email || ""} />
                     </div>
                     
-                    {editingBarber && (
-                      <div className="pt-2">
-                        <label className="block text-xs font-black text-zinc-400 uppercase tracking-widest mb-2">Estado</label>
-                        <select name="status" defaultValue={editingBarber.status} className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none appearance-none">
-                          <option value="ACTIVE">Activo en la web</option>
-                          <option value="INACTIVE">Oculto / Inactivo</option>
-                        </select>
-                      </div>
-                    )}
+                    <div className="pt-2">
+                      <label className="block text-xs font-black text-zinc-400 uppercase tracking-widest mb-2">Estado en Web</label>
+                      <select name="status" defaultValue={editingItem?.status || "ACTIVE"} className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none appearance-none">
+                        <option value="ACTIVE">Activo y Visible</option>
+                        <option value="INACTIVE">Oculto / Inactivo</option>
+                      </select>
+                    </div>
                   </>
                 )}
 
                 {/* ----------------- FORMULARIO: SERVICIO ----------------- */}
                 {modalType === "SERVICE" && (
                   <>
-                    <div><label className="block text-xs font-black text-zinc-400 uppercase tracking-widest mb-2">Título del Servicio</label><input name="name" type="text" className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none" required placeholder="Ej: Corte + Perfilado de Cejas" /></div>
+                    <InputField label="Título del Servicio" name="name" defaultValue={editingItem?.name} required placeholder="Ej: Corte + Perfilado de Cejas" />
                     <div className="grid grid-cols-2 gap-4">
-                      <div><label className="block text-xs font-black text-zinc-400 uppercase tracking-widest mb-2">Precio Formateado</label><input name="price" type="text" className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none" required placeholder="Ej: $14.000" /></div>
-                      <div><label className="block text-xs font-black text-zinc-400 uppercase tracking-widest mb-2">Tiempo Aprox.</label><input name="time" type="text" className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none" required placeholder="Ej: 1 hrs" /></div>
+                      <InputField label="Precio Formateado" name="price" defaultValue={editingItem?.price} required placeholder="Ej: $14.000" />
+                      <InputField label="Tiempo Aprox." name="time" defaultValue={editingItem?.time} required placeholder="Ej: 1 hrs" />
                     </div>
-                    <div><label className="block text-xs font-black text-zinc-400 uppercase tracking-widest mb-2">Nombre Icono (Lucide)</label><input name="iconName" type="text" className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none" required placeholder="Ej: Scissors, Flame, Zap, Crown..." /></div>
-                    <div><label className="block text-xs font-black text-zinc-400 uppercase tracking-widest mb-2">Descripción Corta</label><textarea name="desc" className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none" rows={2} required></textarea></div>
+                    <InputField label="Nombre Icono (Lucide)" name="iconName" defaultValue={editingItem?.iconName} required placeholder="Ej: Scissors, Flame, Zap, Crown..." />
+                    <div>
+                      <label className="block text-xs font-black text-zinc-400 uppercase tracking-widest mb-2">Descripción Corta</label>
+                      <textarea name="desc" defaultValue={editingItem?.desc} className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none" rows={2} required></textarea>
+                    </div>
                   </>
                 )}
 
                 <div className="pt-6 border-t border-zinc-800 mt-6">
                   <button type="submit" disabled={isLoading} className="w-full py-4 text-black font-black uppercase tracking-widest text-xs bg-amber-500 hover:bg-amber-400 rounded-xl transition-all shadow-[0_0_20px_rgba(217,119,6,0.3)] flex justify-center items-center gap-2">
-                    {isLoading ? "Guardando..." : <><Save size={16}/> Guardar y Publicar en Web</>}
+                    {isLoading ? "Guardando..." : <><Save size={16}/> Guardar y Sincronizar</>}
                   </button>
                 </div>
               </form>
@@ -657,7 +875,22 @@ export default function AdminDashboard() {
   );
 }
 
-// Componente KpiCard
+// ============================================================================
+// COMPONENTES DE APOYO (UI)
+// ============================================================================
+
+function InputField({ label, name, type = "text", defaultValue, required = false, placeholder = "" }: any) {
+  return (
+    <div>
+      <label className="block text-xs font-black text-zinc-400 uppercase tracking-widest mb-2">{label}</label>
+      <input 
+        name={name} type={type} defaultValue={defaultValue} required={required} placeholder={placeholder}
+        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none transition-all" 
+      />
+    </div>
+  );
+}
+
 function KpiCard({ icon, title, value, trend, statusColor = "text-amber-500" }: { icon: React.ReactNode, title: string, value: string | number, trend?: string, statusColor?: string }) {
   return (
     <div className="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-6 hover:border-amber-500/50 transition-colors">
