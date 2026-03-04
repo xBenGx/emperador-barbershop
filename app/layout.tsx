@@ -36,7 +36,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" className="scroll-smooth">
+    // Agregamos bg-[#050505] al HTML para evitar cualquier flashazo blanco al cargar
+    <html lang="es" className="scroll-smooth bg-[#050505]">
       <body 
         className={`${inter.variable} ${playfair.variable} font-sans bg-[#050505] text-zinc-50 antialiased overflow-x-hidden flex flex-col min-h-screen`}
       >
@@ -46,12 +47,15 @@ export default function RootLayout({
         {/* Reproductor de Música Optimizado (Global) */}
         <MusicPlayer />
         
-        {/* CONTENEDOR PRINCIPAL FIX:
-          Se ha añadido pt-[120px] md:pt-[180px] lg:pt-[220px]. 
-          Esto asegura que en NINGUNA página el contenido choque o quede tapado por 
-          el logo gigante de la Navbar, manteniendo el diseño limpio en todas las rutas.
+        {/* ========================================================================
+          CONTENEDOR PRINCIPAL FIX DEFINITIVO:
+          Se ha ELIMINADO el padding superior (pt-...) de esta etiqueta.
+          Esto permite que las imágenes de fondo (Hero) de todas las páginas 
+          suban hasta el borde absoluto (top: 0), pasando perfectamente por 
+          debajo de la Navbar transparente y eliminando la franja blanca superior.
+          ========================================================================
         */}
-        <main className="flex-grow relative pt-[120px] md:pt-[180px] lg:pt-[220px]">
+        <main className="flex-grow relative w-full p-0 m-0">
           {children}
         </main>
       </body>
