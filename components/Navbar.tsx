@@ -89,8 +89,8 @@ export default function Navbar() {
                 {/* Resplandor ámbar mejorado de fondo */}
                 <div className="absolute inset-0 bg-amber-500/20 blur-[40px] group-hover:bg-amber-500/40 transition-all duration-500 rounded-full scale-150 pointer-events-none"></div>
                 
-                {/* Contenedor del logo con bordes definidos */}
-                <div className={`relative z-10 rounded-full border border-amber-500/30 overflow-hidden shadow-[0_0_15px_rgba(217,119,6,0.2)] group-hover:border-amber-500/80 group-hover:shadow-[0_0_25px_rgba(217,119,6,0.4)] transition-all duration-500 ${scrolled ? 'h-16 w-16' : 'h-24 w-24 md:h-28 md:w-28'}`}>
+                {/* Contenedor del logo con bordes definidos. AQUÍ ESTABA EL ERROR: cambié 'scrolled' por 'isScrolled' */}
+                <div className={`relative z-10 rounded-full border border-amber-500/30 overflow-hidden shadow-[0_0_15px_rgba(217,119,6,0.2)] group-hover:border-amber-500/80 group-hover:shadow-[0_0_25px_rgba(217,119,6,0.4)] transition-all duration-500 ${isScrolled ? 'h-16 w-16' : 'h-24 w-24 md:h-28 md:w-28'}`}>
                   {/* Imagen del logo sin fondo negro interno forzado, ahora es transparente */}
                   <img 
                     src="/logo.png" 
