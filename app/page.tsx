@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion, useScroll, useTransform, AnimatePresence, Variants } from "framer-motion";
-import * as LucideIcons from "lucide-react"; // Importamos todos los iconos para renderizado dinámico
+import * as LucideIcons from "lucide-react"; 
 import { 
   Gamepad2, MapPin, Instagram, ChevronRight, 
   Crown, Star, Scissors, Zap, Flame, Crosshair,
@@ -166,9 +166,7 @@ export default function UltimateEmperadorLanding() {
   const supabase = createClient();
 
   // Estados Dinámicos (Conectados a BD)
-  const [scrolled, setScrolled] = useState(false);
   const [activeTab, setActiveTab] = useState("reels");
-  const [showLoginMenu, setShowLoginMenu] = useState(false); 
   
   const [team, setTeam] = useState<any[]>(FALLBACK_TEAM);
   const [services, setServices] = useState<any[]>(FALLBACK_SERVICES);
@@ -182,13 +180,6 @@ export default function UltimateEmperadorLanding() {
   
   const { scrollY } = useScroll();
   const yHero = useTransform(scrollY, [0, 1000], [0, 400]);
-
-  // EFECTO 1: Scroll Navbar
-  useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 50);
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
 
   // EFECTO 2: Slider Automático
   useEffect(() => {
@@ -235,63 +226,6 @@ export default function UltimateEmperadorLanding() {
       {/* GLOBAL BACKGROUNDS */}
       <div className="fixed inset-0 z-0 pointer-events-none bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:32px_32px]"></div>
       
-      {/* ========================================================================= */}
-      {/* 0. NAVBAR PREMIUM */}
-      {/* ========================================================================= */}
-      <nav className={`fixed top-0 w-full z-50 transition-all duration-500 ${scrolled ? "py-4 bg-[#050505]/90 backdrop-blur-2xl border-b border-amber-500/20 shadow-[0_10px_40px_-10px_rgba(217,119,6,0.15)]" : "py-8 bg-transparent"}`}>
-        <div className="max-w-[1400px] mx-auto px-6 grid grid-cols-3 items-center relative z-10">
-          
-          <div className="flex justify-start">
-            <Link href="/" className="relative z-50 flex items-center group">
-              <div className={`absolute top-1/2 -translate-y-1/2 left-0 transition-all duration-500 rounded-full overflow-hidden border-2 border-amber-500/50 group-hover:border-amber-500 shadow-[0_0_20px_rgba(217,119,6,0.4)] group-hover:shadow-[0_0_40px_rgba(217,119,6,0.8)] group-hover:scale-105 ${scrolled ? 'w-16 h-16' : 'w-24 h-24 md:w-36 md:h-36'}`}>
-                <Image src="/logo.png" alt="Emperador Logo" fill sizes="(max-width: 768px) 96px, 144px" className="object-cover" priority />
-              </div>
-              <div className={`${scrolled ? 'w-16' : 'w-24 md:w-36'} transition-all duration-500 h-1`}></div>
-            </Link>
-          </div>
-          
-          <div className="hidden lg:flex justify-center gap-10 text-[11px] font-black text-white uppercase tracking-[0.3em] drop-shadow-md">
-            <Link href="#squad" className="hover:text-amber-500 hover:-translate-y-1 transition-all">El Squad</Link>
-            <Link href="#servicios" className="hover:text-amber-500 hover:-translate-y-1 transition-all">Servicios</Link>
-            <Link href="#flow" className="hover:text-amber-500 hover:-translate-y-1 transition-all">VIP Room</Link>
-            <Link href="/tienda" className="hover:text-amber-500 hover:-translate-y-1 transition-all">Tienda</Link>
-          </div>
-          
-          <div className="flex justify-end items-center gap-4 col-span-2 lg:col-span-1">
-            <Link href="/reservar" className="relative group px-6 py-3 md:px-8 md:py-3.5 bg-amber-500 text-black font-black uppercase tracking-[0.2em] text-xs overflow-hidden rounded-lg hover:scale-105 transition-all shadow-[0_0_20px_rgba(217,119,6,0.4)] active:scale-95">
-               <span className="relative z-10 flex items-center gap-2">Agendar <Zap size={14} className="group-hover:animate-bounce" /></span>
-               <div className="absolute inset-0 bg-white translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out z-0" />
-            </Link>
-
-            <div className="relative hidden sm:block" onMouseEnter={() => setShowLoginMenu(true)} onMouseLeave={() => setShowLoginMenu(false)}>
-              <button className="flex items-center gap-2 text-white hover:text-amber-500 transition-all hover:-translate-y-1 bg-black/40 px-4 py-3 rounded-lg border border-zinc-700 hover:border-amber-500 backdrop-blur-md group shadow-lg">
-                <UserCircle size={18} className="text-zinc-400 group-hover:text-amber-500 transition-colors" />
-                <span className="font-bold text-xs uppercase tracking-widest">Ingresar</span>
-              </button>
-
-              <AnimatePresence>
-                {showLoginMenu && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 15, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.95 }} transition={{ duration: 0.2 }}
-                    className="absolute right-0 top-full mt-2 w-64 bg-zinc-950 border border-zinc-800 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.7)] overflow-hidden py-2 z-50"
-                  >
-                    <Link href="/login?role=client" className="flex items-center gap-4 px-5 py-4 text-xs font-bold text-zinc-300 hover:bg-zinc-900 hover:text-amber-500 transition-colors border-b border-zinc-900/50 group">
-                      <div className="bg-zinc-800 p-2 rounded-lg group-hover:bg-amber-500/20 group-hover:text-amber-500 transition-colors"><UserCircle size={20} /></div> Portal Clientes
-                    </Link>
-                    <Link href="/login?role=barber" className="flex items-center gap-4 px-5 py-4 text-xs font-bold text-zinc-300 hover:bg-zinc-900 hover:text-amber-500 transition-colors border-b border-zinc-900/50 group">
-                      <div className="bg-zinc-800 p-2 rounded-lg group-hover:bg-amber-500/20 group-hover:text-amber-500 transition-colors"><Briefcase size={20} /></div> Staff / Barberos
-                    </Link>
-                    <Link href="/login?role=admin" className="flex items-center gap-4 px-5 py-4 text-xs font-bold text-zinc-500 hover:bg-amber-500/10 hover:text-white transition-colors group">
-                      <div className="bg-zinc-900 p-2 rounded-lg group-hover:bg-zinc-700 transition-colors"><KeyRound size={20} /></div> Administración
-                    </Link>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          </div>
-        </div>
-      </nav>
-
       {/* BOTÓN FLOTANTE */}
       <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 2, type: "spring", stiffness: 100 }} className="fixed bottom-6 right-6 md:bottom-10 md:right-10 z-[100]">
         <Link href="/reservar" className="relative flex items-center justify-center w-16 h-16 md:w-20 md:h-20 bg-amber-500 rounded-full shadow-[0_0_30px_rgba(217,119,6,0.8)] hover:scale-110 transition-transform group border-2 border-amber-300">
@@ -303,7 +237,7 @@ export default function UltimateEmperadorLanding() {
       {/* ========================================================================= */}
       {/* 1. HERO GLOBAL (Carrusel: Marca + Tienda Destacados de Fondo Completo) */}
       {/* ========================================================================= */}
-      <section className="relative w-full h-screen flex items-center justify-center overflow-hidden bg-black">
+      <section className="relative w-full h-screen flex items-center justify-center overflow-hidden bg-black -mt-24 md:-mt-28">
         
         <AnimatePresence mode="wait">
           <motion.div
@@ -316,7 +250,7 @@ export default function UltimateEmperadorLanding() {
           >
             {/* SLIDE 0: HERO ORIGINAL DE LA MARCA */}
             {currentHeroSlide === 0 && (
-              <div className="w-full h-full relative flex items-center justify-center">
+              <div className="w-full h-full relative flex items-center justify-center pt-20">
                 <motion.div style={{ y: yHero }} className="absolute inset-0 w-full h-full z-0">
                   {/* IMPORTANTE: unoptimized agregado a la imagen estática también para consistencia */}
                   <Image 
@@ -367,7 +301,7 @@ export default function UltimateEmperadorLanding() {
 
             {/* SLIDE > 0: PRODUCTOS DESTACADOS A PANTALLA COMPLETA */}
             {currentHeroSlide > 0 && (
-              <div className="w-full h-full relative flex items-center justify-center">
+              <div className="w-full h-full relative flex items-center justify-center pt-20">
                 {/* Imagen de fondo extendida horizontalmente */}
                 <div className="absolute inset-0 z-0">
                   {/* IMPORTANTE: unoptimized previene que Next.js bloquee la URL de Supabase */}
@@ -380,7 +314,7 @@ export default function UltimateEmperadorLanding() {
                   />
                   {/* Gradiente para asegurar lectura de texto, oscuro en bordes */}
                   <div className="absolute inset-0 bg-gradient-to-r from-[#050505] via-transparent to-[#050505]" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-transparent to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/80 to-transparent" />
                 </div>
                 
                 <div className="relative z-10 w-full max-w-[1400px] px-6 mt-16 md:mt-0 flex flex-col md:flex-row items-center justify-between gap-10">
@@ -751,7 +685,7 @@ export default function UltimateEmperadorLanding() {
                    <span className="font-black uppercase text-[10px] tracking-[0.2em]">Intranet Staff</span>
                 </Link>
                 <p className="text-zinc-700 font-black uppercase text-[9px] tracking-[0.3em] mt-2">
-                  DESARROLLADO POR <a href="https://bayx.com" target="_blank" rel="noopener noreferrer" className="text-amber-700 hover:text-amber-500 transition-colors">BAYX AGENCY</a>
+                  DESARROLLADO POR <a href="https://bayx.cl" target="_blank" rel="noopener noreferrer" className="text-amber-700 hover:text-amber-500 transition-colors">BAYX AGENCY</a>
                 </p>
               </div>
            </div>

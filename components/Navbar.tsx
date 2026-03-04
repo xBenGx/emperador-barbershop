@@ -5,8 +5,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X, Zap, User } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
+import { motion, AnimatePresence } from "framer-motion";
 
-// Tipos de las rutas
 interface NavLink {
   name: string;
   href: string;
@@ -25,161 +25,210 @@ export default function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [user, setUser] = useState<any>(null);
-  
   const pathname = usePathname();
   const supabase = createClient();
 
-  // 1. Detectar Scroll para cambiar el fondo de la Navbar
   useEffect(() => {
     const handleScroll = () => {
-      setIsScrolled(window.scrollY > 20);
+      setIsScrolled(window.scrollY > 30);
     };
     window.addEventListener("scroll", handleScroll);
+    // Verificar estado inicial al montar
+    handleScroll();
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // 2. Conexión a Supabase para verificar si hay sesión activa
   useEffect(() => {
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       setUser(session?.user || null);
     };
-
     checkUser();
-
-    // Escuchar cambios de sesión (ej. si el usuario hace login/logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user || null);
     });
-
     return () => subscription.unsubscribe();
   }, [supabase.auth]);
 
+  // Bloquear el scroll del body cuando el menú móvil está abierto
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unset";
+    }
+  }, [isMobileMenuOpen]);
+
   return (
-    <nav
-      className={`fixed top-0 w-full z-50 transition-all duration-300 ${
-        isScrolled 
-          ? "bg-black/80 backdrop-blur-lg border-b border-zinc-800 py-3 shadow-2xl" 
-          : "bg-transparent py-5"
-      }`}
-    >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between">
-          
-          {/* LOGO (Izquierda) */}
-          <div className="flex-shrink-0 relative group">
-            {/* Efecto de resplandor trasero */}
-            <div className="absolute inset-0 bg-amber-500 blur-[30px] opacity-40 group-hover:opacity-60 transition-opacity rounded-full"></div>
-            <Link href="/" className="relative z-10 block">
-              {/* Asegúrate de tener tu logo en la carpeta /public */}
-              <img 
-                src="/logo.png" // <-- CAMBIA ESTO POR EL NOMBRE REAL DE TU LOGO
-                alt="Emperador Barbershop Logo" 
-                className="h-16 w-16 md:h-20 md:w-20 rounded-full border border-amber-500/30 object-cover"
-              />
-            </Link>
-          </div>
-
-          {/* ENLACES DE NAVEGACIÓN (Centro - Solo Desktop) */}
-          <div className="hidden md:flex items-center space-x-8">
-            {NAV_LINKS.map((link) => {
-              const isActive = pathname === link.href;
-              return (
-                <Link
-                  key={link.name}
-                  href={link.href}
-                  className={`text-sm font-bold tracking-widest uppercase transition-colors ${
-                    isActive 
-                      ? "text-amber-500" 
-                      : "text-zinc-300 hover:text-white"
-                  }`}
-                >
-                  {link.name}
-                </Link>
-              );
-            })}
-          </div>
-
-          {/* BOTONES DE ACCIÓN (Derecha - Solo Desktop) */}
-          <div className="hidden md:flex items-center space-x-4">
-            {user ? (
-              // Si está logueado, mostramos el botón a su panel
-              <Link 
-                href="/dashboards" 
-                className="flex items-center gap-2 px-5 py-2.5 bg-zinc-900 border border-zinc-700 text-white rounded-xl text-sm font-bold hover:border-amber-500 transition-all"
-              >
-                <User size={18} className="text-amber-500" />
-                Mi Panel
-              </Link>
-            ) : (
-              // Si NO está logueado, mostramos botón de ingresar
-              <Link 
-                href="/login" 
-                className="flex items-center gap-2 px-5 py-2.5 bg-zinc-900 border border-zinc-700 text-white rounded-xl text-sm font-bold hover:border-amber-500 transition-all"
-              >
-                <User size={18} />
-                Ingresar
-              </Link>
-            )}
-            
-            <Link 
-              href="/reservar" 
-              className="flex items-center gap-2 px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-black rounded-xl text-sm font-black uppercase tracking-widest transition-all shadow-[0_0_15px_rgba(217,119,6,0.3)] hover:shadow-[0_0_25px_rgba(217,119,6,0.5)] transform hover:-translate-y-0.5"
-            >
-              Agendar <Zap size={16} />
-            </Link>
-          </div>
-
-          {/* MENÚ HAMBURGUESA (Móvil) */}
-          <div className="md:hidden flex items-center">
-            <button
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="text-zinc-300 hover:text-amber-500 focus:outline-none p-2"
-            >
-              {isMobileMenuOpen ? <X size={28} /> : <Menu size={28} />}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* MENÚ DESPLEGABLE (Móvil) */}
-      <div 
-        className={`md:hidden absolute w-full bg-zinc-950 border-b border-zinc-800 transition-all duration-300 overflow-hidden ${
-          isMobileMenuOpen ? "max-h-[500px] opacity-100 py-4" : "max-h-0 opacity-0"
+    <>
+      <motion.nav
+        initial={{ y: -100 }}
+        animate={{ y: 0 }}
+        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+        className={`fixed top-0 w-full z-[100] transition-all duration-500 border-b ${
+          isScrolled 
+            ? "bg-[#050505]/90 backdrop-blur-xl border-amber-500/20 shadow-[0_10px_40px_-10px_rgba(217,119,6,0.15)] py-3" 
+            : "bg-gradient-to-b from-[#050505]/90 via-[#050505]/40 to-transparent border-transparent py-6"
         }`}
       >
-        <div className="px-4 space-y-3 flex flex-col">
-          {NAV_LINKS.map((link) => (
-            <Link
-              key={link.name}
-              href={link.href}
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="block px-3 py-3 rounded-xl text-base font-bold tracking-widest uppercase text-zinc-300 hover:text-amber-500 hover:bg-zinc-900/50"
-            >
-              {link.name}
+        <div className="max-w-[1400px] mx-auto px-6 lg:px-12">
+          <div className="flex items-center justify-between">
+            
+            {/* LOGO DINÁMICO (Izquierda) */}
+            <Link href="/" className="relative z-10 block group perspective-1000">
+              <motion.div
+                animate={{
+                  scale: isScrolled ? 0.9 : 1.1,
+                  y: isScrolled ? 0 : 5,
+                }}
+                transition={{ duration: 0.4, ease: "easeOut" }}
+                className="relative flex items-center justify-center"
+              >
+                {/* Resplandor mejorado */}
+                <div className="absolute inset-0 bg-amber-500/20 blur-[40px] group-hover:bg-amber-500/40 transition-all duration-500 rounded-full scale-150"></div>
+                
+                <div className="relative z-10 h-16 w-16 md:h-20 md:w-20 rounded-full border border-amber-500/30 overflow-hidden shadow-[0_0_15px_rgba(217,119,6,0.2)] group-hover:border-amber-500/80 group-hover:shadow-[0_0_25px_rgba(217,119,6,0.4)] transition-all duration-500">
+                   <img 
+                    src="/logo.png" 
+                    alt="Emperador Barbershop Logo" 
+                    className="w-full h-full object-cover bg-[#050505]"
+                  />
+                </div>
+              </motion.div>
             </Link>
-          ))}
-          
-          <div className="h-px bg-zinc-800 my-4"></div>
-          
-          <Link 
-            href="/reservar" 
-            onClick={() => setIsMobileMenuOpen(false)}
-            className="flex items-center justify-center gap-2 w-full px-6 py-4 bg-amber-500 text-black rounded-xl text-sm font-black uppercase tracking-widest"
-          >
-            Agendar Hora <Zap size={18} />
-          </Link>
 
-          <Link 
-            href={user ? "/dashboards" : "/login"} 
-            onClick={() => setIsMobileMenuOpen(false)}
-            className="flex items-center justify-center gap-2 w-full px-6 py-4 bg-zinc-900 border border-zinc-700 text-white rounded-xl text-sm font-bold uppercase tracking-widest"
-          >
-            <User size={18} className={user ? "text-amber-500" : ""} />
-            {user ? "Ir a mi Panel" : "Ingresar"}
-          </Link>
+            {/* ENLACES DE NAVEGACIÓN (Centro - Desktop) */}
+            <div className="hidden lg:flex items-center justify-center space-x-10 flex-1 ml-12">
+              {NAV_LINKS.map((link) => {
+                const isActive = pathname === link.href;
+                return (
+                  <Link
+                    key={link.name}
+                    href={link.href}
+                    className="relative group py-2"
+                  >
+                    <span className={`text-xs font-black tracking-[0.2em] uppercase transition-colors duration-300 drop-shadow-md ${
+                      isActive ? "text-amber-500" : "text-zinc-300 group-hover:text-white"
+                    }`}>
+                      {link.name}
+                    </span>
+                    {/* Línea animada inferior */}
+                    <span className={`absolute bottom-0 left-0 w-full h-[2px] bg-amber-500 transform origin-left transition-transform duration-300 ease-out shadow-[0_0_10px_rgba(217,119,6,0.8)] ${
+                      isActive ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"
+                    }`}></span>
+                  </Link>
+                );
+              })}
+            </div>
+
+            {/* BOTONES DE ACCIÓN (Derecha - Desktop) */}
+            <div className="hidden lg:flex items-center space-x-6">
+              <Link 
+                href={user ? "/dashboards" : "/login"} 
+                className="group flex items-center gap-2 px-5 py-2.5 bg-[#0a0a0a]/80 backdrop-blur-sm border border-zinc-800 text-zinc-300 rounded-xl text-[11px] font-black uppercase tracking-[0.2em] hover:border-amber-500 hover:text-white transition-all duration-300 shadow-lg"
+              >
+                <User size={16} className={`transition-colors duration-300 ${user ? "text-amber-500" : "group-hover:text-amber-500"}`} />
+                {user ? "Mi Panel" : "Ingresar"}
+              </Link>
+              
+              <Link 
+                href="/reservar" 
+                className="relative overflow-hidden group flex items-center gap-3 px-8 py-3 bg-amber-500 text-black rounded-xl text-[11px] font-black uppercase tracking-[0.2em] transition-all duration-300 shadow-[0_0_20px_rgba(217,119,6,0.4)] hover:shadow-[0_0_30px_rgba(217,119,6,0.6)] hover:-translate-y-0.5 active:scale-95 border border-amber-400"
+              >
+                {/* Efecto de brillo al pasar el mouse */}
+                <span className="absolute inset-0 w-full h-full bg-white/20 -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></span>
+                <span className="relative z-10">Agendar</span>
+                <Zap size={16} className="relative z-10 fill-black group-hover:animate-bounce" />
+              </Link>
+            </div>
+
+            {/* BOTÓN MENÚ MÓVIL */}
+            <div className="lg:hidden flex items-center z-50">
+              <button
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="relative w-12 h-12 flex items-center justify-center bg-[#0a0a0a] border border-zinc-800 rounded-xl text-amber-500 shadow-lg focus:outline-none hover:border-amber-500 transition-colors"
+              >
+                <AnimatePresence mode="wait">
+                  {isMobileMenuOpen ? (
+                    <motion.div key="close" initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }}>
+                      <X size={24} />
+                    </motion.div>
+                  ) : (
+                    <motion.div key="menu" initial={{ rotate: 90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: -90, opacity: 0 }}>
+                      <Menu size={24} />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
-    </nav>
+      </motion.nav>
+
+      {/* MENÚ MÓVIL (Pantalla Completa) */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0, backdropFilter: "blur(0px)" }}
+            animate={{ opacity: 1, backdropFilter: "blur(20px)" }}
+            exit={{ opacity: 0, backdropFilter: "blur(0px)" }}
+            transition={{ duration: 0.4 }}
+            className="fixed inset-0 z-[90] bg-[#050505]/95 flex flex-col justify-center items-center lg:hidden"
+          >
+            {/* Elemento decorativo de fondo */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120vw] h-[120vw] bg-amber-500/5 rounded-full blur-[100px] pointer-events-none"></div>
+
+            <div className="flex flex-col items-center space-y-8 w-full px-8 relative z-10">
+              {NAV_LINKS.map((link, i) => (
+                <motion.div
+                  key={link.name}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.1, duration: 0.4, ease: "easeOut" }}
+                  className="w-full text-center"
+                >
+                  <Link
+                    href={link.href}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className={`block text-3xl font-black tracking-widest uppercase transition-colors ${
+                      pathname === link.href ? "text-amber-500 drop-shadow-[0_0_15px_rgba(217,119,6,0.5)]" : "text-white hover:text-amber-500"
+                    }`}
+                  >
+                    {link.name}
+                  </Link>
+                </motion.div>
+              ))}
+
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.5, duration: 0.4 }}
+                className="w-full h-px bg-zinc-800/50 my-6" 
+              />
+
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6, duration: 0.4 }}
+                className="w-full max-w-sm flex flex-col gap-4"
+              >
+                <Link 
+                  href="/reservar" 
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="flex items-center justify-center gap-3 w-full py-5 bg-amber-500 text-black rounded-2xl text-sm font-black uppercase tracking-widest shadow-[0_0_30px_rgba(217,119,6,0.3)] active:scale-95 transition-transform"
+                >
+                  Agendar Hora <Zap size={20} className="fill-black" />
+                </Link>
+
+                <Link 
+                  href={user ? "/dashboards" : "/login"} 
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="flex items-center justify-center gap-3 w-full py-5 bg-[#0a0a0a] border border-zinc-700 text-white rounded-2xl text-sm font-bold uppercase tracking-widest active:scale-95 transition-transform"
+                >
+                  <User size={20} className={user ? "text-amber-500" : ""} />
+                  {user ? "Ir a mi Panel" : "Ingresar al Sistema"}
+                </Link>
+              </motion.div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
