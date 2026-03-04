@@ -1,59 +1,28 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
+import { createClient } from "@/utils/supabase/client";
 import { 
   CalendarDays, Clock, Scissors, Star, ChevronRight, 
   ArrowLeft, CheckCircle2, Crown, Zap, History, Gift,
-  MapPin, AlertCircle, Lock, Edit2, Settings, MessageSquare
-} from "lucide-react"; // <-- ICONO LOCK AÑADIDO AQUÍ
+  MapPin, AlertCircle, Lock, Edit2, Settings, MessageSquare,
+  Loader2, UserCircle2, XCircle
+} from "lucide-react";
 
 // ============================================================================
-// TIPADOS
+// TIPADOS REALES
 // ============================================================================
 type TabType = "AGENDAR" | "HISTORIAL" | "BENEFICIOS";
 type BookingStep = 1 | 2 | 3 | 4;
 
+interface ClientProfile { id: string; name: string; phone: string; email: string; points: number; tier?: string; }
 interface Barber { id: string; name: string; role: string; img: string; }
-interface Service { id: string; name: string; price: number; duration: number; desc: string; }
+interface Service { id: string; name: string; price: number; time: string; desc: string; }
+interface Appointment { id: string; date: string; time: string; status: string; barber: Barber; service: Service; }
 
-// ============================================================================
-// MOCK DATA (Perfil de Usuario Único y Base de Datos)
-// ============================================================================
-const CURRENT_USER = {
-  name: "Matías Rojas",
-  initial: "M",
-  tier: "Oro",
-  points: 850,
-  phone: "+56 9 1234 5678"
-};
-
-const BARBERS: Barber[] = [
-  { id: "b1", name: "Cesar Luna", role: "Master Barber", img: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=400&auto=format&fit=crop" },
-  { id: "b2", name: "Jack Guerra", role: "Fade Specialist", img: "https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=400&auto=format&fit=crop" },
-  { id: "b3", name: "Jhonn Prado", role: "Beard Expert", img: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?q=80&w=400&auto=format&fit=crop" },
-];
-
-const SERVICES: Service[] = [
-  { id: "s1", name: "Corte Clásico / Degradado", price: 12000, duration: 60, desc: "El corte que define tu estilo. Clean, fresh." },
-  { id: "s2", name: "Corte + Perfilado de Cejas", price: 14000, duration: 60, desc: "Sube de nivel tu mirada." },
-  { id: "s3", name: "Barba + Vapor Caliente", price: 7000, duration: 30, desc: "Afeitado VIP. Acabado de seda." },
-  { id: "s4", name: "Corte + Barba + Lavado", price: 17000, duration: 65, desc: "El combo indispensable." },
-  { id: "s5", name: "Servicio Emperador VIP", price: 35000, duration: 90, desc: "La experiencia definitiva. Trato de realeza." },
-];
-
-const TIME_SLOTS = ["10:00", "11:00", "12:00", "15:00", "16:00", "17:30", "18:30", "19:00"];
-
-const PAST_CUTS = [
-  { id: "h1", date: "15 Feb, 2026", service: "Corte Clásico", barber: "Cesar Luna", price: 12000, status: "COMPLETED" },
-  { id: "h2", date: "02 Ene, 2026", service: "Corte + Barba", barber: "Jack Guerra", price: 17000, status: "COMPLETED" },
-];
-
-const UPCOMING_CUTS = [
-  // Dejamos uno mockeado para que el cliente vea que tiene algo pendiente
-  { id: "u1", date: "28 Feb, 2026", time: "16:00", service: "Servicio Emperador VIP", barber: "Cesar Luna", status: "CONFIRMED" }
-];
+const TIME_SLOTS = ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00"];
 
 // ============================================================================
 // ANIMACIONES
@@ -70,10 +39,18 @@ const slideLeft = {
   exit: { opacity: 0, x: -50, transition: { duration: 0.2 } }
 };
 
-// ============================================================================
-// COMPONENTE PRINCIPAL
-// ============================================================================
-export default function ClientDashboard() {
+export default function ClientBookingDashboard() {
+  const supabase = createClient();
+  
+  // Estados Globales de Base de Datos
+  const [clientProfile, setClientProfile] = useState<ClientProfile | null>(null);
+  const [barbers, setBarbers] = useState<Barber[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
+  const [myAppointments, setMyAppointments] = useState<Appointment[]>([]);
+  const [bookedSlots, setBookedSlots] = useState<string[]>([]); // Horas ya ocupadas del barbero
+  const [isAppLoading, setIsAppLoading] = useState(true);
+
+  // Estados de UI
   const [activeTab, setActiveTab] = useState<TabType>("AGENDAR");
   
   // Estados del Wizard de Reserva
@@ -86,19 +63,128 @@ export default function ClientDashboard() {
   const [isConfirming, setIsConfirming] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
+  // ============================================================================
+  // INICIALIZACIÓN Y CARGA DE DATOS
+  // ============================================================================
+  const loadClientData = useCallback(async () => {
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (!user || authError) {
+        window.location.href = "/login";
+        return;
+      }
+
+      // 1. Buscar o Crear Ficha del Cliente
+      let { data: profile } = await supabase.from('clients').select('*').eq('id', user.id).single();
+      
+      if (!profile) {
+        // Auto-registro si no existe la ficha en la BD
+        const { data: newProfile } = await supabase.from('clients').insert({
+          id: user.id,
+          name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Cliente Emperador',
+          email: user.email,
+          phone: user.user_metadata?.phone || '',
+          points: 0
+        }).select().single();
+        profile = newProfile;
+      }
+
+      // Calcular Nivel (Gamificación)
+      let tier = "Bronce";
+      if (profile.points >= 500) tier = "Plata";
+      if (profile.points >= 1000) tier = "Oro";
+      if (profile.points >= 2000) tier = "Emperador";
+
+      setClientProfile({ ...profile, tier });
+
+      // 2. Cargar Barberos Activos
+      const { data: dbBarbers } = await supabase.from('Barbers').select('*').eq('status', 'ACTIVE');
+      if (dbBarbers) setBarbers(dbBarbers);
+
+      // 3. Cargar Servicios
+      const { data: dbServices } = await supabase.from('Services').select('*');
+      if (dbServices) setServices(dbServices);
+
+      // 4. Cargar Historial de Citas del Cliente
+      const { data: dbAppointments } = await supabase
+        .from('appointments')
+        .select(`
+          id, date, time, status, notes,
+          barber:barber_id (id, name, img),
+          service:service_id (id, name, price)
+        `)
+        .eq('client_id', user.id)
+        .order('date', { ascending: false })
+        .order('time', { ascending: false });
+
+      if (dbAppointments) setMyAppointments(dbAppointments as unknown as Appointment[]);
+
+    } catch (error) {
+      console.error("Error cargando datos del cliente:", error);
+    } finally {
+      setIsAppLoading(false);
+    }
+  }, [supabase]);
+
+  useEffect(() => {
+    loadClientData();
+  }, [loadClientData]);
+
+  // ============================================================================
+  // VERIFICAR HORAS DISPONIBLES EN TIEMPO REAL
+  // ============================================================================
+  useEffect(() => {
+    const fetchBookedSlots = async () => {
+      if (selectedDate && selectedBarber) {
+        const { data } = await supabase
+          .from('appointments')
+          .select('time')
+          .eq('barber_id', selectedBarber.id)
+          .eq('date', selectedDate)
+          .in('status', ['PENDING', 'CONFIRMED']); // Las horas canceladas vuelven a estar libres
+          
+        if (data) {
+          setBookedSlots(data.map(app => app.time.substring(0, 5))); // ej "10:00"
+        }
+      }
+    };
+    fetchBookedSlots();
+  }, [selectedDate, selectedBarber, supabase]);
+
+  // ============================================================================
+  // ACCIONES DEL WIZARD
+  // ============================================================================
   const formatMoney = (amount: number) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
 
-  // Funciones de navegación del Wizard
   const handleNextStep = () => setStep((prev) => (prev < 4 ? prev + 1 : prev) as BookingStep);
   const handlePrevStep = () => setStep((prev) => (prev > 1 ? prev - 1 : prev) as BookingStep);
 
-  const handleConfirmBooking = () => {
+  const handleConfirmBooking = async () => {
+    if (!clientProfile || !selectedBarber || !selectedService) return;
     setIsConfirming(true);
-    // AQUÍ IRÁ TU SERVER ACTION PARA GUARDAR EN SUPABASE
-    setTimeout(() => {
-      setIsConfirming(false);
+    
+    try {
+      const { error } = await supabase.from('appointments').insert({
+        client_id: clientProfile.id,
+        barber_id: selectedBarber.id,
+        service_id: selectedService.id,
+        date: selectedDate,
+        time: selectedTime,
+        status: 'PENDING',
+        notes: clientNotes
+      });
+
+      if (error) throw error;
+
+      // Recargar historial para mostrar la nueva cita
+      await loadClientData();
       setIsSuccess(true);
-    }, 1500);
+    } catch (error: any) {
+      console.error("Error al agendar:", error);
+      alert("Hubo un error al procesar tu reserva. Intenta de nuevo.");
+    } finally {
+      setIsConfirming(false);
+    }
   };
 
   const resetBooking = () => {
@@ -111,67 +197,91 @@ export default function ClientDashboard() {
     setIsSuccess(false);
   };
 
+  const handleCancelAppointment = async (id: string) => {
+    if(!window.confirm("¿Seguro que deseas cancelar esta reserva?")) return;
+    try {
+      const { error } = await supabase.from('appointments').update({ status: 'CANCELLED' }).eq('id', id);
+      if (error) throw error;
+      loadClientData();
+      alert("Reserva cancelada correctamente.");
+    } catch (error) {
+      alert("Error al cancelar la reserva.");
+    }
+  };
+
+  // Separar citas en Próximas y Pasadas
+  const todayStr = new Date().toISOString().split('T')[0];
+  const upcomingCuts = myAppointments.filter(a => a.date >= todayStr && (a.status === 'PENDING' || a.status === 'CONFIRMED'));
+  const pastCuts = myAppointments.filter(a => a.date < todayStr || a.status === 'COMPLETED' || a.status === 'CANCELLED' || a.status === 'NO_SHOW');
+
+  if (isAppLoading) {
+    return (
+      <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center text-amber-500 gap-4">
+        <Loader2 className="animate-spin" size={40} />
+        <p className="font-black uppercase tracking-widest text-xs">Accediendo a tu cuenta...</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="max-w-5xl mx-auto pb-20">
+    <div className="max-w-[1200px] mx-auto pb-20 pt-8 px-6">
       
-      {/* HEADER DEL CLIENTE (Personalizado) */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6 bg-zinc-900/40 p-8 rounded-[2rem] border border-zinc-800 relative overflow-hidden">
+      {/* =================================================================== */}
+      {/* HEADER DEL CLIENTE (Personalizado y Real) */}
+      {/* =================================================================== */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6 bg-zinc-900/40 p-8 rounded-[2.5rem] border border-zinc-800 relative overflow-hidden shadow-2xl">
         <div className="absolute -top-20 -right-20 w-64 h-64 bg-amber-500/10 blur-[80px] rounded-full pointer-events-none"></div>
         
         <div className="flex items-center gap-6 relative z-10 w-full md:w-auto">
-          <div className="relative group cursor-pointer">
+          <div className="relative group cursor-pointer shrink-0">
             <div className="w-20 h-20 bg-zinc-950 border-2 border-amber-500 rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(217,119,6,0.3)] overflow-hidden">
-              <span className="text-2xl font-black text-amber-500 group-hover:hidden">{CURRENT_USER.initial}</span>
-              <Edit2 size={24} className="text-amber-500 hidden group-hover:block transition-all" />
+              <span className="text-3xl font-black text-amber-500 group-hover:hidden">{clientProfile?.name?.charAt(0).toUpperCase()}</span>
+              <Settings size={24} className="text-amber-500 hidden group-hover:block transition-all" />
             </div>
           </div>
           <div className="flex-1">
-            <div className="flex items-center justify-between md:justify-start gap-4">
-              <h1 className="text-3xl md:text-4xl font-black text-white tracking-tighter uppercase font-serif">
-                Hola, <span className="text-amber-500">{CURRENT_USER.name.split(' ')[0]}</span>
-              </h1>
-              <button className="p-2 bg-zinc-950 text-zinc-400 hover:text-amber-500 rounded-full border border-zinc-800 transition-colors md:hidden">
-                <Settings size={18} />
-              </button>
-            </div>
-            <p className="text-zinc-400 mt-1 font-medium">Bienvenido a tu portal imperial.</p>
+            <h1 className="text-3xl md:text-4xl font-black text-white tracking-tighter uppercase font-serif">
+              Hola, <span className="text-amber-500">{clientProfile?.name.split(' ')[0]}</span>
+            </h1>
+            <p className="text-zinc-400 mt-1 font-medium text-sm flex items-center gap-2">
+              <Star size={14} className="text-amber-500" /> Bienvenido a tu portal imperial.
+            </p>
           </div>
         </div>
 
-        {/* Tarjeta de Puntos VIP y Ajustes */}
+        {/* Tarjeta de Puntos VIP Real */}
         <div className="flex items-center gap-4 relative z-10 w-full md:w-auto">
-          <div className="bg-zinc-950 border border-zinc-800 p-4 rounded-2xl flex items-center gap-4 flex-1 md:flex-none">
+          <div className="bg-zinc-950 border border-zinc-800 p-4 px-6 rounded-2xl flex items-center gap-4 flex-1 md:flex-none shadow-inner">
             <div className="w-12 h-12 bg-amber-500/10 text-amber-500 rounded-xl flex items-center justify-center">
               <Crown size={24} />
             </div>
             <div>
               <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Nivel Actual</p>
               <p className="text-xl font-bold text-white flex items-center gap-2">
-                {CURRENT_USER.tier} <span className="text-amber-500 text-sm bg-amber-500/10 px-2 py-0.5 rounded-md">{CURRENT_USER.points} pts</span>
+                {clientProfile?.tier} <span className="text-black text-xs bg-amber-500 px-2 py-0.5 rounded-md font-black">{clientProfile?.points} pts</span>
               </p>
             </div>
           </div>
-          <button className="hidden md:flex p-4 bg-zinc-950 text-zinc-400 hover:text-amber-500 rounded-2xl border border-zinc-800 transition-colors h-full items-center justify-center" title="Ajustes de Perfil">
-            <Settings size={24} />
-          </button>
         </div>
       </div>
 
+      {/* =================================================================== */}
       {/* TABS DE NAVEGACIÓN */}
-      <div className="flex gap-3 mb-8 border-b border-zinc-800 pb-4 overflow-x-auto hide-scrollbar scroll-smooth">
+      {/* =================================================================== */}
+      <div className="flex gap-3 mb-10 border-b border-zinc-800 pb-4 overflow-x-auto hide-scrollbar scroll-smooth">
         {(["AGENDAR", "HISTORIAL", "BENEFICIOS"] as TabType[]).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-6 py-3 rounded-xl font-bold text-sm tracking-widest uppercase transition-all whitespace-nowrap flex-shrink-0 flex items-center gap-2 ${
+            className={`px-8 py-4 rounded-2xl font-black text-xs tracking-widest uppercase transition-all whitespace-nowrap flex-shrink-0 flex items-center gap-2 ${
               activeTab === tab 
-                ? "bg-amber-500 text-black shadow-[0_0_20px_rgba(217,119,6,0.3)]" 
-                : "bg-zinc-900/50 text-zinc-400 hover:bg-zinc-900 hover:text-white border border-zinc-800"
+                ? "bg-amber-500 text-black shadow-[0_10px_30px_rgba(217,119,6,0.3)]" 
+                : "bg-zinc-900/50 text-zinc-400 hover:bg-zinc-800 hover:text-white border border-zinc-800"
             }`}
           >
-            {tab === "AGENDAR" && <CalendarDays size={16}/>}
-            {tab === "HISTORIAL" && <History size={16}/>}
-            {tab === "BENEFICIOS" && <Gift size={16}/>}
+            {tab === "AGENDAR" && <CalendarDays size={18}/>}
+            {tab === "HISTORIAL" && <History size={18}/>}
+            {tab === "BENEFICIOS" && <Gift size={18}/>}
             {tab}
           </button>
         ))}
@@ -180,41 +290,41 @@ export default function ClientDashboard() {
       <AnimatePresence mode="wait">
         
         {/* =================================================================== */}
-        {/* TAB 1: AGENDAR CITA (EL WIZARD MEJORADO) */}
+        {/* TAB 1: AGENDAR CITA (WIZARD CONECTADO A BD) */}
         {/* =================================================================== */}
         {activeTab === "AGENDAR" && (
-          <motion.div key="agendar" variants={fadeUp} initial="hidden" animate="visible" exit="exit" className="bg-zinc-900/30 border border-zinc-800 rounded-[2.5rem] p-6 md:p-10 relative overflow-hidden">
+          <motion.div key="agendar" variants={fadeUp} initial="hidden" animate="visible" exit="exit" className="bg-zinc-900/30 border border-zinc-800 rounded-[3rem] p-8 md:p-12 relative overflow-hidden">
             
             {isSuccess ? (
-              <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-center py-10">
-                <div className="w-24 h-24 bg-green-500/10 text-green-500 rounded-full flex items-center justify-center mx-auto mb-6">
+              <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-center py-16">
+                <div className="w-24 h-24 bg-green-500/10 text-green-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-[0_0_40px_rgba(34,197,94,0.3)]">
                   <CheckCircle2 size={48} />
                 </div>
                 <h2 className="text-4xl font-black text-white uppercase tracking-tighter mb-4 font-serif">¡Reserva Confirmada!</h2>
-                <p className="text-zinc-400 max-w-md mx-auto mb-8">
-                  Tu trono está asegurado. Te esperamos el <strong className="text-white">{selectedDate}</strong> a las <strong className="text-white">{selectedTime}</strong> con <strong className="text-amber-500">{selectedBarber?.name}</strong>.
+                <p className="text-zinc-400 max-w-md mx-auto mb-10 text-lg">
+                  Tu trono está asegurado. Te esperamos el <strong className="text-white bg-zinc-800 px-2 py-1 rounded">{selectedDate}</strong> a las <strong className="text-white bg-zinc-800 px-2 py-1 rounded">{selectedTime}</strong> con <strong className="text-amber-500">{selectedBarber?.name}</strong>.
                 </p>
-                <button onClick={resetBooking} className="px-8 py-4 bg-zinc-900 hover:bg-zinc-800 text-white font-bold rounded-xl transition-colors border border-zinc-700 uppercase tracking-widest text-xs">
+                <button onClick={resetBooking} className="px-8 py-5 bg-zinc-950 hover:bg-zinc-800 text-white font-black rounded-2xl transition-colors border border-zinc-700 uppercase tracking-widest text-xs shadow-xl active:scale-95">
                   Agendar otra cita
                 </button>
               </motion.div>
             ) : (
               <>
                 {/* Indicador de Pasos */}
-                <div className="flex items-center justify-between mb-10 relative">
+                <div className="flex items-center justify-between mb-12 relative max-w-3xl mx-auto">
                   <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-zinc-800 z-0 rounded-full"></div>
                   <div className="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-amber-500 z-0 rounded-full transition-all duration-500" style={{ width: `${((step - 1) / 3) * 100}%` }}></div>
                   
                   {[1, 2, 3, 4].map((i) => (
-                    <div key={i} className={`relative z-10 w-10 h-10 rounded-full flex items-center justify-center font-black text-sm transition-all duration-300 ${step >= i ? 'bg-amber-500 text-black shadow-[0_0_15px_rgba(217,119,6,0.5)]' : 'bg-zinc-900 text-zinc-500 border-2 border-zinc-800'}`}>
-                      {step > i ? <CheckCircle2 size={20} /> : i}
+                    <div key={i} className={`relative z-10 w-12 h-12 rounded-full flex items-center justify-center font-black text-sm transition-all duration-300 ${step >= i ? 'bg-amber-500 text-black shadow-[0_0_20px_rgba(217,119,6,0.5)] scale-110' : 'bg-zinc-900 text-zinc-500 border-2 border-zinc-800'}`}>
+                      {step > i ? <CheckCircle2 size={24} /> : i}
                     </div>
                   ))}
                 </div>
 
                 {/* Botón Volver */}
                 {step > 1 && (
-                  <button onClick={handlePrevStep} className="flex items-center gap-2 text-zinc-500 hover:text-amber-500 transition-colors mb-6 text-sm font-bold uppercase tracking-widest">
+                  <button onClick={handlePrevStep} className="flex items-center gap-2 text-zinc-500 hover:text-amber-500 transition-colors mb-8 text-xs font-black uppercase tracking-widest bg-zinc-950 px-4 py-2 rounded-xl border border-zinc-800">
                     <ArrowLeft size={16} /> Volver
                   </button>
                 )}
@@ -226,21 +336,25 @@ export default function ClientDashboard() {
                     {/* PASO 1: SELECCIONAR BARBERO */}
                     {step === 1 && (
                       <motion.div key="step1" variants={slideLeft} initial="hidden" animate="visible" exit="exit">
-                        <h3 className="text-2xl font-bold text-white mb-6">1. Elige a tu Maestro</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                          {BARBERS.map(b => (
+                        <h3 className="text-3xl font-black text-white mb-8 font-serif italic">1. Elige a tu Maestro</h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                          {barbers.map(b => (
                             <div 
                               key={b.id} 
                               onClick={() => { setSelectedBarber(b); handleNextStep(); }}
-                              className={`cursor-pointer group relative overflow-hidden rounded-3xl border-2 transition-all duration-300 ${selectedBarber?.id === b.id ? 'border-amber-500 bg-zinc-900/80 shadow-[0_0_30px_rgba(217,119,6,0.15)]' : 'border-zinc-800 bg-zinc-950/50 hover:border-amber-500/50'}`}
+                              className={`cursor-pointer group relative overflow-hidden rounded-[2rem] border-2 transition-all duration-300 ${selectedBarber?.id === b.id ? 'border-amber-500 bg-zinc-900/80 shadow-[0_0_30px_rgba(217,119,6,0.2)] scale-105' : 'border-zinc-800 bg-zinc-950 hover:border-amber-500/50'}`}
                             >
-                              <div className="aspect-[4/3] relative">
-                                <Image src={b.img} fill alt={b.name} className="object-cover grayscale group-hover:grayscale-0 transition-all duration-500" />
-                                <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/50 to-transparent"></div>
+                              <div className="aspect-square relative">
+                                {b.img ? (
+                                  <Image src={b.img} fill alt={b.name} className="object-cover grayscale group-hover:grayscale-0 transition-all duration-700" unoptimized />
+                                ) : (
+                                  <UserCircle2 className="w-full h-full p-10 text-zinc-700 bg-zinc-900" />
+                                )}
+                                <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/40 to-transparent"></div>
                               </div>
                               <div className="absolute bottom-0 left-0 w-full p-6">
-                                <span className="px-3 py-1 bg-amber-500 text-black text-[10px] font-black uppercase tracking-widest rounded-md mb-2 inline-block">{b.role}</span>
-                                <h4 className="text-xl font-bold text-white">{b.name}</h4>
+                                <span className="px-3 py-1 bg-amber-500 text-black text-[9px] font-black uppercase tracking-widest rounded-md mb-2 inline-block">{b.role || 'Barbero'}</span>
+                                <h4 className="text-2xl font-black text-white">{b.name}</h4>
                               </div>
                             </div>
                           ))}
@@ -251,26 +365,26 @@ export default function ClientDashboard() {
                     {/* PASO 2: SELECCIONAR SERVICIO */}
                     {step === 2 && (
                       <motion.div key="step2" variants={slideLeft} initial="hidden" animate="visible" exit="exit">
-                        <h3 className="text-2xl font-bold text-white mb-6">2. ¿Qué te haremos hoy?</h3>
-                        <div className="grid gap-4">
-                          {SERVICES.map(s => (
+                        <h3 className="text-3xl font-black text-white mb-8 font-serif italic">2. ¿Qué te haremos hoy?</h3>
+                        <div className="grid gap-4 md:grid-cols-2">
+                          {services.map(s => (
                             <div 
                               key={s.id} 
                               onClick={() => { setSelectedService(s); handleNextStep(); }}
-                              className={`flex flex-col sm:flex-row justify-between items-start sm:items-center p-6 rounded-2xl border-2 cursor-pointer transition-all duration-300 ${selectedService?.id === s.id ? 'border-amber-500 bg-zinc-900' : 'border-zinc-800 bg-zinc-950/50 hover:border-amber-500/50'}`}
+                              className={`flex flex-col p-6 rounded-3xl border-2 cursor-pointer transition-all duration-300 ${selectedService?.id === s.id ? 'border-amber-500 bg-zinc-900 shadow-[0_0_20px_rgba(217,119,6,0.1)]' : 'border-zinc-800 bg-zinc-950 hover:border-amber-500/50 hover:-translate-y-1'}`}
                             >
-                              <div className="flex gap-4 items-center mb-4 sm:mb-0">
-                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${selectedService?.id === s.id ? 'bg-amber-500 text-black' : 'bg-zinc-900 text-amber-500'}`}>
+                              <div className="flex gap-4 items-start mb-4">
+                                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-lg ${selectedService?.id === s.id ? 'bg-amber-500 text-black' : 'bg-black border border-zinc-800 text-amber-500'}`}>
                                   <Scissors size={24} />
                                 </div>
                                 <div>
-                                  <h4 className="text-lg font-bold text-white">{s.name}</h4>
-                                  <p className="text-sm text-zinc-500">{s.desc}</p>
+                                  <h4 className="text-lg font-black text-white uppercase tracking-tight leading-tight">{s.name}</h4>
+                                  <p className="text-xs text-zinc-500 mt-1 line-clamp-2">{s.desc}</p>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-6 w-full sm:w-auto justify-between sm:justify-end border-t sm:border-t-0 border-zinc-800 pt-4 sm:pt-0">
-                                <span className="text-xs font-bold text-zinc-400 uppercase flex items-center gap-1"><Clock size={14}/> {s.duration} min</span>
-                                <span className="text-xl font-black text-amber-500">{formatMoney(s.price)}</span>
+                              <div className="flex items-end justify-between border-t border-zinc-800/50 pt-4 mt-auto">
+                                <span className="text-xs font-black text-zinc-600 uppercase tracking-widest flex items-center gap-1"><Clock size={14}/> {s.time}</span>
+                                <span className="text-2xl font-black text-amber-500 tracking-tighter">{formatMoney(s.price)}</span>
                               </div>
                             </div>
                           ))}
@@ -278,56 +392,70 @@ export default function ClientDashboard() {
                       </motion.div>
                     )}
 
-                    {/* PASO 3: FECHA, HORA Y NOTAS */}
+                    {/* PASO 3: FECHA, HORA Y NOTAS (Control de Horas Ocupadas) */}
                     {step === 3 && (
                       <motion.div key="step3" variants={slideLeft} initial="hidden" animate="visible" exit="exit">
-                        <h3 className="text-2xl font-bold text-white mb-6">3. Fecha, Hora y Detalles</h3>
+                        <h3 className="text-3xl font-black text-white mb-8 font-serif italic">3. Fecha y Hora</h3>
                         
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
                           {/* Selector de Fecha */}
-                          <div className="bg-zinc-950 border border-zinc-800 p-6 rounded-2xl">
-                            <label className="block text-xs font-black text-zinc-400 uppercase tracking-widest mb-4">Día de la reserva</label>
+                          <div className="bg-zinc-950 border border-zinc-800 p-8 rounded-[2rem] shadow-inner">
+                            <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-4 pl-2">Selecciona el Día</label>
                             <input 
                               type="date" 
                               min={new Date().toISOString().split("T")[0]}
                               value={selectedDate}
-                              onChange={(e) => setSelectedDate(e.target.value)}
-                              className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-4 text-white focus:border-amber-500 outline-none"
+                              onChange={(e) => { setSelectedDate(e.target.value); setSelectedTime(""); }}
+                              className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl px-6 py-5 text-white focus:border-amber-500 outline-none font-bold cursor-pointer"
                             />
                             
-                            {/* Notas adicionales */}
-                            <label className="block text-xs font-black text-zinc-400 uppercase tracking-widest mt-6 mb-4 flex items-center gap-2">
-                              <MessageSquare size={14} /> Instrucciones para el barbero (Opcional)
+                            <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mt-8 mb-4 pl-2 flex items-center gap-2">
+                              <MessageSquare size={14} /> Instrucciones para el barbero
                             </label>
                             <textarea 
-                              placeholder="Ej: Llego 5 min tarde, quiero un degradado bajo..."
+                              placeholder="Ej: Llegaré 5 minutos tarde..."
                               value={clientNotes}
                               onChange={(e) => setClientNotes(e.target.value)}
-                              className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none resize-none h-24 text-sm"
+                              className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl px-6 py-4 text-white focus:border-amber-500 outline-none resize-none h-32 text-sm"
                             ></textarea>
                           </div>
 
-                          {/* Selector de Hora */}
+                          {/* Selector de Hora Dinámico */}
                           <div>
                             {selectedDate ? (
                               <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
-                                <label className="block text-xs font-black text-zinc-400 uppercase tracking-widest mb-4">Horas Disponibles</label>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                                  {TIME_SLOTS.map(time => (
-                                    <button
-                                      key={time}
-                                      onClick={() => { setSelectedTime(time); handleNextStep(); }}
-                                      className={`py-4 rounded-xl font-black text-sm transition-all border-2 ${selectedTime === time ? 'bg-amber-500 border-amber-500 text-black shadow-[0_0_15px_rgba(217,119,6,0.4)]' : 'bg-zinc-950 border-zinc-800 text-white hover:border-amber-500/50 hover:-translate-y-1'}`}
-                                    >
-                                      {time}
-                                    </button>
-                                  ))}
+                                <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-4 pl-2">Horas Disponibles</label>
+                                <div className="grid grid-cols-3 gap-4">
+                                  {TIME_SLOTS.map(time => {
+                                    // Verificamos si el barbero ya tiene esta hora ocupada
+                                    const isBooked = bookedSlots.includes(time.substring(0, 5));
+                                    
+                                    return (
+                                      <button
+                                        key={time}
+                                        disabled={isBooked}
+                                        onClick={() => { setSelectedTime(time); handleNextStep(); }}
+                                        className={`py-5 rounded-2xl font-black text-sm transition-all border-2 flex items-center justify-center ${
+                                          isBooked 
+                                            ? 'bg-zinc-900 border-zinc-800 text-zinc-600 cursor-not-allowed line-through' 
+                                            : selectedTime === time 
+                                              ? 'bg-amber-500 border-amber-500 text-black shadow-[0_10px_20px_rgba(217,119,6,0.4)] scale-105' 
+                                              : 'bg-zinc-950 border-zinc-800 text-white hover:border-amber-500/50 hover:-translate-y-1'
+                                        }`}
+                                      >
+                                        {time}
+                                      </button>
+                                    );
+                                  })}
                                 </div>
+                                {bookedSlots.length > 0 && (
+                                  <p className="text-zinc-500 text-xs mt-6 text-center italic">Las horas tachadas ya han sido reservadas por otros clientes.</p>
+                                )}
                               </motion.div>
                             ) : (
-                              <div className="h-full flex flex-col items-center justify-center text-zinc-600 border-2 border-dashed border-zinc-800 rounded-2xl p-8 text-center">
+                              <div className="h-full flex flex-col items-center justify-center text-zinc-600 border-2 border-dashed border-zinc-800 rounded-[2rem] p-10 text-center bg-zinc-950/30">
                                 <CalendarDays size={48} className="mb-4 opacity-20" />
-                                <p className="font-bold">Selecciona una fecha primero<br/>para ver las horas disponibles.</p>
+                                <p className="font-bold text-sm">Selecciona una fecha primero<br/>para ver la disponibilidad del barbero.</p>
                               </div>
                             )}
                           </div>
@@ -338,52 +466,52 @@ export default function ClientDashboard() {
                     {/* PASO 4: CONFIRMACIÓN */}
                     {step === 4 && selectedBarber && selectedService && (
                       <motion.div key="step4" variants={slideLeft} initial="hidden" animate="visible" exit="exit" className="max-w-2xl mx-auto">
-                        <h3 className="text-2xl font-bold text-white mb-6 text-center">4. Confirma tu Trono</h3>
+                        <h3 className="text-3xl font-black text-white mb-8 text-center font-serif italic">4. Confirma tu Trono</h3>
                         
-                        {/* Ticket Style Summary */}
-                        <div className="bg-zinc-950 border border-zinc-800 rounded-3xl p-8 relative overflow-hidden">
-                          <div className="absolute -left-4 top-1/2 -translate-y-1/2 w-8 h-8 bg-[#050505] rounded-full border-r border-zinc-800"></div>
-                          <div className="absolute -right-4 top-1/2 -translate-y-1/2 w-8 h-8 bg-[#050505] rounded-full border-l border-zinc-800"></div>
+                        <div className="bg-zinc-950 border border-zinc-800 rounded-[3rem] p-10 relative overflow-hidden shadow-2xl">
+                          {/* Recortes de Ticket Visual */}
+                          <div className="absolute -left-6 top-1/2 -translate-y-1/2 w-12 h-12 bg-[#050505] rounded-full border-r border-zinc-800"></div>
+                          <div className="absolute -right-6 top-1/2 -translate-y-1/2 w-12 h-12 bg-[#050505] rounded-full border-l border-zinc-800"></div>
                           
-                          <div className="border-b-2 border-dashed border-zinc-800 pb-6 mb-6">
-                            <h4 className="text-center font-serif font-black text-2xl text-white tracking-tighter uppercase mb-1">TICKET DE RESERVA</h4>
-                            <p className="text-center text-amber-500 text-xs font-bold uppercase tracking-widest">{CURRENT_USER.name}</p>
+                          <div className="border-b-2 border-dashed border-zinc-800 pb-8 mb-8 text-center">
+                            <h4 className="font-serif font-black text-3xl text-white tracking-tighter uppercase mb-2">TICKET DE RESERVA</h4>
+                            <p className="text-amber-500 text-xs font-black uppercase tracking-[0.3em]">{clientProfile?.name}</p>
                           </div>
 
                           <div className="space-y-6">
-                            <div className="flex justify-between items-center">
-                              <span className="text-zinc-400 font-bold uppercase text-xs tracking-widest">Servicio</span>
-                              <span className="text-white font-bold text-right">{selectedService.name}</span>
+                            <div className="flex justify-between items-center bg-zinc-900/50 p-4 rounded-xl">
+                              <span className="text-zinc-500 font-bold uppercase text-[10px] tracking-widest">Servicio</span>
+                              <span className="text-white font-black text-right uppercase">{selectedService.name}</span>
                             </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-zinc-400 font-bold uppercase text-xs tracking-widest">Barbero</span>
-                              <span className="text-white font-bold flex items-center gap-2"><Star size={14} className="text-amber-500"/> {selectedBarber.name}</span>
+                            <div className="flex justify-between items-center bg-zinc-900/50 p-4 rounded-xl">
+                              <span className="text-zinc-500 font-bold uppercase text-[10px] tracking-widest">Master Barber</span>
+                              <span className="text-white font-black flex items-center gap-2"><Star size={14} className="text-amber-500"/> {selectedBarber.name}</span>
                             </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-zinc-400 font-bold uppercase text-xs tracking-widest">Fecha y Hora</span>
-                              <span className="text-white font-bold text-right bg-zinc-900 px-3 py-1 rounded-md">{selectedDate} / {selectedTime}</span>
+                            <div className="flex justify-between items-center bg-zinc-900/50 p-4 rounded-xl">
+                              <span className="text-zinc-500 font-bold uppercase text-[10px] tracking-widest">Fecha y Hora</span>
+                              <span className="text-black font-black bg-amber-500 px-4 py-1.5 rounded-lg">{selectedDate} / {selectedTime}</span>
                             </div>
                             {clientNotes && (
-                              <div className="flex justify-between items-start">
-                                <span className="text-zinc-400 font-bold uppercase text-xs tracking-widest">Notas</span>
-                                <span className="text-zinc-300 text-sm text-right max-w-[200px] italic">"{clientNotes}"</span>
+                              <div className="flex justify-between items-start p-4">
+                                <span className="text-zinc-500 font-bold uppercase text-[10px] tracking-widest">Notas</span>
+                                <span className="text-zinc-400 text-sm text-right max-w-[200px] italic">"{clientNotes}"</span>
                               </div>
                             )}
                           </div>
 
-                          <div className="mt-8 pt-6 border-t border-zinc-800 flex justify-between items-end">
-                            <span className="text-zinc-400 font-bold uppercase text-xs tracking-widest">Total a pagar en local</span>
-                            <span className="text-4xl font-black text-amber-500 tracking-tighter">{formatMoney(selectedService.price)}</span>
+                          <div className="mt-10 pt-8 border-t border-zinc-800 flex justify-between items-end">
+                            <span className="text-zinc-500 font-black uppercase text-[10px] tracking-widest">A pagar en local</span>
+                            <span className="text-5xl font-black text-amber-500 tracking-tighter">{formatMoney(selectedService.price)}</span>
                           </div>
                         </div>
 
                         <button 
                           onClick={handleConfirmBooking}
                           disabled={isConfirming}
-                          className="w-full mt-8 py-5 bg-amber-500 hover:bg-amber-400 text-black font-black uppercase tracking-widest text-sm rounded-xl transition-all shadow-[0_0_30px_rgba(217,119,6,0.3)] flex justify-center items-center gap-3 disabled:opacity-70 disabled:hover:bg-amber-500"
+                          className="w-full mt-10 py-6 bg-amber-500 hover:bg-amber-400 text-black font-black uppercase tracking-[0.2em] text-sm rounded-2xl transition-all shadow-[0_15px_40px_rgba(217,119,6,0.4)] flex justify-center items-center gap-3 disabled:opacity-70 disabled:hover:bg-amber-500 active:scale-95"
                         >
-                          {isConfirming ? <Zap className="animate-pulse" size={20} /> : <CheckCircle2 size={20} />}
-                          {isConfirming ? "Procesando en sistema..." : "Confirmar Reserva"}
+                          {isConfirming ? <Loader2 className="animate-spin" size={24} /> : <CheckCircle2 size={24} />}
+                          {isConfirming ? "Registrando en Base de Datos..." : "Confirmar Reserva"}
                         </button>
                       </motion.div>
                     )}
@@ -396,88 +524,107 @@ export default function ClientDashboard() {
         )}
 
         {/* =================================================================== */}
-        {/* TAB 2: HISTORIAL Y PRÓXIMAS CITAS */}
+        {/* TAB 2: HISTORIAL Y PRÓXIMAS CITAS (Sincronizado) */}
         {/* =================================================================== */}
         {activeTab === "HISTORIAL" && (
-          <motion.div key="historial" variants={fadeUp} initial="hidden" animate="visible" exit="exit" className="space-y-10">
+          <motion.div key="historial" variants={fadeUp} initial="hidden" animate="visible" exit="exit" className="space-y-12">
             
             {/* Próximas Citas Activas */}
             <div>
-              <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2"><Clock className="text-amber-500" size={20}/> Tu Próximo Trono</h2>
-              {UPCOMING_CUTS.map(cut => (
-                <div key={cut.id} className="bg-gradient-to-r from-amber-500/20 to-zinc-950 border border-amber-500/50 rounded-2xl p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 blur-[40px] rounded-full pointer-events-none"></div>
-                  
-                  <div className="flex items-center gap-5 relative z-10">
-                    <div className="w-16 h-16 bg-amber-500 rounded-xl flex flex-col items-center justify-center text-black shadow-[0_0_15px_rgba(217,119,6,0.4)]">
-                      <span className="font-black text-xl leading-none">{cut.time.split(':')[0]}</span>
-                      <span className="text-xs font-bold leading-none">{cut.time.split(':')[1]}</span>
+              <h2 className="text-2xl font-black text-white mb-6 flex items-center gap-3 uppercase tracking-tight border-b border-zinc-800 pb-4"><Clock className="text-amber-500" size={24}/> Próximos Cortes</h2>
+              {upcomingCuts.length > 0 ? (
+                <div className="grid gap-6">
+                  {upcomingCuts.map(cut => (
+                    <div key={cut.id} className="bg-gradient-to-r from-amber-500/10 to-zinc-950 border border-amber-500/30 rounded-[2rem] p-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 relative overflow-hidden shadow-lg">
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 blur-[50px] rounded-full pointer-events-none"></div>
+                      
+                      <div className="flex items-center gap-6 relative z-10">
+                        <div className="w-20 h-20 bg-amber-500 rounded-2xl flex flex-col items-center justify-center text-black shadow-[0_0_20px_rgba(217,119,6,0.3)] shrink-0">
+                          <span className="font-black text-2xl leading-none">{cut.time.split(':')[0]}</span>
+                          <span className="text-sm font-bold leading-none">{cut.time.split(':')[1]}</span>
+                        </div>
+                        <div>
+                          <h4 className="text-2xl font-black text-white uppercase tracking-tight mb-1">{cut.service?.name}</h4>
+                          <p className="text-sm text-zinc-400 flex items-center gap-2 font-bold">
+                            <CalendarDays size={14}/> {cut.date} • <Star size={14} className="text-amber-500 ml-2"/> {cut.barber?.name}
+                          </p>
+                          <span className="inline-block mt-3 px-3 py-1 bg-amber-500/20 text-amber-500 border border-amber-500/50 rounded-lg text-[10px] font-black uppercase tracking-widest">
+                            {cut.status === 'CONFIRMED' ? 'Confirmado por Barbero' : 'Esperando Confirmación'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end w-full sm:w-auto relative z-10 mt-4 sm:mt-0">
+                        <button onClick={() => handleCancelAppointment(cut.id)} className="px-6 py-4 bg-zinc-950 border border-zinc-800 hover:border-red-500 hover:bg-red-500/10 text-zinc-400 hover:text-red-500 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all">
+                          Cancelar Cita
+                        </button>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="text-xl font-bold text-white">{cut.service}</h4>
-                      <p className="text-sm text-zinc-300 flex items-center gap-2 mt-1">
-                        <CalendarDays size={14}/> {cut.date} • <Star size={14} className="text-amber-500 ml-2"/> {cut.barber}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end w-full sm:w-auto relative z-10 mt-2 sm:mt-0">
-                    <button className="px-6 py-3 bg-zinc-900 border border-zinc-700 hover:border-red-500 hover:text-red-500 text-white text-xs font-bold uppercase tracking-widest rounded-xl transition-colors">
-                      Cancelar Hora
-                    </button>
-                  </div>
+                  ))}
                 </div>
-              ))}
+              ) : (
+                <div className="bg-zinc-900/30 border border-zinc-800 rounded-3xl p-10 text-center">
+                  <p className="text-zinc-500 font-medium">No tienes citas agendadas próximamente.</p>
+                </div>
+              )}
             </div>
 
             {/* Cortes Pasados */}
             <div>
-              <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2"><History className="text-zinc-500" size={20}/> Cortes Anteriores</h2>
-              <div className="grid gap-4">
-                {PAST_CUTS.map(cut => (
-                  <div key={cut.id} className="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:bg-zinc-900/80 transition-colors">
-                    <div className="flex items-center gap-5">
-                      <div className="w-14 h-14 bg-zinc-950 border border-zinc-800 rounded-xl flex items-center justify-center text-zinc-400">
-                        <Scissors size={20} />
+              <h2 className="text-2xl font-black text-white mb-6 flex items-center gap-3 uppercase tracking-tight border-b border-zinc-800 pb-4"><History className="text-zinc-500" size={24}/> Historial Completo</h2>
+              {pastCuts.length > 0 ? (
+                <div className="grid gap-4">
+                  {pastCuts.map(cut => (
+                    <div key={cut.id} className="bg-zinc-900/40 border border-zinc-800 rounded-[2rem] p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:bg-zinc-900/80 transition-colors">
+                      <div className="flex items-center gap-5">
+                        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center shrink-0 ${cut.status === 'COMPLETED' ? 'bg-zinc-950 border border-green-500/30 text-green-500' : 'bg-zinc-950 border border-red-500/30 text-red-500'}`}>
+                          {cut.status === 'COMPLETED' ? <CheckCircle2 size={24} /> : <XCircle size={24} />}
+                        </div>
+                        <div>
+                          <h4 className="text-lg font-bold text-white uppercase">{cut.service?.name}</h4>
+                          <p className="text-sm text-zinc-500 flex items-center gap-2 mt-1 font-medium">
+                            <CalendarDays size={14}/> {cut.date} • <Star size={14} className="text-zinc-600 ml-2"/> {cut.barber?.name}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="text-lg font-bold text-white">{cut.service}</h4>
-                        <p className="text-sm text-zinc-500 flex items-center gap-2 mt-1">
-                          <CalendarDays size={14}/> {cut.date} • <Star size={14} className="text-amber-500 ml-2"/> {cut.barber}
-                        </p>
+                      <div className="flex flex-col items-end w-full sm:w-auto border-t sm:border-t-0 border-zinc-800 pt-4 sm:pt-0 mt-2 sm:mt-0">
+                        <span className="text-xl font-black text-white tracking-tighter">{formatMoney(cut.service?.price)}</span>
+                        <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-md mt-2 ${cut.status === 'COMPLETED' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
+                          {cut.status === 'COMPLETED' ? 'Realizado' : 'Cancelado / Falta'}
+                        </span>
                       </div>
                     </div>
-                    <div className="flex flex-col items-end w-full sm:w-auto border-t sm:border-t-0 border-zinc-800 pt-4 sm:pt-0 mt-2 sm:mt-0">
-                      <span className="text-lg font-black text-amber-500">{formatMoney(cut.price)}</span>
-                      <span className="text-[10px] font-bold text-green-500 uppercase tracking-widest bg-green-500/10 px-2 py-1 rounded-md mt-1">Completado</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-zinc-500">Aún no tienes historial registrado.</p>
+              )}
             </div>
           </motion.div>
         )}
 
         {/* =================================================================== */}
-        {/* TAB 3: BENEFICIOS (Gamificación) */}
+        {/* TAB 3: BENEFICIOS (Gamificación Real) */}
         {/* =================================================================== */}
         {activeTab === "BENEFICIOS" && (
           <motion.div key="beneficios" variants={fadeUp} initial="hidden" animate="visible" exit="exit" className="space-y-8">
             
             {/* Tarjeta Nivel VIP */}
-            <div className="bg-gradient-to-br from-amber-500/20 to-zinc-950 border border-amber-500/30 rounded-[2.5rem] p-8 md:p-12 relative overflow-hidden">
-              <Crown className="absolute -bottom-10 -right-10 text-amber-500/10 w-64 h-64 pointer-events-none" />
-              <div className="relative z-10 flex flex-col md:flex-row items-center gap-8">
-                <div className="w-32 h-32 bg-amber-500 rounded-full flex flex-col items-center justify-center text-black shadow-[0_0_40px_rgba(217,119,6,0.4)]">
-                  <span className="text-4xl font-black">{CURRENT_USER.points}</span>
-                  <span className="text-[10px] font-bold uppercase tracking-widest mt-1">Puntos</span>
+            <div className="bg-gradient-to-br from-amber-500/20 to-zinc-950 border border-amber-500/30 rounded-[3rem] p-10 md:p-16 relative overflow-hidden shadow-2xl">
+              <Crown className="absolute -bottom-10 -right-10 text-amber-500/10 w-80 h-80 pointer-events-none" />
+              <div className="relative z-10 flex flex-col md:flex-row items-center gap-10">
+                <div className="w-36 h-36 bg-amber-500 rounded-[2.5rem] flex flex-col items-center justify-center text-black shadow-[0_0_50px_rgba(217,119,6,0.5)] shrink-0 rotate-3">
+                  <span className="text-5xl font-black">{clientProfile?.points}</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest mt-1">Puntos</span>
                 </div>
                 <div className="text-center md:text-left flex-1">
-                  <h3 className="text-3xl font-black text-white uppercase tracking-tighter mb-2">Nivel: Cliente {CURRENT_USER.tier}</h3>
-                  <p className="text-zinc-400 mb-6">Te faltan 150 puntos para alcanzar el nivel Platino y obtener beneficios supremos.</p>
+                  <h3 className="text-4xl font-black text-white uppercase tracking-tighter mb-3 font-serif italic">Nivel: {clientProfile?.tier}</h3>
+                  <p className="text-zinc-300 mb-8 font-medium text-lg">
+                    Sigue atendiéndote con nosotros para alcanzar el nivel Platino y obtener beneficios y productos gratis.
+                  </p>
                   
                   {/* Progress Bar */}
-                  <div className="w-full bg-zinc-950 rounded-full h-4 border border-zinc-800 overflow-hidden">
-                    <div className="bg-gradient-to-r from-amber-600 to-amber-400 h-full rounded-full relative" style={{width: '85%'}}>
+                  <div className="w-full bg-zinc-950/80 rounded-full h-6 border border-zinc-800 overflow-hidden p-1 shadow-inner">
+                    <div className="bg-gradient-to-r from-amber-600 to-amber-400 h-full rounded-full relative" style={{width: `${Math.min((clientProfile?.points || 0) / 10, 100)}%`}}>
                       <div className="absolute top-0 right-0 bottom-0 left-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.2)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.2)_50%,rgba(255,255,255,0.2)_75%,transparent_75%,transparent)] bg-[length:1rem_1rem] animate-[progress_1s_linear_infinite]"></div>
                     </div>
                   </div>
@@ -487,31 +634,31 @@ export default function ClientDashboard() {
 
             {/* Promociones Desbloqueables */}
             <div>
-              <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2"><Gift className="text-amber-500"/> Recompensas Disponibles</h3>
+              <h3 className="text-2xl font-black text-white mb-8 flex items-center gap-3 uppercase border-b border-zinc-800 pb-4"><Gift className="text-amber-500" size={24}/> Catálogo de Recompensas</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 
-                <div className="bg-zinc-900/40 border border-zinc-800 rounded-3xl p-6 flex items-start gap-4 hover:border-amber-500/50 transition-colors group">
-                  <div className="w-14 h-14 bg-green-500/10 text-green-500 rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
-                    <Zap size={24} />
+                <div className={`bg-zinc-900/40 border border-zinc-800 rounded-[2rem] p-8 flex items-start gap-6 transition-colors group ${clientProfile!.points >= 500 ? 'hover:border-green-500/50' : 'opacity-60'}`}>
+                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform ${clientProfile!.points >= 500 ? 'bg-green-500/10 text-green-500' : 'bg-zinc-950 text-zinc-600'}`}>
+                    <Zap size={28} />
                   </div>
                   <div>
-                    <h4 className="font-bold text-white mb-1">Corte Perfilado Gratis</h4>
-                    <p className="text-sm text-zinc-400 mb-4">Canjeable por 500 puntos salvajes.</p>
-                    <button className="px-5 py-2.5 bg-zinc-800 hover:bg-amber-500 hover:text-black text-white text-xs font-bold uppercase tracking-widest rounded-xl transition-colors">
+                    <h4 className="font-black text-xl text-white mb-2 uppercase">Corte Gratis</h4>
+                    <p className="text-sm text-zinc-400 mb-6 font-medium">Canjeable por 500 puntos de fidelidad.</p>
+                    <button disabled={clientProfile!.points < 500} className="px-6 py-3 bg-zinc-950 border border-zinc-800 hover:bg-green-500 hover:text-black hover:border-green-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                       Canjear Ahora
                     </button>
                   </div>
                 </div>
 
-                <div className="bg-zinc-900/40 border border-zinc-800 rounded-3xl p-6 flex items-start gap-4 opacity-60 relative overflow-hidden">
-                  <div className="w-14 h-14 bg-zinc-800 text-zinc-500 rounded-2xl flex items-center justify-center flex-shrink-0">
-                    <Lock size={24} />
+                <div className="bg-zinc-900/40 border border-zinc-800 rounded-[2rem] p-8 flex items-start gap-6 opacity-60 relative overflow-hidden">
+                  <div className="w-16 h-16 bg-zinc-950 border border-zinc-800 text-zinc-500 rounded-2xl flex items-center justify-center flex-shrink-0">
+                    <Lock size={28} />
                   </div>
                   <div>
-                    <h4 className="font-bold text-white mb-1">Servicio VIP a mitad de precio</h4>
-                    <p className="text-sm text-zinc-400 mb-2">Requiere Nivel Platino (1000 pts).</p>
-                    <div className="mt-3 flex items-center gap-2 text-xs font-bold text-zinc-500">
-                      <Lock size={12} /> Bloqueado
+                    <h4 className="font-black text-xl text-white mb-2 uppercase">Kit Cuidado Barba</h4>
+                    <p className="text-sm text-zinc-400 mb-4 font-medium">Requiere Nivel Oro (1000 pts).</p>
+                    <div className="mt-4 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-zinc-600 bg-zinc-950 inline-flex px-4 py-2 rounded-lg">
+                      <Lock size={14} /> Bloqueado
                     </div>
                   </div>
                 </div>
