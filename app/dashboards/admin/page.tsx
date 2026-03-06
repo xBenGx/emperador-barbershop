@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { createClient } from "@/utils/supabase/client";
 
-// IMPORTACIONES CORREGIDAS: 'Heart' en lugar de 'Hearth' ❤️
+// IMPORTACIONES CORREGIDAS: 'Heart' (Corazón) está correctamente escrito para evitar el error de compilación.
 import { 
   LayoutDashboard, Users, Scissors, Tag, 
   DollarSign, TrendingUp, UserPlus, Edit3, Trash2, 
@@ -487,6 +487,7 @@ function AdminDashboardContent() {
                       <td className="px-6 py-5 text-right"><button onClick={() => handleDelete('appointments', app.id)} className="p-2 text-zinc-500 hover:text-red-500 transition-colors"><Trash2 size={18}/></button></td>
                     </tr>
                   ))}
+                  {appointments.length === 0 && <tr><td colSpan={5} className="p-8 text-center text-zinc-500">No hay citas registradas en el sistema.</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -501,7 +502,7 @@ function AdminDashboardContent() {
                 <h2 className="text-2xl font-bold text-white mb-1">Gestión de Usuarios y Staff</h2>
                 <p className="text-sm text-zinc-500">Administra los perfiles y accesos privados de tu equipo.</p>
               </div>
-              <button onClick={() => openModal("BARBER", null)} className="flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-400 text-black font-black text-xs uppercase tracking-widest rounded-xl transition-all">
+              <button onClick={() => openModal("BARBER", null)} className="flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-400 text-black font-black text-xs uppercase tracking-widest rounded-xl transition-all shadow-[0_0_20px_rgba(217,119,6,0.3)]">
                 <UserPlus size={16} /> Crear Barbero
               </button>
             </div>
@@ -524,7 +525,7 @@ function AdminDashboardContent() {
                       </td>
                       <td className="px-6 py-5"><p className="text-white font-bold mb-1">{b.role}</p><span className="inline-block px-2 py-0.5 bg-amber-500/10 text-amber-500 text-[9px] uppercase font-black rounded">{b.tag}</span></td>
                       <td className="px-6 py-5"><span className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest ${b.status === 'ACTIVE' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>{b.status === 'ACTIVE' ? 'Visible' : 'Oculto'}</span></td>
-                      <td className="px-8 py-5 text-right"><div className="flex justify-end gap-2"><button onClick={() => openModal("BARBER", b)} className="p-2 text-zinc-500 hover:text-white transition-colors"><Edit3 size={18} /></button><button onClick={() => handleDelete('Barbers', b.id)} className="p-2 text-zinc-500 hover:text-red-500 transition-colors"><Trash2 size={18} /></button></div></td>
+                      <td className="px-8 py-5 text-right"><div className="flex justify-end gap-2"><button onClick={() => openModal("BARBER", b)} className="p-2 text-zinc-500 hover:text-white transition-colors" title="Editar Perfil"><Edit3 size={18} /></button><button onClick={() => handleDelete('Barbers', b.id)} className="p-2 text-zinc-500 hover:text-red-500 transition-colors" title="Borrar Barbero"><Trash2 size={18} /></button></div></td>
                     </tr>
                   ))}
                 </tbody>
