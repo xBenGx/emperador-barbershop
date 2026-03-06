@@ -33,7 +33,7 @@ export default function RegisterPage() {
     setIsLoading(true);
     setError(null);
 
-    // 1. Validaciones Locales
+    // Validaciones Locales
     if (password !== confirmPassword) {
       setError("Las contraseñas no coinciden.");
       setIsLoading(false);
@@ -47,7 +47,7 @@ export default function RegisterPage() {
     }
 
     try {
-      // 2. Registro en Supabase Auth pasando los Metadatos
+      // Registro en Supabase Auth pasando los Metadatos
       const { data, error: authError } = await supabase.auth.signUp({
         email,
         password,
@@ -65,7 +65,7 @@ export default function RegisterPage() {
           : authError.message);
       }
 
-      // 3. Éxito
+      // Éxito
       setIsSuccess(true);
       
       // Redirigir al portal del cliente
