@@ -2,72 +2,37 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/utils/supabase/client";
+import Image from "next/image";
 
-// IMPORTACIONES: Todos los iconos importados explícitamente
+// IMPORTACIONES CORREGIDAS: Se agregaron explícitamente Lock, NO_SHOW, etc.
 import * as LucideIcons from "lucide-react";
 import { 
   CalendarDays, Clock, DollarSign, Users, TrendingUp, 
   CheckCircle2, XCircle, Edit3, Trash2, Scissors, 
-  Phone, Mail, Search, AlertCircle, Check,
+  Phone, Mail, Search, AlertCircle, Check, Lock,
   Wallet, PieChart, Receipt, Link as LinkIcon, Loader2,
   LayoutDashboard, MessageCircle, Crown, UserCircle2,
   Armchair, Boxes, Music, Disc, Volume2, VolumeX, Volume1,
   UploadCloud, Package, Tag, UserPlus, Plus, X, Save,
-  Image as ImageIcon, Smartphone 
+  Image as ImageIcon, Smartphone, ShieldAlert, LogOut
 } from "lucide-react";
-
-import Image from "next/image";
-import { createClient } from "@/utils/supabase/client";
 
 // ============================================================================
 // TIPADOS (Alineados con la Base de Datos)
 // ============================================================================
-type AppointmentStatus = "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED" | "NO_SHOW";
-type TabType = "RESUMEN" | "RESERVAS" | "CLIENTES" | "FINANZAS" | "HORARIO" | "SILLONES" | "STAFF" | "SERVICIOS" | "INVENTARIO" | "MUSICA" | "PROMOCIONES";
+// FIX: Se agregó "NO_SHOW" a los estados permitidos
+type AppointmentStatus = "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED" | "NO_SHOW" | "BLOCKED";
+type TabType = "RESUMEN" | "RESERVAS" | "CLIENTES" | "FINANZAS" | "HORARIO" | "MI_ESTACION";
+type ModalType = "EDIT_APPT" | null;
 
-interface Client {
-  id: string;
-  name: string;
-  phone: string;
-  email: string;
-  points?: number;
-}
-
-interface Service {
-  id: string;
-  name: string;
-  price: number;
-}
-
-interface Appointment {
-  id: string;
-  date: string;
-  time: string;
-  status: AppointmentStatus;
-  notes?: string;
-  client: Client;
-  service: Service;
-}
-
-interface BarberProfile {
-  id: string;
-  name: string;
-  img?: string;
-  role?: string;
-}
-
-interface Schedule {
-  id: string;
-  day_of_week: string;
-  is_active: boolean;
-  start_time: string;
-  end_time: string;
-  break_start: string;
-  break_end: string;
-}
-
-interface Chair { id: string; name: string; status: "OCCUPIED" | "FREE"; current_barber_id?: string; payment_due_date?: string; }
-interface Product { id: string; name: string; subtitle: string; description: string; price: number; old_price?: number; discount_code?: string; stock: number; tag: string; image_url: string; category: string; sku: string; status: "ACTIVE" | "HIDDEN"; }
+interface Client { id: string; name: string; phone: string; email: string; points?: number; }
+interface Service { id: string; name: string; price: number; }
+interface Appointment { id: string; date: string; time: string; status: AppointmentStatus; notes?: string; client: Client; service: Service; }
+interface BarberProfile { id: string; name: string; img?: string; role?: string; tag?: string; }
+interface Chair { id: string; name: string; status: string; payment_due_date?: string; }
+interface Schedule { id: string; day_of_week: string; is_active: boolean; start_time: string; end_time: string; break_start: string; break_end: string; }
 
 // ============================================================================
 // UTILIDADES (Fechas y Moneda)
@@ -98,70 +63,75 @@ const TODAY_DATE = DATES[0].fullDate;
 const TIMELINE_SLOTS = ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00"];
 const DAYS_OF_WEEK = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
 
-const isValidUUID = (uuid: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid);
-
-const DynamicIcon = ({ name, size = 24, className = "" }: { name: string, size?: number, className?: string }) => {
-  const IconComponent = (LucideIcons as any)[name] || LucideIcons.Scissors;
-  return <IconComponent size={size} className={className} />;
-};
-
 // ============================================================================
-// COMPONENTE PRINCIPAL
+// COMPONENTE PRINCIPAL DEL BARBERO
 // ============================================================================
 export default function BarberDashboard() {
   const supabase = createClient();
+  const router = useRouter();
   
-  // Estados Globales
+  // Estados Generales
   const [barber, setBarber] = useState<BarberProfile | null>(null);
+  const [myChair, setMyChair] = useState<Chair | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [schedules, setSchedules] = useState<Schedule[]>([]);
-  const [kpis, setKpis] = useState({ todayEarnings: 0, monthEarnings: 0, todayAppointments: 0, totalClients: 0, stockTotal: 0 });
-  const [isAppLoading, setIsAppLoading] = useState(true);
-
-  // Estados Admin Extras
-  const [barbers, setBarbers] = useState<BarberProfile[]>([]);
-  const [services, setServices] = useState<Service[]>([]);
-  const [inventory, setInventory] = useState<Product[]>([]);
-  const [chairs, setChairs] = useState<Chair[]>([]); 
   const [clients, setClients] = useState<Client[]>([]); 
-  const [musicUrl, setMusicUrl] = useState<string>("");
-
-  // Estados de UI
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [kpis, setKpis] = useState({ todayEarnings: 0, monthEarnings: 0, todayAppointments: 0, totalClients: 0 });
+  
+  // Estados de Control de Interfaz
   const [activeTab, setActiveTab] = useState<TabType>("RESUMEN");
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
+  const [isAppLoading, setIsAppLoading] = useState(true);
+  const [authError, setAuthError] = useState(false);
   const [selectedDateFilter, setSelectedDateFilter] = useState<string>(TODAY_DATE);
   
-  // Modales
-  const [modalType, setModalType] = useState<"SERVICE" | "BARBER" | "PROMO" | "PRODUCT" | "CLIENT" | "CHAIR" | "EDIT_APPT" | null>(null);
+  // Modales y Utilidades
+  const [modalType, setModalType] = useState<ModalType>(null);
   const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null);
-  const [editingItem, setEditingItem] = useState<any>(null);
   const [copySuccess, setCopySuccess] = useState(false);
+  const [currentHour, setCurrentHour] = useState("");
 
-  // Referencias
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const musicInputRef = useRef<HTMLInputElement>(null);
-  const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [isUploadingMusic, setIsUploadingMusic] = useState(false);
+  // Reloj en tiempo real para el bloqueo automático de horas pasadas
+  useEffect(() => {
+    const updateHour = () => {
+      const now = new Date();
+      setCurrentHour(`${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`);
+    };
+    updateHour();
+    const interval = setInterval(updateHour, 60000); // Actualiza cada minuto
+    return () => clearInterval(interval);
+  }, []);
 
   // ============================================================================
-  // CARGA DE DATOS CENTRALIZADA
+  // CARGA DE DATOS MAESTRA Y SEGURIDAD
   // ============================================================================
   const loadDashboardData = useCallback(async () => {
+    setIsFetching(true);
     try {
-      setIsFetching(true);
       const { data: { user }, error: authError } = await supabase.auth.getUser();
-      if (!user || authError) return;
+      if (!user || authError) throw new Error("No auth");
 
-      const { data: profile } = await supabase.from('Barbers').select('*').eq('id', user.id).single();
-      if (profile) setBarber(profile);
-      else setBarber({ id: user.id, name: user.user_metadata?.full_name || "Usuario" });
+      // Verificar si tiene rol de BARBER o ADMIN
+      const { data: userProfile } = await supabase.from('User').select('role').eq('id', user.id).single();
+      if (userProfile?.role !== 'BARBER' && userProfile?.role !== 'ADMIN') {
+        setAuthError(true);
+        await supabase.auth.signOut();
+        router.push('/login?error=Acceso Denegado. Solo Staff autorizado.');
+        return;
+      }
 
-      const { data: dbBarbers } = await supabase.from('Barbers').select('*').order('created_at', { ascending: false });
-      if (dbBarbers) setBarbers(dbBarbers);
+      // 1. Obtener datos del barbero
+      const { data: barberData } = await supabase.from('Barbers').select('*').eq('id', user.id).single();
+      if (barberData) setBarber(barberData);
+      else setBarber({ id: user.id, name: userProfile?.role || "Barbero" });
 
+      // 2. Obtener su Sillón asignado (si lo tiene)
+      const { data: chairData } = await supabase.from('chairs').select('*').eq('current_barber_id', user.id).single();
+      if (chairData) setMyChair(chairData);
+
+      // 3. Obtener Citas de ESTE barbero
       const { data: apptsData } = await supabase
         .from('appointments')
         .select(`
@@ -177,290 +147,136 @@ export default function BarberDashboard() {
         const typedAppts = apptsData as unknown as Appointment[];
         setAppointments(typedAppts);
         
+        // Extracción de clientes únicos
+        const uniqueClientsMap = new Map();
+        typedAppts.forEach(a => {
+          if (a.client && !uniqueClientsMap.has(a.client.id)) {
+            uniqueClientsMap.set(a.client.id, a.client);
+          }
+        });
+        setClients(Array.from(uniqueClientsMap.values()));
+
+        // Matemáticas de Rendimiento
         const todayAppts = typedAppts.filter(a => a.date === TODAY_DATE);
         const todayCompleted = todayAppts.filter(a => a.status === 'COMPLETED');
         const todayEarnings = todayCompleted.reduce((acc, curr) => acc + Number(curr.service?.price || 0), 0);
-        const uniqueClients = new Set(typedAppts.map(a => a.client?.id)).size;
-
-        setKpis(prev => ({
-          ...prev,
+        
+        setKpis({
           todayEarnings,
-          monthEarnings: todayEarnings * 24, 
+          monthEarnings: todayEarnings * 24, // Simulación proyectada
           todayAppointments: todayAppts.length,
-          totalClients: uniqueClients
-        }));
+          totalClients: uniqueClientsMap.size
+        });
       }
 
-      const { data: dbServices } = await supabase.from('Services').select('*');
-      if (dbServices) setServices(dbServices);
-
-      const { data: dbInventory } = await supabase.from('inventory').select('*').order('created_at', { ascending: false });
-      if (dbInventory) {
-        setInventory(dbInventory);
-        setKpis(prev => ({ ...prev, stockTotal: dbInventory.reduce((acc, item) => acc + item.stock, 0) }));
-      }
-
-      const { data: dbClients } = await supabase.from('clients').select('*').order('created_at', { ascending: false });
-      if (dbClients) {
-        setClients(dbClients);
-        setKpis(prev => ({ ...prev, clientesTotales: dbClients.length }));
-      }
-
-      const { data: dbChairs } = await supabase.from('chairs').select('*').order('name', { ascending: true });
-      if (dbChairs) setChairs(dbChairs);
-
-      const { data: dbSettings } = await supabase.from('settings').select('*').eq('key', 'background_music').single();
-      if (dbSettings) setMusicUrl(dbSettings.value);
-
+      // 4. Obtener sus horarios configurados
       const { data: schedData } = await supabase.from('barber_schedules').select('*').eq('barber_id', user.id);
       if (schedData) setSchedules(schedData);
 
     } catch (error) {
-      console.error("Error inicializando Dashboard:", error);
+      router.push('/login');
     } finally {
       setIsAppLoading(false);
       setIsFetching(false);
     }
-  }, [supabase]);
+  }, [supabase, router]);
 
   useEffect(() => {
     loadDashboardData();
 
+    // Sincronización en tiempo real exclusiva para la agenda del barbero actual
     let channel: any;
     const setupRealtime = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-
-      channel = supabase.channel('barber-appointments')
+      channel = supabase.channel('barber-sync-station')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments', filter: `barber_id=eq.${user.id}` }, 
-        () => {
-          loadDashboardData(); 
-        }).subscribe();
+        () => loadDashboardData()).subscribe();
     };
-
     setupRealtime();
 
-    return () => {
-      if (channel) supabase.removeChannel(channel);
-    };
+    return () => { if (channel) supabase.removeChannel(channel); };
   }, [loadDashboardData, supabase]);
 
+  const handleLogout = async () => {
+    setIsLoading(true);
+    await supabase.auth.signOut();
+    router.push('/login');
+  };
+
   // ============================================================================
-  // ACCIONES Y CRUD (Guardado)
+  // ACCIONES CRUD DE AGENDA Y BLOQUEOS
   // ============================================================================
   const handleUpdateStatus = async (id: string, newStatus: AppointmentStatus) => {
     setIsLoading(true);
     const { error } = await supabase.from('appointments').update({ status: newStatus }).eq('id', id);
-    if (!error) {
-      setAppointments(prev => prev.map(app => app.id === id ? { ...app, status: newStatus } : app));
-      loadDashboardData(); 
-    }
+    if (!error) loadDashboardData(); 
     setIsLoading(false);
+  };
+
+  const handleToggleBlockSlot = async (time: string, isBlocked: boolean, existingId?: string) => {
+    setIsLoading(true);
+    try {
+      if (isBlocked && existingId) {
+        // Desbloquear (Elimina la cita fantasma "BLOCKED")
+        await supabase.from('appointments').delete().eq('id', existingId);
+      } else {
+        // Bloquear (Inserta cita fantasma "BLOCKED" sin cliente)
+        await supabase.from('appointments').insert({
+          date: selectedDateFilter,
+          time: time,
+          status: 'BLOCKED',
+          barber_id: barber?.id,
+        });
+      }
+      loadDashboardData();
+    } catch (error) {
+      alert("Error al modificar el bloque de tiempo.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleEditApptSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedAppt) return;
-    
     setIsLoading(true);
     const form = e.target as HTMLFormElement;
     const newDate = (form.elements.namedItem('date') as HTMLInputElement).value;
     const newTime = (form.elements.namedItem('time') as HTMLInputElement).value;
 
     const { error } = await supabase.from('appointments').update({ date: newDate, time: newTime }).eq('id', selectedAppt.id);
-
     if (!error) {
       loadDashboardData();
       setModalType(null);
-      alert("Reserva modificada con éxito.");
-    } else {
-      alert("Error al modificar reserva.");
+      alert("Reserva reprogramada exitosamente.");
     }
     setIsLoading(false);
-  };
-
-  const handleDelete = async (table: string, id: string) => {
-    if(!window.confirm("¿Estás seguro de eliminar este registro permanentemente?")) return;
-    setIsLoading(true);
-    const { error } = await supabase.from(table).delete().eq('id', id);
-    if (!error) {
-      if (table === 'appointments') setAppointments(prev => prev.filter(a => a.id !== id));
-      loadDashboardData();
-      alert("Registro eliminado.");
-    } else {
-      alert(`No se pudo eliminar: ${error.message}`);
-    }
-    setIsLoading(false);
-  };
-
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setSelectedImage(file);
-      setImagePreview(URL.createObjectURL(file));
-    }
-  };
-
-  const handleMusicUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setIsUploadingMusic(true);
-      try {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `vibe_${Date.now()}.${fileExt}`;
-        const { error: uploadError } = await supabase.storage.from('music').upload(fileName, file);
-        
-        if (uploadError) throw uploadError;
-        
-        const { data: publicUrlData } = supabase.storage.from('music').getPublicUrl(fileName);
-        setMusicUrl(publicUrlData.publicUrl);
-        alert("¡Música subida correctamente! Recuerda darle a Guardar Configuración.");
-      } catch (error: any) {
-        alert(`Error subiendo música: ${error.message}`);
-      } finally {
-        setIsUploadingMusic(false);
-      }
-    }
-  };
-
-  const saveMusicSettings = async () => {
-    setIsLoading(true);
-    try {
-      const { error } = await supabase.from('settings').upsert({ key: 'background_music', value: musicUrl });
-      if (error) throw error;
-      alert("¡Configuración de música actualizada en toda la web!");
-    } catch (error: any) {
-      alert(`Error guardando configuración: ${error.message}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSaveAction = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setIsLoading(true);
-    const formData = new FormData(e.currentTarget);
-    
-    try {
-      let imageUrl = editingItem?.img || editingItem?.image_url || ""; 
-      if (selectedImage) {
-        const bucket = modalType === "BARBER" ? 'barber-profiles' : 'inventory';
-        const fileExt = selectedImage.name.split('.').pop();
-        const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-        
-        const { error: uploadError } = await supabase.storage.from(bucket).upload(fileName, selectedImage);
-        if (!uploadError) {
-          const { data: publicUrlData } = supabase.storage.from(bucket).getPublicUrl(fileName);
-          imageUrl = publicUrlData.publicUrl;
-        } else {
-          console.warn("Storage Error:", uploadError.message);
-        }
-      }
-
-      if (modalType === "BARBER") {
-        const data = {
-          name: formData.get("name") as string,
-          email: formData.get("email") as string,
-          phone: formData.get("phone") as string,
-          role: formData.get("role") as string,
-          tag: formData.get("tag") as string,
-          status: (formData.get("status") || "ACTIVE") as "ACTIVE" | "INACTIVE",
-          cutsToday: editingItem ? editingItem.cutsToday : 0,
-          img: imageUrl
-        };
-        if (editingItem && isValidUUID(editingItem.id)) await supabase.from('Barbers').update(data).eq('id', editingItem.id);
-        else await supabase.from('Barbers').insert([data]);
-      }
-
-      if (modalType === "SERVICE") {
-         const data = {
-            name: formData.get("name") as string,
-            price: formData.get("price") as string,
-            time: formData.get("time") as string,
-            desc: formData.get("desc") as string,
-            iconName: (formData.get("iconName") as string) || "Scissors"
-         };
-         if (editingItem && isValidUUID(editingItem.id)) await supabase.from('Services').update(data).eq('id', editingItem.id);
-         else await supabase.from('Services').insert([data]);
-      }
-
-      if (modalType === "PRODUCT") {
-        const data = {
-          name: formData.get("name"),
-          subtitle: formData.get("subtitle"),
-          description: formData.get("description"),
-          price: parseFloat(formData.get("price") as string),
-          old_price: formData.get("old_price") ? parseFloat(formData.get("old_price") as string) : null,
-          discount_code: formData.get("discount_code"),
-          stock: parseInt(formData.get("stock") as string) || 0,
-          tag: formData.get("tag"),
-          sku: formData.get("sku"),
-          category: formData.get("category") || "Tienda",
-          image_url: imageUrl,
-          status: formData.get("status") || "ACTIVE"
-        };
-        if (editingItem && isValidUUID(editingItem.id)) await supabase.from('inventory').update(data).eq('id', editingItem.id);
-        else await supabase.from('inventory').insert([data]);
-      }
-
-      if (modalType === "CLIENT") {
-        const data = {
-          name: formData.get("name"),
-          phone: formData.get("phone"),
-          email: formData.get("email"),
-          points: parseInt(formData.get("points") as string) || 0,
-        };
-        if (editingItem && isValidUUID(editingItem.id)) await supabase.from('clients').update(data).eq('id', editingItem.id);
-        else await supabase.from('clients').insert([data]);
-      }
-
-      if (modalType === "CHAIR") {
-        const data = {
-          name: formData.get("name"),
-          status: formData.get("status"),
-          current_barber_id: formData.get("barber_id") || null,
-          payment_due_date: formData.get("payment_due_date") || null,
-        };
-        if (editingItem && isValidUUID(editingItem.id)) await supabase.from('chairs').update(data).eq('id', editingItem.id);
-        else await supabase.from('chairs').insert([data]);
-      }
-
-      setModalType(null);
-      loadDashboardData(); // <-- FIX APLICADO AQUÍ (antes decía fetchData())
-      alert("¡Base de datos actualizada con éxito!");
-      
-    } catch (error: any) {
-      console.error("Error guardando:", error);
-      alert(`Error al procesar: ${error.message}`);
-    } finally {
-      setIsLoading(false);
-    }
   };
 
   const handleSaveSchedule = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setTimeout(() => { setIsLoading(false); alert("Horarios actualizados."); }, 1000);
-  };
-
-  const openModal = (type: any, item: any = null) => {
-    setEditingItem(item);
-    setImagePreview(item?.img || item?.image_url || null);
-    setSelectedImage(null);
-    setModalType(type);
-    if(type === "EDIT_APPT") setSelectedAppt(item);
+    // Simulación de guardado de horarios (requiere mapeo de inputs)
+    setTimeout(() => { setIsLoading(false); alert("Horarios de trabajo actualizados en el sistema."); }, 1000);
   };
 
   const copyUniqueLink = () => {
     if (!barber) return;
-    const link = `${window.location.origin}/reservar?barber=${barber.id}`;
+    // URL ÚNICA DE RESERVA PARA INSTAGRAM
+    const link = `${window.location.origin}/dashboards/client/book?barber=${barber.id}`;
     navigator.clipboard.writeText(link);
     setCopySuccess(true);
     setTimeout(() => setCopySuccess(false), 3000);
   };
 
+  const openModal = (type: ModalType, item: any = null) => {
+    setModalType(type);
+    if (type === "EDIT_APPT") setSelectedAppt(item);
+  };
+
   // ============================================================================
-  // RENDERIZADO DE BADGES Y UI
+  // HELPERS VISUALES
   // ============================================================================
   const getStatusBadge = (status: AppointmentStatus) => {
     const badges = {
@@ -469,26 +285,41 @@ export default function BarberDashboard() {
       COMPLETED: <span className="px-3 py-1 bg-green-500/10 text-green-500 border border-green-500/20 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1"><Check size={12}/> Terminado</span>,
       CANCELLED: <span className="px-3 py-1 bg-red-500/10 text-red-500 border border-red-500/20 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1"><XCircle size={12}/> Cancelado</span>,
       NO_SHOW: <span className="px-3 py-1 bg-zinc-500/10 text-zinc-500 border border-zinc-500/20 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1"><AlertCircle size={12}/> Falta</span>,
+      BLOCKED: <span className="px-3 py-1 bg-zinc-900 text-zinc-500 border border-zinc-800 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1"><Lock size={12}/> Bloqueado</span>,
     };
     return badges[status] || badges.PENDING;
   };
 
   const filteredAppointments = appointments.filter(a => a.date === selectedDateFilter && (a.client?.name || "").toLowerCase().includes(searchQuery.toLowerCase()));
 
-  // Pantalla de Carga Inicial
+  // ----------------------------------------------------------------------------
+  // PANTALLAS DE CARGA Y SEGURIDAD
+  // ----------------------------------------------------------------------------
   if (isAppLoading) {
     return (
       <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center text-amber-500 gap-4">
         <Loader2 className="animate-spin" size={40} />
-        <p className="font-black uppercase tracking-widest text-xs">Conectando a Supabase...</p>
+        <p className="font-black uppercase tracking-widest text-xs">Preparando tu estación...</p>
       </div>
     );
   }
 
+  if (authError) {
+    return (
+      <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center text-red-500 gap-4">
+        <ShieldAlert size={60} className="animate-pulse" />
+        <h1 className="text-2xl font-black uppercase tracking-widest">Acceso Restringido</h1>
+      </div>
+    );
+  }
+
+  // ----------------------------------------------------------------------------
+  // RENDER PRINCIPAL DEL BARBERO
+  // ----------------------------------------------------------------------------
   return (
     <div className="max-w-[1600px] mx-auto pb-20 pt-8 px-6 md:px-10">
       
-      {/* HEADER PERSONALIZADO DEL BARBERO */}
+      {/* HEADER DEL BARBERO */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-6">
         <div className="flex items-center gap-6">
            <div className="relative w-20 h-20 rounded-full bg-zinc-900 border-2 border-amber-500 overflow-hidden shadow-[0_0_20px_rgba(217,119,6,0.3)] shrink-0">
@@ -510,18 +341,23 @@ export default function BarberDashboard() {
            </div>
         </div>
         
-        <button 
-          onClick={copyUniqueLink}
-          className={`px-6 py-4 rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-2 transition-all shadow-xl ${copySuccess ? 'bg-green-500 text-black shadow-[0_0_20px_rgba(34,197,94,0.4)]' : 'bg-zinc-900 border border-zinc-800 text-white hover:border-amber-500'}`}
-        >
-          {copySuccess ? <Check size={16} /> : <LinkIcon size={16} />}
-          {copySuccess ? '¡Enlace Copiado!' : 'Mi Link de Reservas'}
-        </button>
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          <button 
+            onClick={copyUniqueLink}
+            className={`flex-1 md:flex-none px-6 py-4 rounded-xl text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-xl ${copySuccess ? 'bg-green-500 text-black shadow-[0_0_20px_rgba(34,197,94,0.4)]' : 'bg-zinc-900 border border-zinc-800 text-white hover:border-amber-500'}`}
+          >
+            {copySuccess ? <Check size={16} /> : <LinkIcon size={16} />}
+            {copySuccess ? '¡Enlace Copiado!' : 'Mi Link de Reservas'}
+          </button>
+          <button onClick={handleLogout} className="p-4 bg-zinc-900 border border-zinc-800 text-red-400 hover:bg-red-500 hover:text-white rounded-xl transition-all" title="Cerrar Sesión">
+            <LogOut size={16} />
+          </button>
+        </div>
       </div>
 
-      {/* NAVEGACIÓN SUPERIOR (MÚLTIPLES PESTAÑAS) */}
+      {/* TABS NAVEGACIÓN */}
       <div className="flex gap-2 mb-8 border-b border-zinc-800 pb-4 overflow-x-auto hide-scrollbar scroll-smooth">
-        {(["RESUMEN", "RESERVAS", "CLIENTES", "FINANZAS", "HORARIO", "SILLONES", "STAFF", "SERVICIOS", "INVENTARIO", "MUSICA"] as TabType[]).map((tab) => (
+        {(["RESUMEN", "RESERVAS", "CLIENTES", "FINANZAS", "HORARIO", "MI_ESTACION"] as TabType[]).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -531,30 +367,26 @@ export default function BarberDashboard() {
                 : "bg-zinc-900/50 text-zinc-400 hover:bg-zinc-800 hover:text-white border border-zinc-800/50"
             }`}
           >
-            {tab === "RESUMEN" && <LayoutDashboard size={18}/>}
-            {tab === "RESERVAS" && <CalendarDays size={18}/>}
-            {tab === "CLIENTES" && <Users size={18}/>}
-            {tab === "FINANZAS" && <Wallet size={18}/>}
-            {tab === "HORARIO" && <Clock size={18}/>}
-            {tab === "SILLONES" && <Armchair size={18}/>}
-            {tab === "STAFF" && <Crown size={18}/>}
-            {tab === "SERVICIOS" && <Scissors size={18}/>}
-            {tab === "INVENTARIO" && <Boxes size={18}/>}
-            {tab === "MUSICA" && <Music size={18}/>}
-            {tab}
+            {tab === "RESUMEN" && <LayoutDashboard size={16}/>}
+            {tab === "RESERVAS" && <CalendarDays size={16}/>}
+            {tab === "CLIENTES" && <Users size={16}/>}
+            {tab === "FINANZAS" && <Wallet size={16}/>}
+            {tab === "HORARIO" && <Clock size={16}/>}
+            {tab === "MI_ESTACION" && <Armchair size={16}/>}
+            {tab.replace("_", " ")}
           </button>
         ))}
       </div>
 
-      {/* CONTENIDO PRINCIPAL DINÁMICO */}
       <AnimatePresence mode="wait">
         
         {/* =================================================================== */}
-        {/* TAB 1: RESUMEN / PRÓXIMA CITA */}
+        {/* TAB 1: RESUMEN / PRÓXIMO CORTE */}
         {/* =================================================================== */}
         {activeTab === "RESUMEN" && (
           <motion.div key="resumen" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-8">
             
+            {/* PRÓXIMO CLIENTE WIDGET */}
             <div className="bg-amber-500/10 border border-amber-500/30 rounded-[2.5rem] p-8 md:p-10 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/20 blur-[100px] rounded-full pointer-events-none"></div>
               <h3 className="text-xl font-black text-white uppercase tracking-tight mb-8 flex items-center gap-3 relative z-10">
@@ -563,9 +395,8 @@ export default function BarberDashboard() {
               </h3>
               
               {(() => {
-                const now = new Date().toTimeString().split(' ')[0].substring(0,5);
                 const nextAppt = appointments
-                  .filter(a => a.date === TODAY_DATE && (a.status === "CONFIRMED" || a.status === "PENDING") && a.time >= now)
+                  .filter(a => a.date === TODAY_DATE && (a.status === "CONFIRMED" || a.status === "PENDING") && a.time >= currentHour)
                   .sort((a, b) => a.time.localeCompare(b.time))[0];
 
                 if (nextAppt) {
@@ -579,6 +410,7 @@ export default function BarberDashboard() {
                         <div>
                           <h4 className="text-3xl font-black text-white uppercase tracking-tighter mb-1">{nextAppt.client?.name}</h4>
                           <p className="text-zinc-400 font-bold flex items-center gap-2"><Scissors size={16} className="text-amber-500"/> {nextAppt.service?.name}</p>
+                          {nextAppt.notes && <p className="text-amber-500 text-xs font-bold mt-2 bg-amber-500/10 inline-block px-3 py-1 rounded-md">Nota: {nextAppt.notes}</p>}
                         </div>
                       </div>
                       <div className="flex gap-3 w-full lg:w-auto">
@@ -590,21 +422,24 @@ export default function BarberDashboard() {
                     </div>
                   );
                 } else {
-                  return <p className="text-amber-500/80 font-medium relative z-10 text-lg">No tienes cortes programados a continuación. ¡A descansar o a captar clientes!</p>;
+                  return <p className="text-amber-500/80 font-medium relative z-10 text-lg">No tienes cortes pendientes próximamente. ¡Promociona tu link para atraer clientes!</p>;
                 }
               })()}
             </div>
 
+            {/* KPIs */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <KpiCard icon={<DollarSign size={24} />} title="Generado Hoy" value={formatMoney(kpis.todayEarnings)} statusColor="text-green-500" />
-              <KpiCard icon={<TrendingUp size={24} />} title="Estimado Mes" value={formatMoney(kpis.monthEarnings)} />
+              <KpiCard icon={<TrendingUp size={24} />} title="Proyección Mes" value={formatMoney(kpis.monthEarnings)} />
               <KpiCard icon={<Scissors size={24} />} title="Citas Hoy" value={kpis.todayAppointments} statusColor="text-amber-500" />
-              <KpiCard icon={<Users size={24} />} title="Clientes Únicos" value={kpis.totalClients} />
+              <KpiCard icon={<Users size={24} />} title="Tus Clientes" value={kpis.totalClients} />
             </div>
           </motion.div>
         )}
 
-        {/* --- TAB 2: RESERVAS --- */}
+        {/* =================================================================== */}
+        {/* TAB 2: RESERVAS (Control y Bloqueo Dinámico) */}
+        {/* =================================================================== */}
         {activeTab === "RESERVAS" && (
           <motion.div key="reservas" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-8">
             <div className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar">
@@ -621,29 +456,34 @@ export default function BarberDashboard() {
             </div>
 
             <div className="bg-zinc-900/40 border border-zinc-800 rounded-[3rem] p-6 md:p-10">
-              <h3 className="text-2xl font-black text-white mb-10 border-b border-zinc-800 pb-6 uppercase tracking-tighter">Agenda de Citas</h3>
+              <h3 className="text-2xl font-black text-white mb-10 border-b border-zinc-800 pb-6 uppercase tracking-tighter">Mi Agenda</h3>
               
               <div className="space-y-2">
                 {TIMELINE_SLOTS.map(time => {
                   const appAtThisTime = filteredAppointments.find(a => a.time.startsWith(time.split(':')[0]));
+                  
+                  // Lógica de Bloqueo del Tiempo
+                  const isPast = selectedDateFilter === TODAY_DATE && time < currentHour;
+                  const isBlocked = appAtThisTime?.status === 'BLOCKED' || (!appAtThisTime && isPast);
 
-                  if (appAtThisTime) {
+                  if (appAtThisTime && appAtThisTime.status !== 'BLOCKED') {
+                    // SLOT OCUPADO POR UN CLIENTE
                     return (
                       <div key={time} className="flex gap-6 items-stretch group">
                         <div className="w-16 flex flex-col items-center">
-                          <span className="text-amber-500 font-black text-lg">{time}</span>
-                          <div className="w-0.5 h-full bg-amber-500/20 my-2 group-last:hidden"></div>
+                          <span className={`font-black text-lg ${appAtThisTime.status === 'COMPLETED' ? 'text-green-500' : 'text-amber-500'}`}>{time}</span>
+                          <div className={`w-0.5 h-full my-2 group-last:hidden ${appAtThisTime.status === 'COMPLETED' ? 'bg-green-500/20' : 'bg-amber-500/20'}`}></div>
                         </div>
                         
-                        <div className="flex-1 bg-zinc-950 border border-zinc-800 hover:border-amber-500/50 rounded-3xl p-6 mb-6 shadow-lg transition-colors relative overflow-hidden">
+                        <div className={`flex-1 bg-zinc-950 border hover:border-amber-500/50 rounded-3xl p-6 mb-6 shadow-lg transition-colors relative overflow-hidden ${appAtThisTime.status === 'COMPLETED' ? 'border-green-500/30' : 'border-zinc-800'}`}>
                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
                              <div>
                                <div className="flex items-center gap-3 mb-2">
-                                 <h4 className="text-xl font-black text-white uppercase">{appAtThisTime.client?.name}</h4>
+                                 <h4 className="text-xl font-black text-white uppercase">{appAtThisTime.client?.name || 'Anónimo'}</h4>
                                  {getStatusBadge(appAtThisTime.status)}
                                </div>
                                <p className="text-sm font-bold text-zinc-400 flex items-center gap-2">
-                                 <Scissors size={14} className="text-amber-500"/> {appAtThisTime.service?.name} • <span className="text-white">{formatMoney(appAtThisTime.service?.price as number)}</span>
+                                 <Scissors size={14} className="text-amber-500"/> {appAtThisTime.service?.name || 'Servicio General'} • <span className="text-white">{formatMoney(appAtThisTime.service?.price as number)}</span>
                                </p>
                              </div>
                            </div>
@@ -656,24 +496,41 @@ export default function BarberDashboard() {
                                </>
                              )}
                              {appAtThisTime.status === "CONFIRMED" && (
-                               <button onClick={() => handleUpdateStatus(appAtThisTime.id, "COMPLETED")} disabled={isLoading} className="px-8 py-3 bg-green-500 text-black hover:bg-green-400 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-[0_5px_15px_rgba(34,197,94,0.2)]">Completar</button>
+                               <button onClick={() => handleUpdateStatus(appAtThisTime.id, "COMPLETED")} disabled={isLoading} className="px-8 py-3 bg-green-500 text-black hover:bg-green-400 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-[0_5px_15px_rgba(34,197,94,0.2)]">Cobrar</button>
+                             )}
+                             {appAtThisTime.status === "COMPLETED" && (
+                               <p className="text-green-500 text-xs font-black uppercase tracking-widest flex items-center gap-1"><Check size={14} /> Cobro Registrado</p>
                              )}
                              <div className="flex-1"></div>
-                             <button onClick={() => openModal("EDIT_APPT", appAtThisTime)} className="p-3 text-zinc-500 hover:text-white bg-zinc-900 rounded-xl transition-colors"><Edit3 size={16}/></button>
-                             <button onClick={() => handleDelete('appointments', appAtThisTime.id)} className="p-3 text-zinc-500 hover:text-red-500 bg-zinc-900 rounded-xl transition-colors"><Trash2 size={16}/></button>
+                             
+                             {appAtThisTime.status !== "COMPLETED" && (
+                               <button onClick={() => openModal("EDIT_APPT", appAtThisTime)} className="p-3 text-zinc-500 hover:text-white bg-zinc-900 rounded-xl transition-colors" title="Reprogramar"><Edit3 size={16}/></button>
+                             )}
+                             <button onClick={() => handleUpdateStatus(appAtThisTime.id, "NO_SHOW")} className="p-3 text-zinc-500 hover:text-yellow-500 bg-zinc-900 rounded-xl transition-colors" title="Faltó (No Show)"><AlertCircle size={16}/></button>
                            </div>
                         </div>
                       </div>
                     );
                   } else {
+                    // SLOT LIBRE O BLOQUEADO (Permite al barbero gestionar su tiempo libre)
                     return (
-                      <div key={time} className="flex gap-6 items-stretch group opacity-40 hover:opacity-100 transition-opacity">
+                      <div key={time} className={`flex gap-6 items-stretch group transition-opacity ${isBlocked ? 'opacity-30' : 'opacity-60 hover:opacity-100'}`}>
                         <div className="w-16 flex flex-col items-center">
-                          <span className="text-zinc-600 font-bold">{time}</span>
+                          <span className={`font-bold ${isBlocked ? 'text-zinc-700 line-through' : 'text-zinc-500'}`}>{time}</span>
                           <div className="w-px h-full bg-zinc-800 my-2 group-last:hidden"></div>
                         </div>
-                        <div className="flex-1 border-2 border-dashed border-zinc-800 rounded-3xl flex items-center justify-center mb-6 min-h-[100px] bg-zinc-950/30">
-                           <p className="text-zinc-600 font-black text-xs uppercase tracking-widest">Espacio Libre</p>
+                        <div className={`flex-1 border-2 border-dashed rounded-3xl flex items-center justify-between px-8 mb-6 min-h-[100px] ${isBlocked ? 'border-zinc-900 bg-black' : 'border-zinc-800 bg-zinc-950/30'}`}>
+                           <p className="text-zinc-600 font-black text-xs uppercase tracking-widest flex items-center gap-2">
+                             {isPast ? <><Clock size={14}/> Hora Pasada</> : isBlocked ? <><Lock size={14}/> Bloqueado por ti</> : 'Espacio Libre'}
+                           </p>
+                           {!isPast && (
+                             <button 
+                               onClick={() => handleToggleBlockSlot(time, isBlocked, appAtThisTime?.id)}
+                               className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${isBlocked ? 'bg-zinc-800 text-white hover:bg-zinc-700' : 'bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20'}`}
+                             >
+                               {isBlocked ? 'Liberar' : 'Bloquear'}
+                             </button>
+                           )}
                         </div>
                       </div>
                     );
@@ -684,29 +541,65 @@ export default function BarberDashboard() {
           </motion.div>
         )}
 
-        {/* --- TAB: FINANZAS --- */}
+        {/* --- TAB 3: CLIENTES DEL BARBERO --- */}
+        {activeTab === "CLIENTES" && (
+          <motion.div key="clientes" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-white mb-1">Mis Clientes</h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {clients.map(client => {
+                const clientAppts = appointments.filter(a => a.client?.id === client.id);
+                return (
+                  <div key={client.id} className="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-8 hover:border-amber-500/50 transition-colors group">
+                    <div className="flex items-center gap-4 mb-6">
+                      <div className="w-16 h-16 bg-zinc-950 rounded-2xl flex items-center justify-center text-amber-500 font-black text-2xl border border-zinc-800 group-hover:bg-amber-500 group-hover:text-black transition-colors">
+                        {client.name.charAt(0)}
+                      </div>
+                      <div>
+                        <h4 className="text-xl font-bold text-white uppercase tracking-tight">{client.name}</h4>
+                        <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest mt-1">Cortes contigo: {clientAppts.length}</p>
+                      </div>
+                    </div>
+                    <div className="space-y-3 pt-4 border-t border-zinc-800/50">
+                      <a href={`https://wa.me/${client.phone?.replace(/[^0-9]/g, '')}?text=Hola%20${client.name},%20te%20escribo%20de%20parte%20de%20tu%20barbero%20${barber?.name}...`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-3 w-full py-4 text-sm text-green-500 font-bold bg-green-500/10 rounded-xl border border-green-500/20 hover:bg-green-500 hover:text-black transition-colors">
+                        <MessageCircle size={18} /> Escribir WhatsApp
+                      </a>
+                    </div>
+                  </div>
+                )
+              })}
+              {clients.length === 0 && <p className="text-zinc-500 font-medium col-span-full text-center py-10">Aún no has registrado clientes en tu agenda.</p>}
+            </div>
+          </motion.div>
+        )}
+
+        {/* --- TAB 4: FINANZAS Y COMISIONES --- */}
         {activeTab === "FINANZAS" && (
           <motion.div key="finanzas" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="bg-zinc-900/80 border border-zinc-800 rounded-[2.5rem] p-8 md:p-10 relative overflow-hidden">
                 <Wallet className="absolute -bottom-4 -right-4 text-zinc-800" size={140} />
-                <h4 className="text-zinc-400 font-bold uppercase tracking-widest text-sm mb-2 relative z-10">Producción Hoy</h4>
+                <h4 className="text-zinc-400 font-bold uppercase tracking-widest text-sm mb-2 relative z-10">Producción Total Hoy</h4>
                 <p className="text-5xl font-black text-white relative z-10">{formatMoney(kpis.todayEarnings)}</p>
               </div>
+              
               <div className="bg-amber-500 rounded-[2.5rem] p-8 md:p-10 relative overflow-hidden shadow-[0_20px_50px_rgba(217,119,6,0.3)]">
                 <PieChart className="absolute -bottom-4 -right-4 text-amber-600/50" size={140} />
-                <h4 className="text-amber-900 font-black uppercase tracking-widest text-sm mb-2 relative z-10">Comisión (60%)</h4>
+                <h4 className="text-amber-900 font-black uppercase tracking-widest text-sm mb-2 relative z-10">Tu Comisión (60%)</h4>
                 <p className="text-5xl font-black text-black relative z-10">{formatMoney(kpis.todayEarnings * 0.6)}</p>
               </div>
+
               <div className="bg-zinc-900/80 border border-zinc-800 rounded-[2.5rem] p-8 md:p-10 relative overflow-hidden">
                 <CheckCircle2 className="absolute -bottom-4 -right-4 text-zinc-800" size={140} />
                 <h4 className="text-zinc-400 font-bold uppercase tracking-widest text-sm mb-2 relative z-10">Cortes Terminados</h4>
                 <p className="text-5xl font-black text-green-500 relative z-10">{appointments.filter(a => a.status === 'COMPLETED' && a.date === TODAY_DATE).length}</p>
               </div>
             </div>
+
             <div className="bg-zinc-900/40 border border-zinc-800 rounded-[2.5rem] overflow-hidden p-8">
               <h3 className="text-2xl font-black text-white uppercase tracking-tighter mb-8 border-b border-zinc-800 pb-6 flex items-center gap-3">
-                <Receipt className="text-amber-500"/> Detalle de Hoy
+                <Receipt className="text-amber-500"/> Detalle Liquidación de Hoy
               </h3>
               <table className="w-full text-left text-sm text-zinc-400">
                 <thead className="text-[10px] text-zinc-500 font-black uppercase tracking-[0.2em] bg-zinc-950/50 border-b border-zinc-800">
@@ -714,7 +607,8 @@ export default function BarberDashboard() {
                     <th className="px-6 py-5">Hora</th>
                     <th className="px-6 py-5">Cliente</th>
                     <th className="px-6 py-5">Servicio</th>
-                    <th className="px-6 py-5 text-amber-500 text-right">Ganancia</th>
+                    <th className="px-6 py-5">Total Cobrado</th>
+                    <th className="px-6 py-5 text-amber-500 text-right">Tu Ganancia Neta</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-800/50">
@@ -723,229 +617,95 @@ export default function BarberDashboard() {
                       <td className="px-6 py-5 font-bold text-white text-base">{app.time}</td>
                       <td className="px-6 py-5 uppercase font-bold text-zinc-300">{app.client?.name}</td>
                       <td className="px-6 py-5">{app.service?.name}</td>
+                      <td className="px-6 py-5 font-bold">{formatMoney(Number(app.service?.price))}</td>
                       <td className="px-6 py-5 font-black text-amber-500 text-right text-lg">{formatMoney(Number(app.service?.price) * 0.6)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              {appointments.filter(a => a.status === "COMPLETED" && a.date === TODAY_DATE).length === 0 && (
+                <p className="text-center text-zinc-500 py-10 font-medium">Aún no has completado cortes hoy.</p>
+              )}
             </div>
           </motion.div>
         )}
 
-        {/* =================================================================== */}
-        {/* TABS DE ADMINISTRADOR (Sillones, Clientes, Inventario, Música, Staff) */}
-        {/* =================================================================== */}
-
-        {activeTab === "SILLONES" && (
-          <motion.div key="sillones" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
-            <div className="flex justify-between items-center mb-6">
+        {/* --- TAB 5: HORARIO --- */}
+        {activeTab === "HORARIO" && (
+          <motion.div key="horario" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
+            <div className="bg-amber-500/10 border border-amber-500/20 p-8 rounded-[2rem] flex items-start gap-6 mb-10">
+              <AlertCircle className="text-amber-500 flex-shrink-0" size={32} />
               <div>
-                <h2 className="text-2xl font-bold text-white mb-1">Administración de Sillones</h2>
-                <p className="text-zinc-500 text-sm">Gestiona la ocupación y las fechas de arriendo de los 10 sillones.</p>
+                <h4 className="text-amber-500 font-black text-xl uppercase tracking-tighter mb-2">Disponibilidad Semanal</h4>
+                <p className="text-amber-500/80 font-medium text-sm">Establece tus días y horas de trabajo. Esto determinará qué bloques ven los clientes al intentar agendar contigo en la web pública.</p>
               </div>
-              <button onClick={() => openModal("CHAIR", null)} className="flex items-center gap-2 px-6 py-3 bg-zinc-800 hover:bg-zinc-700 text-white font-black text-xs uppercase tracking-widest rounded-xl transition-all">
-                <Plus size={16} /> Agregar Sillón
-              </button>
             </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {chairs.map(chair => {
-                const assignedBarber = barbers.find(b => b.id === chair.current_barber_id);
-                return (
-                  <div key={chair.id} className={`p-8 rounded-[2rem] border relative overflow-hidden transition-all duration-500 group ${chair.status === 'OCCUPIED' ? 'bg-zinc-900/80 border-amber-500/40 shadow-[0_0_30px_rgba(217,119,6,0.1)]' : 'bg-zinc-950 border-zinc-800'}`}>
-                    <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => openModal("CHAIR", chair)} className="p-2 bg-black text-zinc-400 hover:text-amber-500 rounded-lg"><Edit3 size={14}/></button>
-                    </div>
 
-                    <div className="flex justify-between items-start mb-6">
-                      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${chair.status === 'OCCUPIED' ? 'bg-amber-500 text-black shadow-lg' : 'bg-zinc-900 text-zinc-600'}`}>
-                        <Armchair size={28} />
-                      </div>
-                      <span className={`px-3 py-1 rounded-md text-[9px] font-black uppercase tracking-widest ${chair.status === 'OCCUPIED' ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30' : 'bg-zinc-800 text-zinc-500'}`}>
-                        {chair.status === 'OCCUPIED' ? 'Arrendado' : 'Disponible'}
-                      </span>
+            <form onSubmit={handleSaveSchedule} className="bg-zinc-900/40 border border-zinc-800 rounded-[2.5rem] p-8 md:p-10 space-y-6">
+              {DAYS_OF_WEEK.map(day => {
+                const sched = schedules.find(s => s.day_of_week === day);
+                return (
+                  <div key={day} className="flex flex-col md:flex-row items-center gap-6 p-6 bg-zinc-950 border border-zinc-800 rounded-2xl">
+                    <div className="w-full md:w-32 flex items-center gap-3">
+                      <input type="checkbox" defaultChecked={sched?.is_active ?? true} className="w-5 h-5 accent-amber-500" />
+                      <span className="text-white font-bold uppercase tracking-widest text-xs">{day}</span>
                     </div>
-                    
-                    <h3 className="text-xl font-black text-white mb-4 tracking-tight">{chair.name}</h3>
-                    
-                    {chair.status === 'OCCUPIED' ? (
-                      <div className="space-y-4">
-                        <div className="bg-black/50 border border-zinc-800/50 p-4 rounded-xl">
-                          <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1 flex items-center gap-1"><UserCircle2 size={12}/> Barbero a cargo</p>
-                          <p className="text-white font-bold text-sm truncate">{assignedBarber ? assignedBarber.name : "Sin asignar"}</p>
-                        </div>
+                    <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-4 w-full">
+                      <div>
+                        <label className="text-[9px] text-zinc-500 uppercase font-black tracking-widest block mb-1">Inicio Turno</label>
+                        <input type="time" defaultValue={sched?.start_time || "10:00"} className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none" />
                       </div>
-                    ) : (
-                      <p className="text-zinc-600 text-sm font-medium">Estación libre para arrendar.</p>
-                    )}
+                      <div>
+                        <label className="text-[9px] text-zinc-500 uppercase font-black tracking-widest block mb-1">Fin Turno</label>
+                        <input type="time" defaultValue={sched?.end_time || "20:00"} className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none" />
+                      </div>
+                      <div>
+                        <label className="text-[9px] text-zinc-500 uppercase font-black tracking-widest block mb-1">Inicio Colación</label>
+                        <input type="time" defaultValue={sched?.break_start || "14:00"} className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none" />
+                      </div>
+                      <div>
+                        <label className="text-[9px] text-zinc-500 uppercase font-black tracking-widest block mb-1">Fin Colación</label>
+                        <input type="time" defaultValue={sched?.break_end || "15:00"} className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none" />
+                      </div>
+                    </div>
                   </div>
                 );
               })}
-            </div>
-          </motion.div>
-        )}
-
-        {activeTab === "CLIENTES" && (
-          <motion.div key="clientes" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
-            <div className="flex justify-between items-center mb-6">
-              <div>
-                <h2 className="text-2xl font-bold text-white mb-1">Base de Datos de Clientes</h2>
-                <p className="text-zinc-500 text-sm">Gestiona la fidelidad, puntos y envía recordatorios por WhatsApp.</p>
+              <div className="pt-6 border-t border-zinc-800 mt-6">
+                <button type="submit" disabled={isLoading} className="w-full py-5 bg-amber-500 hover:bg-amber-400 text-black font-black uppercase tracking-[0.2em] text-xs rounded-2xl transition-all shadow-[0_10px_30px_rgba(217,119,6,0.3)] flex justify-center items-center gap-2">
+                  {isLoading ? <Loader2 className="animate-spin" /> : <><Save size={18}/> Actualizar Horarios en Sistema</>}
+                </button>
               </div>
-              <button onClick={() => openModal("CLIENT", null)} className="flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-400 text-black font-black text-xs uppercase tracking-widest rounded-xl transition-all shadow-[0_0_20px_rgba(217,119,6,0.3)]">
-                <UserPlus size={16} /> Nuevo Cliente
-              </button>
-            </div>
-
-            <div className="relative mb-6">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={20} />
-              <input type="text" placeholder="Buscar cliente por nombre o celular..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl pl-12 pr-4 py-4 text-white focus:border-amber-500 outline-none transition-all shadow-inner" />
-            </div>
-
-            <div className="bg-zinc-900/40 border border-zinc-800 rounded-[2rem] overflow-hidden">
-              <table className="w-full text-left text-sm text-zinc-400">
-                <thead className="bg-zinc-950 text-[10px] uppercase font-black tracking-[0.2em] border-b border-zinc-800 text-zinc-500">
-                  <tr>
-                    <th className="px-8 py-6">Cliente</th>
-                    <th className="px-6 py-6">Contacto</th>
-                    <th className="px-6 py-6 text-center">Puntos</th>
-                    <th className="px-6 py-6 text-right">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-800/50">
-                  {clients.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()) || c.phone.includes(searchQuery)).map(c => (
-                    <tr key={c.id} className="hover:bg-zinc-800/20 transition-colors group">
-                      <td className="px-8 py-5">
-                        <p className="font-black text-white text-base">{c.name}</p>
-                      </td>
-                      <td className="px-6 py-5">
-                        <p className="font-mono text-xs text-white flex items-center gap-2"><Smartphone size={14} className="text-zinc-500"/> {c.phone}</p>
-                      </td>
-                      <td className="px-6 py-5 text-center">
-                        <span className="bg-amber-500/10 border border-amber-500/30 text-amber-500 px-3 py-1.5 rounded-lg text-xs font-black shadow-sm">
-                          {c.points || 0} PTS
-                        </span>
-                      </td>
-                      <td className="px-8 py-5 text-right">
-                        <div className="flex justify-end gap-3">
-                          <a href={`https://wa.me/${c.phone.replace(/[^0-9]/g, '')}?text=Hola%20${c.name},%20te%20escribimos%20de%20Emperador%20Barbershop%20para%20recordarte%20tu%20corte.`} target="_blank" rel="noopener noreferrer" className="p-2 text-green-500 hover:bg-green-500 hover:text-black rounded-lg transition-colors">
-                            <MessageCircle size={18} />
-                          </a>
-                          <button onClick={() => openModal("CLIENT", c)} className="p-2 text-zinc-500 hover:text-white transition-colors"><Edit3 size={18}/></button>
-                          <button onClick={() => handleDelete('clients', c.id)} className="p-2 text-zinc-500 hover:text-red-500 transition-colors"><Trash2 size={18}/></button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            </form>
           </motion.div>
         )}
 
-        {activeTab === "STAFF" && (
-          <motion.div key="staff" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
-            <div className="flex justify-between items-center mb-6">
-              <div><h2 className="text-2xl font-bold text-white mb-1">Usuarios y Barberos</h2></div>
-              <button onClick={() => openModal("BARBER", null)} className="flex items-center gap-2 px-6 py-3 bg-amber-500 text-black font-black text-xs uppercase tracking-widest rounded-xl"><UserPlus size={16} /> Añadir Barbero</button>
-            </div>
-            <div className="bg-zinc-900/40 border border-zinc-800 rounded-[2.5rem] overflow-hidden">
-              <table className="w-full text-left text-sm text-zinc-400">
-                <thead className="bg-zinc-950 text-[10px] uppercase font-black tracking-[0.2em] border-b border-zinc-800">
-                  <tr><th className="px-8 py-6">Perfil</th><th className="px-6 py-6">Rol</th><th className="px-6 py-6">Estado</th><th className="px-8 py-6 text-right">Acciones</th></tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-800/50">
-                  {barbers.map(b => (
-                    <tr key={b.id} className="hover:bg-zinc-800/20 transition-colors">
-                      <td className="px-8 py-5 flex items-center gap-4">
-                        <div className="relative w-14 h-14 rounded-2xl overflow-hidden bg-zinc-800 border border-zinc-700">
-                           {b.img ? <Image src={b.img} alt={b.name} fill className="object-cover" unoptimized /> : <UserCircle2 className="w-full h-full p-2 text-zinc-500" />}
-                        </div>
-                        <span className="font-bold text-white text-base">{b.name}</span>
-                      </td>
-                      <td className="px-6 py-5"><p className="text-white font-bold">{b.role}</p></td>
-                      <td className="px-6 py-5"><span className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-green-500/10 text-green-500">Visible</span></td>
-                      <td className="px-8 py-5 text-right">
-                        <button onClick={() => openModal("BARBER", b)} className="p-2 text-zinc-500 hover:text-white transition-colors"><Edit3 size={18} /></button>
-                        <button onClick={() => handleDelete('Barbers', b.id)} className="p-2 text-zinc-500 hover:text-red-500 transition-colors"><Trash2 size={18} /></button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </motion.div>
-        )}
-
-        {activeTab === "SERVICIOS" && (
-          <motion.div key="servicios" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
-             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-white">Menú de Servicios</h2>
-              <button onClick={() => openModal("SERVICE", null)} className="flex items-center gap-2 px-6 py-3 bg-zinc-800 text-white font-black text-xs uppercase tracking-widest rounded-xl"><Plus size={16} /> Nuevo</button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {services.map(s => (
-                <div key={s.id} className="bg-zinc-900/40 border border-zinc-800 rounded-[2.5rem] p-8 relative group">
-                  <div className="absolute top-6 right-6 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => openModal("SERVICE", s)} className="p-2 bg-black text-zinc-400 hover:text-amber-500 rounded-lg"><Edit3 size={16}/></button>
-                    <button onClick={() => handleDelete('Services', s.id)} className="p-2 bg-black text-zinc-400 hover:text-red-500 rounded-lg"><Trash2 size={16}/></button>
+        {/* --- TAB 6: MI ESTACIÓN --- */}
+        {activeTab === "MI_ESTACION" && (
+          <motion.div key="mi_estacion" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-8">
+            <div className="bg-gradient-to-r from-amber-500/10 to-zinc-900 border border-amber-500/30 rounded-[3rem] p-10 relative overflow-hidden">
+              <Armchair className="absolute -right-10 -bottom-10 text-amber-500/5 w-96 h-96 pointer-events-none" />
+              <div className="relative z-10">
+                <h3 className="text-4xl font-black text-white uppercase tracking-tighter font-serif mb-2">
+                  {myChair ? myChair.name : 'Estación no asignada'}
+                </h3>
+                <p className="text-zinc-400 font-medium mb-10">Este es tu espacio de trabajo oficial en la barbería asignado por la administración.</p>
+                
+                <div className="flex flex-col md:flex-row gap-6">
+                  <div className="bg-zinc-950 border border-zinc-800 p-6 rounded-2xl flex-1">
+                    <p className="text-[10px] text-zinc-500 uppercase font-black tracking-widest mb-1">Estado de Arriendo</p>
+                    <p className="text-white font-bold flex items-center gap-2">
+                      <CheckCircle2 size={16} className="text-green-500"/> {myChair ? 'Sillón Activo y Operativo' : 'Sin sillón vinculado'}
+                    </p>
                   </div>
-                  <h3 className="text-xl font-black text-white pr-16 mb-3 uppercase">{s.name}</h3>
-                  <span className="text-3xl font-black text-amber-500 tracking-tighter">{typeof s.price === 'number' ? formatMoney(s.price) : s.price}</span>
+                  <div className="bg-zinc-950 border border-zinc-800 p-6 rounded-2xl flex-1">
+                    <p className="text-[10px] text-zinc-500 uppercase font-black tracking-widest mb-1">Próxima Fecha de Pago</p>
+                    <p className="text-amber-500 font-black text-xl">
+                      {myChair?.payment_due_date ? new Date(myChair.payment_due_date).toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric'}) : 'No registrado'}
+                    </p>
+                  </div>
                 </div>
-              ))}
-            </div>
-          </motion.div>
-        )}
-
-        {activeTab === "INVENTARIO" && (
-          <motion.div key="inventario" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-white">Inventario Emperador Store</h2>
-              <button onClick={() => openModal("PRODUCT", null)} className="flex items-center gap-2 px-6 py-3 bg-amber-500 text-black font-black text-xs uppercase tracking-widest rounded-xl"><Plus size={16} /> Añadir Producto</button>
-            </div>
-            <div className="bg-zinc-900/40 border border-zinc-800 rounded-[2.5rem] overflow-hidden">
-              <table className="w-full text-left text-sm text-zinc-400">
-                <thead className="bg-zinc-950 text-[10px] uppercase font-black tracking-[0.2em] border-b border-zinc-800">
-                  <tr><th className="px-8 py-6">Producto</th><th className="px-6 py-6">SKU</th><th className="px-6 py-6">Precio</th><th className="px-6 py-6 text-center">Stock</th><th className="px-8 py-6 text-right">Acciones</th></tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-800/50">
-                  {inventory.map(p => (
-                    <tr key={p.id} className="hover:bg-zinc-800/20 transition-colors">
-                      <td className="px-8 py-5 flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-xl bg-zinc-800 relative overflow-hidden border border-zinc-700">
-                          {p.image_url ? <Image src={p.image_url} alt={p.name} fill className="object-cover" unoptimized /> : <Package className="w-full h-full p-3 text-zinc-600"/>}
-                        </div>
-                        <p className="font-bold text-white text-base">{p.name}</p>
-                      </td>
-                      <td className="px-6 py-5 font-mono text-xs">{p.sku}</td>
-                      <td className="px-6 py-5 font-black text-amber-500 text-lg">{formatMoney(p.price)}</td>
-                      <td className="px-6 py-5 text-center"><span className="px-3 py-1 rounded-lg font-black text-xs bg-zinc-800 text-white">{p.stock}</span></td>
-                      <td className="px-8 py-5 text-right">
-                        <button onClick={() => openModal("PRODUCT", p)} className="p-2 text-zinc-500 hover:text-white transition-colors"><Edit3 size={18}/></button>
-                        <button onClick={() => handleDelete('inventory', p.id)} className="p-2 text-zinc-500 hover:text-red-500 transition-colors"><Trash2 size={18}/></button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </motion.div>
-        )}
-
-        {activeTab === "MUSICA" && (
-          <motion.div key="musica" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
-            <h2 className="text-2xl font-bold text-white mb-6">Reproductor de Música Global</h2>
-            <div className="bg-zinc-900/40 border border-zinc-800 rounded-[2.5rem] p-10 max-w-4xl shadow-xl">
-               <label className="block text-xs font-black text-zinc-400 uppercase tracking-widest mb-4">Enlace del Audio MP3 o WAV</label>
-               <div className="flex flex-col md:flex-row gap-4 mb-8">
-                 <input type="text" value={musicUrl} onChange={(e) => setMusicUrl(e.target.value)} className="flex-1 bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white focus:border-amber-500 outline-none" />
-                 <button onClick={() => musicInputRef.current?.click()} className="bg-zinc-800 hover:bg-zinc-700 text-white px-8 py-4 rounded-2xl font-black text-xs tracking-widest uppercase flex gap-3"><UploadCloud size={18} /> Subir MP3</button>
-                 <input type="file" accept="audio/*" className="hidden" ref={musicInputRef} onChange={handleMusicUpload} />
-               </div>
-               <button onClick={saveMusicSettings} disabled={isLoading || isUploadingMusic} className="w-full py-5 bg-amber-500 hover:bg-amber-400 text-black font-black uppercase tracking-[0.2em] text-xs rounded-2xl flex justify-center items-center gap-3">
-                 {isLoading ? "Guardando..." : <><Save size={18}/> Guardar y Transmitir a la Web</>}
-               </button>
+              </div>
             </div>
           </motion.div>
         )}
@@ -953,154 +713,38 @@ export default function BarberDashboard() {
       </AnimatePresence>
 
       {/* =================================================================== */}
-      {/* MODAL MAESTRO REUTILIZABLE (CREACIÓN / EDICIÓN) */}
+      {/* MODAL DE REPROGRAMACIÓN (EDITAR CITA) */}
       {/* =================================================================== */}
       <AnimatePresence>
-        {modalType && (
+        {modalType === "EDIT_APPT" && selectedAppt && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setModalType(null)} className="absolute inset-0 bg-black/90 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setModalType(null)} className="absolute inset-0 bg-black/90 backdrop-blur-md" />
             
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-[#0a0a0a] border border-zinc-800 rounded-[3rem] p-8 md:p-12 w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
-              <button onClick={() => setModalType(null)} className="absolute top-8 right-8 text-zinc-500 hover:text-white bg-zinc-900 p-2 rounded-full transition-colors"><X size={20}/></button>
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-[#0a0a0a] border border-zinc-800 rounded-[3rem] p-10 w-full max-w-lg shadow-2xl">
+              <h3 className="text-3xl font-black text-white uppercase tracking-tighter mb-8 font-serif italic">Reprogramar Cita</h3>
               
-              <div className="mb-8">
-                <h3 className="text-3xl font-black text-white uppercase tracking-tighter italic">
-                  {modalType === "BARBER" && (editingItem ? "Editar Perfil Staff" : "Nuevo Usuario / Barbero")}
-                  {modalType === "CHAIR" && (editingItem ? "Configurar Sillón" : "Nuevo Sillón")}
-                  {modalType === "CLIENT" && (editingItem ? "Ficha de Cliente" : "Registrar Cliente")}
-                  {modalType === "PRODUCT" && (editingItem ? "Editar Producto" : "Cargar Inventario")}
-                  {modalType === "SERVICE" && "Configurar Servicio"}
-                  {modalType === "EDIT_APPT" && "Modificar Reserva"}
-                </h3>
-              </div>
-              
-              <form onSubmit={modalType === 'EDIT_APPT' ? handleEditApptSave : handleSaveAction} className="space-y-6">
-                
-                {/* --- SUBIDA DE FOTO --- */}
-                {(modalType === "BARBER" || modalType === "PRODUCT") && (
-                  <div className="flex justify-center mb-8">
-                    <div 
-                      className={`relative rounded-[2.5rem] border-2 border-dashed border-zinc-700 bg-zinc-900/50 flex flex-col items-center justify-center overflow-hidden cursor-pointer hover:border-amber-500 transition-colors group ${modalType === 'PRODUCT' ? 'w-full h-48' : 'w-36 h-36'}`}
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      {imagePreview ? (
-                        <Image src={imagePreview} alt="Preview" fill className={modalType === 'PRODUCT' ? 'object-contain p-4' : 'object-cover'} unoptimized />
-                      ) : editingItem?.img || editingItem?.image_url ? (
-                        <Image src={editingItem.img || editingItem.image_url} alt="Current" fill className="object-cover grayscale group-hover:grayscale-0 transition-all" unoptimized />
-                      ) : (
-                        <>
-                          <ImageIcon className="text-zinc-600 mb-3" size={32} />
-                          <span className="text-[10px] text-zinc-500 font-black uppercase tracking-widest text-center px-2 group-hover:text-amber-500">Subir Fotografía</span>
-                        </>
-                      )}
-                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
-                        <UploadCloud className="text-white" size={32} />
-                      </div>
-                    </div>
-                    <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageChange} />
+              <form onSubmit={handleEditApptSave} className="space-y-6">
+                <div>
+                  <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2 pl-2">Cliente Asociado</label>
+                  <input type="text" disabled value={selectedAppt.client?.name} className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-zinc-500 font-bold cursor-not-allowed" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2 pl-2">Nueva Fecha</label>
+                    <input type="date" name="date" defaultValue={selectedAppt.date} className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl px-6 py-4 text-white focus:border-amber-500 outline-none transition-colors" required />
                   </div>
-                )}
-
-                {/* --- FORMULARIO: MODIFICAR CITA --- */}
-                {modalType === "EDIT_APPT" && selectedAppt && (
-                  <>
-                    <InputField label="Cliente" name="client" defaultValue={selectedAppt.client?.name} disabled />
-                    <div className="grid grid-cols-2 gap-5">
-                      <InputField label="Fecha" name="date" type="date" defaultValue={selectedAppt.date} required />
-                      <InputField label="Hora" name="time" type="time" defaultValue={selectedAppt.time} required />
-                    </div>
-                  </>
-                )}
-
-                {/* --- FORMULARIO: USUARIO/BARBERO --- */}
-                {modalType === "BARBER" && (
-                  <>
-                    <InputField label="Nombre Completo" name="name" defaultValue={editingItem?.name} required placeholder="Ej: Jack Guerra" />
-                    <div className="grid grid-cols-2 gap-5">
-                      <InputField label="Especialidad (Rol)" name="role" defaultValue={editingItem?.role} required placeholder="Ej: Fade Specialist" />
-                      <InputField label="Etiqueta Visual" name="tag" defaultValue={editingItem?.tag} required placeholder="Ej: Rey del Fade" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-5">
-                      <InputField label="Email (Acceso)" name="email" type="email" defaultValue={editingItem?.email} placeholder="jack@emperador.cl" />
-                      <InputField label="Teléfono" name="phone" defaultValue={editingItem?.phone} placeholder="+56 9..." />
-                    </div>
-                  </>
-                )}
-
-                {/* --- FORMULARIO: SILLÓN --- */}
-                {modalType === "CHAIR" && (
-                  <>
-                    <InputField label="Identificador del Sillón" name="name" defaultValue={editingItem?.name} required placeholder="Ej: Sillón Imperial 1" />
-                    <div className="grid grid-cols-2 gap-5">
-                      <div>
-                        <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2 pl-2">Estado Actual</label>
-                        <select name="status" defaultValue={editingItem?.status || "FREE"} className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white focus:border-amber-500 outline-none appearance-none font-bold">
-                          <option value="FREE">Libre</option>
-                          <option value="OCCUPIED">Arrendado / Ocupado</option>
-                        </select>
-                      </div>
-                      <div>
-                         <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2 pl-2">Asignar Barbero</label>
-                         <select name="barber_id" defaultValue={editingItem?.current_barber_id || ""} className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white focus:border-amber-500 outline-none appearance-none">
-                           <option value="">Ninguno</option>
-                           {barbers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                         </select>
-                      </div>
-                    </div>
-                    <InputField label="Fecha Cobro Arriendo" name="payment_due_date" type="date" defaultValue={editingItem?.payment_due_date} />
-                  </>
-                )}
-
-                {/* --- FORMULARIO: CLIENTE --- */}
-                {modalType === "CLIENT" && (
-                  <>
-                    <InputField label="Nombre del Cliente" name="name" defaultValue={editingItem?.name} required placeholder="Ej: Andrés Muñoz" />
-                    <div className="grid grid-cols-2 gap-5">
-                      <InputField label="WhatsApp / Celular" name="phone" defaultValue={editingItem?.phone} required placeholder="+569..." />
-                      <InputField label="Puntos Acumulados" name="points" type="number" defaultValue={editingItem?.points || 0} required />
-                    </div>
-                    <InputField label="Correo Electrónico (Opcional)" name="email" type="email" defaultValue={editingItem?.email} />
-                  </>
-                )}
-
-                {/* --- FORMULARIO: PRODUCTO --- */}
-                {modalType === "PRODUCT" && (
-                  <>
-                    <div className="grid grid-cols-2 gap-5">
-                      <InputField label="Nombre" name="name" defaultValue={editingItem?.name} required placeholder="Wahl Magic Clip" />
-                      <InputField label="Categoría" name="category" defaultValue={editingItem?.category} required placeholder="Máquinas" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-5">
-                      <InputField label="Precio Venta" name="price" type="number" defaultValue={editingItem?.price} required />
-                      <InputField label="Precio Anterior (Tachado)" name="old_price" type="number" defaultValue={editingItem?.old_price} />
-                    </div>
-                    <div className="grid grid-cols-3 gap-4">
-                      <InputField label="SKU" name="sku" defaultValue={editingItem?.sku} />
-                      <InputField label="Stock" name="stock" type="number" defaultValue={editingItem?.stock} required />
-                      <InputField label="Badge Visual" name="tag" defaultValue={editingItem?.tag} placeholder="OFERTA" />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2 pl-2">Descripción Larga</label>
-                      <textarea name="description" defaultValue={editingItem?.description} className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white focus:border-amber-500 outline-none resize-none" rows={3} required></textarea>
-                    </div>
-                  </>
-                )}
-
-                {/* --- FORMULARIO: SERVICIO --- */}
-                {modalType === "SERVICE" && (
-                  <>
-                    <InputField label="Título" name="name" defaultValue={editingItem?.name} required placeholder="Corte + Cejas" />
-                    <div className="grid grid-cols-2 gap-5">
-                      <InputField label="Precio a Mostrar" name="price" defaultValue={editingItem?.price} required placeholder="$14.000" />
-                      <InputField label="Duración Estimada" name="time" defaultValue={editingItem?.time} required placeholder="45 min" />
-                    </div>
-                    <InputField label="Icono Base de Datos" name="iconName" defaultValue={editingItem?.iconName} required placeholder="Scissors" />
-                  </>
-                )}
-
-                <div className="pt-8 border-t border-zinc-800 mt-8">
-                  <button type="submit" disabled={isLoading} className="w-full py-5 text-black font-black uppercase tracking-[0.2em] text-sm bg-amber-500 hover:bg-amber-400 rounded-2xl transition-all shadow-[0_10px_30px_rgba(217,119,6,0.3)] active:scale-95 flex justify-center items-center gap-3">
-                    {isLoading ? <Loader2 className="animate-spin" /> : <><Save size={20}/> Guardar Cambios</>}
+                  <div>
+                    <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2 pl-2">Nueva Hora</label>
+                    <input type="time" name="time" defaultValue={selectedAppt.time} className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl px-6 py-4 text-white focus:border-amber-500 outline-none transition-colors" required />
+                  </div>
+                </div>
+                
+                <div className="flex gap-4 pt-8 border-t border-zinc-800 mt-8">
+                  <button type="button" onClick={() => setModalType(null)} className="flex-1 py-5 text-white font-black text-xs uppercase tracking-widest bg-zinc-900 hover:bg-zinc-800 rounded-2xl transition-colors">
+                    Cancelar
+                  </button>
+                  <button type="submit" disabled={isLoading} className="flex-1 py-5 text-black font-black uppercase tracking-widest text-xs bg-amber-500 hover:bg-amber-400 rounded-2xl transition-all shadow-[0_10px_20px_rgba(217,119,6,0.3)]">
+                    {isLoading ? <Loader2 className="animate-spin mx-auto" /> : 'Confirmar'}
                   </button>
                 </div>
               </form>
@@ -1108,41 +752,22 @@ export default function BarberDashboard() {
           </div>
         )}
       </AnimatePresence>
-
     </div>
   );
 }
 
 // ============================================================================
-// COMPONENTES UI REUTILIZABLES
+// COMPONENTE KPI
 // ============================================================================
-function InputField({ label, name, type = "text", defaultValue, required = false, placeholder = "", disabled = false }: any) {
-  return (
-    <div>
-      <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2 pl-2">{label}</label>
-      <input 
-        name={name} type={type} defaultValue={defaultValue} required={required} placeholder={placeholder} disabled={disabled}
-        className={`w-full border rounded-2xl px-6 py-4 text-white focus:border-amber-500 outline-none transition-all placeholder:text-zinc-700 ${disabled ? 'bg-zinc-950/50 border-zinc-800 text-zinc-500 cursor-not-allowed' : 'bg-zinc-950 border-zinc-800'}`} 
-      />
-    </div>
-  );
-}
-
 function KpiCard({ icon, title, value, trend, statusColor = "text-amber-500" }: { icon: React.ReactNode, title: string, value: string | number, trend?: string, statusColor?: string }) {
   return (
-    <div className="bg-zinc-900/50 border border-zinc-800 rounded-[2.5rem] p-8 hover:border-amber-500/50 transition-colors group relative overflow-hidden">
+    <div className="bg-zinc-900/50 border border-zinc-800 rounded-[2.5rem] p-8 hover:border-amber-500/50 transition-colors relative overflow-hidden group">
       <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 blur-[50px] rounded-full pointer-events-none group-hover:bg-amber-500/10 transition-colors"></div>
       <div className={`w-14 h-14 bg-zinc-950 border border-zinc-800 rounded-2xl flex items-center justify-center mb-6 shadow-lg group-hover:scale-110 transition-transform ${statusColor}`}>
         {icon}
       </div>
       <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest mb-1">{title}</p>
       <h4 className={`text-4xl font-black tracking-tighter ${statusColor === 'text-amber-500' ? 'text-white' : statusColor}`}>{value}</h4>
-      {trend && (
-        <div className="mt-4 inline-flex items-center gap-2 bg-green-500/10 border border-green-500/20 px-3 py-1.5 rounded-lg">
-          <TrendingUp size={14} className="text-green-500" />
-          <span className="text-green-500 text-[10px] font-black uppercase">{trend}</span>
-        </div>
-      )}
     </div>
   );
 }

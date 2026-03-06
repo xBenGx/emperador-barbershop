@@ -1,28 +1,39 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { 
   CalendarDays, Clock, Scissors, Star, ChevronRight, 
   ArrowLeft, CheckCircle2, Crown, Zap, History, Gift,
-  MapPin, AlertCircle, Lock, Edit2, Settings, MessageSquare,
-  Loader2, UserCircle2, XCircle
+  AlertCircle, Lock, Settings, MessageSquare,
+  Loader2, UserCircle2, XCircle, LogOut
 } from "lucide-react";
 
 // ============================================================================
-// TIPADOS REALES
+// TIPADOS REALES Y UTILIDADES
 // ============================================================================
 type TabType = "AGENDAR" | "HISTORIAL" | "BENEFICIOS";
 type BookingStep = 1 | 2 | 3 | 4;
 
 interface ClientProfile { id: string; name: string; phone: string; email: string; points: number; tier?: string; }
-interface Barber { id: string; name: string; role: string; img: string; }
+interface Barber { id: string; name: string; role: string; img: string; tag: string; }
 interface Service { id: string; name: string; price: number; time: string; desc: string; }
 interface Appointment { id: string; date: string; time: string; status: string; barber: Barber; service: Service; }
 
 const TIME_SLOTS = ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00"];
+
+// Corrector de Zona Horaria (Para evitar bugs de UTC a medianoche)
+const getLocalTodayDate = () => {
+  const today = new Date();
+  today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
+  return today.toISOString().split('T')[0];
+};
+
+const TODAY_DATE = getLocalTodayDate();
+const formatMoney = (amount: number) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
 
 // ============================================================================
 // ANIMACIONES
@@ -39,21 +50,27 @@ const slideLeft = {
   exit: { opacity: 0, x: -50, transition: { duration: 0.2 } }
 };
 
-export default function ClientBookingDashboard() {
+// ============================================================================
+// COMPONENTE PRINCIPAL DEL CLIENTE (Contenido)
+// ============================================================================
+function ClientDashboardContent() {
   const supabase = createClient();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   
-  // Estados Globales de Base de Datos
+  // Estados Globales
   const [clientProfile, setClientProfile] = useState<ClientProfile | null>(null);
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [myAppointments, setMyAppointments] = useState<Appointment[]>([]);
-  const [bookedSlots, setBookedSlots] = useState<string[]>([]); // Horas ya ocupadas del barbero
+  const [bookedSlots, setBookedSlots] = useState<string[]>([]); 
   const [isAppLoading, setIsAppLoading] = useState(true);
+  const [showSettings, setShowSettings] = useState(false);
 
   // Estados de UI
   const [activeTab, setActiveTab] = useState<TabType>("AGENDAR");
   
-  // Estados del Wizard de Reserva
+  // Estados del Wizard
   const [step, setStep] = useState<BookingStep>(1);
   const [selectedBarber, setSelectedBarber] = useState<Barber | null>(null);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
@@ -64,21 +81,20 @@ export default function ClientBookingDashboard() {
   const [isSuccess, setIsSuccess] = useState(false);
 
   // ============================================================================
-  // INICIALIZACIÓN Y CARGA DE DATOS
+  // CARGA DE DATOS Y SEGURIDAD
   // ============================================================================
   const loadClientData = useCallback(async () => {
     try {
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       if (!user || authError) {
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
-      // 1. Buscar o Crear Ficha del Cliente
+      // 1. Perfil del Cliente
       let { data: profile } = await supabase.from('clients').select('*').eq('id', user.id).single();
       
       if (!profile) {
-        // Auto-registro si no existe la ficha en la BD
         const { data: newProfile } = await supabase.from('clients').insert({
           id: user.id,
           name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Cliente Emperador',
@@ -89,23 +105,34 @@ export default function ClientBookingDashboard() {
         profile = newProfile;
       }
 
-      // Calcular Nivel (Gamificación)
+      // Gamificación
       let tier = "Bronce";
       if (profile.points >= 500) tier = "Plata";
       if (profile.points >= 1000) tier = "Oro";
       if (profile.points >= 2000) tier = "Emperador";
-
       setClientProfile({ ...profile, tier });
 
-      // 2. Cargar Barberos Activos
+      // 2. Cargar Barberos
       const { data: dbBarbers } = await supabase.from('Barbers').select('*').eq('status', 'ACTIVE');
-      if (dbBarbers) setBarbers(dbBarbers);
+      if (dbBarbers) {
+        setBarbers(dbBarbers as Barber[]);
+        
+        // Auto-selección por Link de Instagram
+        const barberIdFromUrl = searchParams.get("barber");
+        if (barberIdFromUrl) {
+          const preSelected = dbBarbers.find(b => b.id === barberIdFromUrl);
+          if (preSelected) {
+            setSelectedBarber(preSelected as Barber);
+            setStep(2); 
+          }
+        }
+      }
 
       // 3. Cargar Servicios
-      const { data: dbServices } = await supabase.from('Services').select('*');
+      const { data: dbServices } = await supabase.from('Services').select('*').order('price', { ascending: true });
       if (dbServices) setServices(dbServices);
 
-      // 4. Cargar Historial de Citas del Cliente
+      // 4. Historial
       const { data: dbAppointments } = await supabase
         .from('appointments')
         .select(`
@@ -120,18 +147,18 @@ export default function ClientBookingDashboard() {
       if (dbAppointments) setMyAppointments(dbAppointments as unknown as Appointment[]);
 
     } catch (error) {
-      console.error("Error cargando datos del cliente:", error);
+      console.error("Error cargando datos:", error);
     } finally {
       setIsAppLoading(false);
     }
-  }, [supabase]);
+  }, [supabase, router, searchParams]);
 
   useEffect(() => {
     loadClientData();
   }, [loadClientData]);
 
   // ============================================================================
-  // VERIFICAR HORAS DISPONIBLES EN TIEMPO REAL
+  // LÓGICA DE HORAS DISPONIBLES
   // ============================================================================
   useEffect(() => {
     const fetchBookedSlots = async () => {
@@ -141,10 +168,10 @@ export default function ClientBookingDashboard() {
           .select('time')
           .eq('barber_id', selectedBarber.id)
           .eq('date', selectedDate)
-          .in('status', ['PENDING', 'CONFIRMED']); // Las horas canceladas vuelven a estar libres
+          .in('status', ['PENDING', 'CONFIRMED', 'BLOCKED']); 
           
         if (data) {
-          setBookedSlots(data.map(app => app.time.substring(0, 5))); // ej "10:00"
+          setBookedSlots(data.map(app => app.time.substring(0, 5)));
         }
       }
     };
@@ -154,8 +181,6 @@ export default function ClientBookingDashboard() {
   // ============================================================================
   // ACCIONES DEL WIZARD
   // ============================================================================
-  const formatMoney = (amount: number) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
-
   const handleNextStep = () => setStep((prev) => (prev < 4 ? prev + 1 : prev) as BookingStep);
   const handlePrevStep = () => setStep((prev) => (prev > 1 ? prev - 1 : prev) as BookingStep);
 
@@ -176,12 +201,10 @@ export default function ClientBookingDashboard() {
 
       if (error) throw error;
 
-      // Recargar historial para mostrar la nueva cita
-      await loadClientData();
+      await loadClientData(); 
       setIsSuccess(true);
     } catch (error: any) {
-      console.error("Error al agendar:", error);
-      alert("Hubo un error al procesar tu reserva. Intenta de nuevo.");
+      alert("Error al procesar reserva. Es posible que el horario ya no esté disponible.");
     } finally {
       setIsConfirming(false);
     }
@@ -198,7 +221,7 @@ export default function ClientBookingDashboard() {
   };
 
   const handleCancelAppointment = async (id: string) => {
-    if(!window.confirm("¿Seguro que deseas cancelar esta reserva?")) return;
+    if(!window.confirm("¿Seguro que deseas cancelar esta reserva? El barbero será notificado.")) return;
     try {
       const { error } = await supabase.from('appointments').update({ status: 'CANCELLED' }).eq('id', id);
       if (error) throw error;
@@ -209,16 +232,19 @@ export default function ClientBookingDashboard() {
     }
   };
 
-  // Separar citas en Próximas y Pasadas
-  const todayStr = new Date().toISOString().split('T')[0];
-  const upcomingCuts = myAppointments.filter(a => a.date >= todayStr && (a.status === 'PENDING' || a.status === 'CONFIRMED'));
-  const pastCuts = myAppointments.filter(a => a.date < todayStr || a.status === 'COMPLETED' || a.status === 'CANCELLED' || a.status === 'NO_SHOW');
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push('/login');
+  };
+
+  const upcomingCuts = myAppointments.filter(a => a.date >= TODAY_DATE && (a.status === 'PENDING' || a.status === 'CONFIRMED'));
+  const pastCuts = myAppointments.filter(a => a.date < TODAY_DATE || a.status === 'COMPLETED' || a.status === 'CANCELLED' || a.status === 'NO_SHOW');
 
   if (isAppLoading) {
     return (
       <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center text-amber-500 gap-4">
         <Loader2 className="animate-spin" size={40} />
-        <p className="font-black uppercase tracking-widest text-xs">Accediendo a tu cuenta...</p>
+        <p className="font-black uppercase tracking-widest text-xs">Accediendo a tu cuenta imperial...</p>
       </div>
     );
   }
@@ -226,17 +252,14 @@ export default function ClientBookingDashboard() {
   return (
     <div className="max-w-[1200px] mx-auto pb-20 pt-8 px-6">
       
-      {/* =================================================================== */}
-      {/* HEADER DEL CLIENTE (Personalizado y Real) */}
-      {/* =================================================================== */}
+      {/* HEADER DEL CLIENTE */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6 bg-zinc-900/40 p-8 rounded-[2.5rem] border border-zinc-800 relative overflow-hidden shadow-2xl">
         <div className="absolute -top-20 -right-20 w-64 h-64 bg-amber-500/10 blur-[80px] rounded-full pointer-events-none"></div>
         
         <div className="flex items-center gap-6 relative z-10 w-full md:w-auto">
-          <div className="relative group cursor-pointer shrink-0">
+          <div className="relative group shrink-0">
             <div className="w-20 h-20 bg-zinc-950 border-2 border-amber-500 rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(217,119,6,0.3)] overflow-hidden">
-              <span className="text-3xl font-black text-amber-500 group-hover:hidden">{clientProfile?.name?.charAt(0).toUpperCase()}</span>
-              <Settings size={24} className="text-amber-500 hidden group-hover:block transition-all" />
+              <span className="text-4xl font-black text-amber-500">{clientProfile?.name?.charAt(0).toUpperCase()}</span>
             </div>
           </div>
           <div className="flex-1">
@@ -249,7 +272,7 @@ export default function ClientBookingDashboard() {
           </div>
         </div>
 
-        {/* Tarjeta de Puntos VIP Real */}
+        {/* Tarjeta de Puntos VIP y Settings */}
         <div className="flex items-center gap-4 relative z-10 w-full md:w-auto">
           <div className="bg-zinc-950 border border-zinc-800 p-4 px-6 rounded-2xl flex items-center gap-4 flex-1 md:flex-none shadow-inner">
             <div className="w-12 h-12 bg-amber-500/10 text-amber-500 rounded-xl flex items-center justify-center">
@@ -262,12 +285,23 @@ export default function ClientBookingDashboard() {
               </p>
             </div>
           </div>
+          
+          <div className="relative">
+            <button onClick={() => setShowSettings(!showSettings)} className="p-4 bg-zinc-950 text-zinc-400 hover:text-amber-500 rounded-2xl border border-zinc-800 transition-colors h-full flex items-center justify-center shadow-lg" title="Ajustes de Perfil">
+              <Settings size={24} />
+            </button>
+            {showSettings && (
+              <div className="absolute right-0 top-full mt-2 w-48 bg-zinc-950 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden z-50">
+                <button onClick={handleLogout} className="w-full flex items-center gap-3 px-6 py-4 text-red-500 hover:bg-red-500/10 font-bold text-xs uppercase tracking-widest transition-colors text-left">
+                  <LogOut size={16} /> Cerrar Sesión
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* =================================================================== */}
       {/* TABS DE NAVEGACIÓN */}
-      {/* =================================================================== */}
       <div className="flex gap-3 mb-10 border-b border-zinc-800 pb-4 overflow-x-auto hide-scrollbar scroll-smooth">
         {(["AGENDAR", "HISTORIAL", "BENEFICIOS"] as TabType[]).map((tab) => (
           <button
@@ -290,7 +324,7 @@ export default function ClientBookingDashboard() {
       <AnimatePresence mode="wait">
         
         {/* =================================================================== */}
-        {/* TAB 1: AGENDAR CITA (WIZARD CONECTADO A BD) */}
+        {/* TAB 1: AGENDAR CITA (WIZARD) */}
         {/* =================================================================== */}
         {activeTab === "AGENDAR" && (
           <motion.div key="agendar" variants={fadeUp} initial="hidden" animate="visible" exit="exit" className="bg-zinc-900/30 border border-zinc-800 rounded-[3rem] p-8 md:p-12 relative overflow-hidden">
@@ -310,7 +344,6 @@ export default function ClientBookingDashboard() {
               </motion.div>
             ) : (
               <>
-                {/* Indicador de Pasos */}
                 <div className="flex items-center justify-between mb-12 relative max-w-3xl mx-auto">
                   <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-zinc-800 z-0 rounded-full"></div>
                   <div className="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-amber-500 z-0 rounded-full transition-all duration-500" style={{ width: `${((step - 1) / 3) * 100}%` }}></div>
@@ -322,18 +355,15 @@ export default function ClientBookingDashboard() {
                   ))}
                 </div>
 
-                {/* Botón Volver */}
                 {step > 1 && (
-                  <button onClick={handlePrevStep} className="flex items-center gap-2 text-zinc-500 hover:text-amber-500 transition-colors mb-8 text-xs font-black uppercase tracking-widest bg-zinc-950 px-4 py-2 rounded-xl border border-zinc-800">
+                  <button onClick={handlePrevStep} className="flex items-center gap-2 text-zinc-500 hover:text-amber-500 transition-colors mb-8 text-xs font-black uppercase tracking-widest bg-zinc-950 px-4 py-2 rounded-xl border border-zinc-800 w-max">
                     <ArrowLeft size={16} /> Volver
                   </button>
                 )}
 
-                {/* CONTENIDO DE LOS PASOS */}
                 <div className="min-h-[400px]">
                   <AnimatePresence mode="wait">
                     
-                    {/* PASO 1: SELECCIONAR BARBERO */}
                     {step === 1 && (
                       <motion.div key="step1" variants={slideLeft} initial="hidden" animate="visible" exit="exit">
                         <h3 className="text-3xl font-black text-white mb-8 font-serif italic">1. Elige a tu Maestro</h3>
@@ -353,7 +383,7 @@ export default function ClientBookingDashboard() {
                                 <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/40 to-transparent"></div>
                               </div>
                               <div className="absolute bottom-0 left-0 w-full p-6">
-                                <span className="px-3 py-1 bg-amber-500 text-black text-[9px] font-black uppercase tracking-widest rounded-md mb-2 inline-block">{b.role || 'Barbero'}</span>
+                                <span className="px-3 py-1 bg-amber-500 text-black text-[9px] font-black uppercase tracking-widest rounded-md mb-2 inline-block">{b.tag || b.role || 'Barbero'}</span>
                                 <h4 className="text-2xl font-black text-white">{b.name}</h4>
                               </div>
                             </div>
@@ -362,7 +392,6 @@ export default function ClientBookingDashboard() {
                       </motion.div>
                     )}
 
-                    {/* PASO 2: SELECCIONAR SERVICIO */}
                     {step === 2 && (
                       <motion.div key="step2" variants={slideLeft} initial="hidden" animate="visible" exit="exit">
                         <h3 className="text-3xl font-black text-white mb-8 font-serif italic">2. ¿Qué te haremos hoy?</h3>
@@ -392,18 +421,17 @@ export default function ClientBookingDashboard() {
                       </motion.div>
                     )}
 
-                    {/* PASO 3: FECHA, HORA Y NOTAS (Control de Horas Ocupadas) */}
                     {step === 3 && (
                       <motion.div key="step3" variants={slideLeft} initial="hidden" animate="visible" exit="exit">
-                        <h3 className="text-3xl font-black text-white mb-8 font-serif italic">3. Fecha y Hora</h3>
+                        <h3 className="text-3xl font-black text-white mb-8 font-serif italic">3. Fecha y Hora con {selectedBarber?.name.split(' ')[0]}</h3>
                         
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                          {/* Selector de Fecha */}
-                          <div className="bg-zinc-950 border border-zinc-800 p-8 rounded-[2rem] shadow-inner">
+                          {/* FECHA */}
+                          <div className="bg-zinc-950 border border-zinc-800 p-8 rounded-[2rem] shadow-inner h-max">
                             <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-4 pl-2">Selecciona el Día</label>
                             <input 
                               type="date" 
-                              min={new Date().toISOString().split("T")[0]}
+                              min={TODAY_DATE}
                               value={selectedDate}
                               onChange={(e) => { setSelectedDate(e.target.value); setSelectedTime(""); }}
                               className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl px-6 py-5 text-white focus:border-amber-500 outline-none font-bold cursor-pointer"
@@ -420,37 +448,39 @@ export default function ClientBookingDashboard() {
                             ></textarea>
                           </div>
 
-                          {/* Selector de Hora Dinámico */}
+                          {/* HORAS */}
                           <div>
                             {selectedDate ? (
                               <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
                                 <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-4 pl-2">Horas Disponibles</label>
                                 <div className="grid grid-cols-3 gap-4">
                                   {TIME_SLOTS.map(time => {
-                                    // Verificamos si el barbero ya tiene esta hora ocupada
-                                    const isBooked = bookedSlots.includes(time.substring(0, 5));
+                                    const now = new Date();
+                                    const currentHourStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+                                    // Comprobamos si la hora ya pasó EN EL DÍA DE HOY (Para Chile/Local)
+                                    const isPast = selectedDate === TODAY_DATE && time < currentHourStr;
+                                    const isBooked = bookedSlots.includes(time.substring(0, 5)) || isPast;
                                     
                                     return (
                                       <button
                                         key={time}
                                         disabled={isBooked}
                                         onClick={() => { setSelectedTime(time); handleNextStep(); }}
-                                        className={`py-5 rounded-2xl font-black text-sm transition-all border-2 flex items-center justify-center ${
+                                        className={`py-5 rounded-2xl font-black text-sm transition-all border-2 flex flex-col items-center justify-center gap-1 ${
                                           isBooked 
-                                            ? 'bg-zinc-900 border-zinc-800 text-zinc-600 cursor-not-allowed line-through' 
+                                            ? 'bg-zinc-900 border-zinc-800 text-zinc-600 cursor-not-allowed opacity-50' 
                                             : selectedTime === time 
                                               ? 'bg-amber-500 border-amber-500 text-black shadow-[0_10px_20px_rgba(217,119,6,0.4)] scale-105' 
                                               : 'bg-zinc-950 border-zinc-800 text-white hover:border-amber-500/50 hover:-translate-y-1'
                                         }`}
                                       >
-                                        {time}
+                                        <span className={isBooked ? 'line-through' : ''}>{time}</span>
+                                        {isBooked && <span className="text-[8px] uppercase tracking-widest text-zinc-500 font-bold">{isPast ? 'Pasado' : 'Ocupado'}</span>}
                                       </button>
                                     );
                                   })}
                                 </div>
-                                {bookedSlots.length > 0 && (
-                                  <p className="text-zinc-500 text-xs mt-6 text-center italic">Las horas tachadas ya han sido reservadas por otros clientes.</p>
-                                )}
+                                <p className="text-zinc-500 text-xs mt-6 text-center italic font-medium">El sistema bloquea automáticamente los horarios ya reservados u horas pasadas.</p>
                               </motion.div>
                             ) : (
                               <div className="h-full flex flex-col items-center justify-center text-zinc-600 border-2 border-dashed border-zinc-800 rounded-[2rem] p-10 text-center bg-zinc-950/30">
@@ -463,13 +493,11 @@ export default function ClientBookingDashboard() {
                       </motion.div>
                     )}
 
-                    {/* PASO 4: CONFIRMACIÓN */}
                     {step === 4 && selectedBarber && selectedService && (
                       <motion.div key="step4" variants={slideLeft} initial="hidden" animate="visible" exit="exit" className="max-w-2xl mx-auto">
                         <h3 className="text-3xl font-black text-white mb-8 text-center font-serif italic">4. Confirma tu Trono</h3>
                         
                         <div className="bg-zinc-950 border border-zinc-800 rounded-[3rem] p-10 relative overflow-hidden shadow-2xl">
-                          {/* Recortes de Ticket Visual */}
                           <div className="absolute -left-6 top-1/2 -translate-y-1/2 w-12 h-12 bg-[#050505] rounded-full border-r border-zinc-800"></div>
                           <div className="absolute -right-6 top-1/2 -translate-y-1/2 w-12 h-12 bg-[#050505] rounded-full border-l border-zinc-800"></div>
                           
@@ -524,12 +552,10 @@ export default function ClientBookingDashboard() {
         )}
 
         {/* =================================================================== */}
-        {/* TAB 2: HISTORIAL Y PRÓXIMAS CITAS (Sincronizado) */}
+        {/* TAB 2: HISTORIAL */}
         {/* =================================================================== */}
         {activeTab === "HISTORIAL" && (
           <motion.div key="historial" variants={fadeUp} initial="hidden" animate="visible" exit="exit" className="space-y-12">
-            
-            {/* Próximas Citas Activas */}
             <div>
               <h2 className="text-2xl font-black text-white mb-6 flex items-center gap-3 uppercase tracking-tight border-b border-zinc-800 pb-4"><Clock className="text-amber-500" size={24}/> Próximos Cortes</h2>
               {upcomingCuts.length > 0 ? (
@@ -537,7 +563,6 @@ export default function ClientBookingDashboard() {
                   {upcomingCuts.map(cut => (
                     <div key={cut.id} className="bg-gradient-to-r from-amber-500/10 to-zinc-950 border border-amber-500/30 rounded-[2rem] p-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 relative overflow-hidden shadow-lg">
                       <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 blur-[50px] rounded-full pointer-events-none"></div>
-                      
                       <div className="flex items-center gap-6 relative z-10">
                         <div className="w-20 h-20 bg-amber-500 rounded-2xl flex flex-col items-center justify-center text-black shadow-[0_0_20px_rgba(217,119,6,0.3)] shrink-0">
                           <span className="font-black text-2xl leading-none">{cut.time.split(':')[0]}</span>
@@ -562,13 +587,10 @@ export default function ClientBookingDashboard() {
                   ))}
                 </div>
               ) : (
-                <div className="bg-zinc-900/30 border border-zinc-800 rounded-3xl p-10 text-center">
-                  <p className="text-zinc-500 font-medium">No tienes citas agendadas próximamente.</p>
-                </div>
+                <div className="bg-zinc-900/30 border border-zinc-800 rounded-3xl p-10 text-center"><p className="text-zinc-500 font-medium">No tienes citas agendadas próximamente.</p></div>
               )}
             </div>
 
-            {/* Cortes Pasados */}
             <div>
               <h2 className="text-2xl font-black text-white mb-6 flex items-center gap-3 uppercase tracking-tight border-b border-zinc-800 pb-4"><History className="text-zinc-500" size={24}/> Historial Completo</h2>
               {pastCuts.length > 0 ? (
@@ -581,9 +603,7 @@ export default function ClientBookingDashboard() {
                         </div>
                         <div>
                           <h4 className="text-lg font-bold text-white uppercase">{cut.service?.name}</h4>
-                          <p className="text-sm text-zinc-500 flex items-center gap-2 mt-1 font-medium">
-                            <CalendarDays size={14}/> {cut.date} • <Star size={14} className="text-zinc-600 ml-2"/> {cut.barber?.name}
-                          </p>
+                          <p className="text-sm text-zinc-500 flex items-center gap-2 mt-1 font-medium"><CalendarDays size={14}/> {cut.date} • <Star size={14} className="text-zinc-600 ml-2"/> {cut.barber?.name}</p>
                         </div>
                       </div>
                       <div className="flex flex-col items-end w-full sm:w-auto border-t sm:border-t-0 border-zinc-800 pt-4 sm:pt-0 mt-2 sm:mt-0">
@@ -596,19 +616,17 @@ export default function ClientBookingDashboard() {
                   ))}
                 </div>
               ) : (
-                <p className="text-zinc-500">Aún no tienes historial registrado.</p>
+                <p className="text-zinc-500 font-medium">Aún no tienes historial registrado.</p>
               )}
             </div>
           </motion.div>
         )}
 
         {/* =================================================================== */}
-        {/* TAB 3: BENEFICIOS (Gamificación Real) */}
+        {/* TAB 3: BENEFICIOS */}
         {/* =================================================================== */}
         {activeTab === "BENEFICIOS" && (
           <motion.div key="beneficios" variants={fadeUp} initial="hidden" animate="visible" exit="exit" className="space-y-8">
-            
-            {/* Tarjeta Nivel VIP */}
             <div className="bg-gradient-to-br from-amber-500/20 to-zinc-950 border border-amber-500/30 rounded-[3rem] p-10 md:p-16 relative overflow-hidden shadow-2xl">
               <Crown className="absolute -bottom-10 -right-10 text-amber-500/10 w-80 h-80 pointer-events-none" />
               <div className="relative z-10 flex flex-col md:flex-row items-center gap-10">
@@ -618,11 +636,7 @@ export default function ClientBookingDashboard() {
                 </div>
                 <div className="text-center md:text-left flex-1">
                   <h3 className="text-4xl font-black text-white uppercase tracking-tighter mb-3 font-serif italic">Nivel: {clientProfile?.tier}</h3>
-                  <p className="text-zinc-300 mb-8 font-medium text-lg">
-                    Sigue atendiéndote con nosotros para alcanzar el nivel Platino y obtener beneficios y productos gratis.
-                  </p>
-                  
-                  {/* Progress Bar */}
+                  <p className="text-zinc-300 mb-8 font-medium text-lg">Sigue atendiéndote con nosotros para alcanzar el nivel Platino y obtener beneficios y productos gratis.</p>
                   <div className="w-full bg-zinc-950/80 rounded-full h-6 border border-zinc-800 overflow-hidden p-1 shadow-inner">
                     <div className="bg-gradient-to-r from-amber-600 to-amber-400 h-full rounded-full relative" style={{width: `${Math.min((clientProfile?.points || 0) / 10, 100)}%`}}>
                       <div className="absolute top-0 right-0 bottom-0 left-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.2)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.2)_50%,rgba(255,255,255,0.2)_75%,transparent_75%,transparent)] bg-[length:1rem_1rem] animate-[progress_1s_linear_infinite]"></div>
@@ -632,44 +646,45 @@ export default function ClientBookingDashboard() {
               </div>
             </div>
 
-            {/* Promociones Desbloqueables */}
             <div>
               <h3 className="text-2xl font-black text-white mb-8 flex items-center gap-3 uppercase border-b border-zinc-800 pb-4"><Gift className="text-amber-500" size={24}/> Catálogo de Recompensas</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                
                 <div className={`bg-zinc-900/40 border border-zinc-800 rounded-[2rem] p-8 flex items-start gap-6 transition-colors group ${clientProfile!.points >= 500 ? 'hover:border-green-500/50' : 'opacity-60'}`}>
-                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform ${clientProfile!.points >= 500 ? 'bg-green-500/10 text-green-500' : 'bg-zinc-950 text-zinc-600'}`}>
-                    <Zap size={28} />
-                  </div>
+                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform ${clientProfile!.points >= 500 ? 'bg-green-500/10 text-green-500' : 'bg-zinc-950 text-zinc-600'}`}><Zap size={28} /></div>
                   <div>
                     <h4 className="font-black text-xl text-white mb-2 uppercase">Corte Gratis</h4>
                     <p className="text-sm text-zinc-400 mb-6 font-medium">Canjeable por 500 puntos de fidelidad.</p>
-                    <button disabled={clientProfile!.points < 500} className="px-6 py-3 bg-zinc-950 border border-zinc-800 hover:bg-green-500 hover:text-black hover:border-green-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                      Canjear Ahora
-                    </button>
+                    <button disabled={clientProfile!.points < 500} className="px-6 py-3 bg-zinc-950 border border-zinc-800 hover:bg-green-500 hover:text-black hover:border-green-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Canjear Ahora</button>
                   </div>
                 </div>
-
                 <div className="bg-zinc-900/40 border border-zinc-800 rounded-[2rem] p-8 flex items-start gap-6 opacity-60 relative overflow-hidden">
-                  <div className="w-16 h-16 bg-zinc-950 border border-zinc-800 text-zinc-500 rounded-2xl flex items-center justify-center flex-shrink-0">
-                    <Lock size={28} />
-                  </div>
+                  <div className="w-16 h-16 bg-zinc-950 border border-zinc-800 text-zinc-500 rounded-2xl flex items-center justify-center flex-shrink-0"><Lock size={28} /></div>
                   <div>
                     <h4 className="font-black text-xl text-white mb-2 uppercase">Kit Cuidado Barba</h4>
                     <p className="text-sm text-zinc-400 mb-4 font-medium">Requiere Nivel Oro (1000 pts).</p>
-                    <div className="mt-4 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-zinc-600 bg-zinc-950 inline-flex px-4 py-2 rounded-lg">
-                      <Lock size={14} /> Bloqueado
-                    </div>
+                    <div className="mt-4 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-zinc-600 bg-zinc-950 inline-flex px-4 py-2 rounded-lg"><Lock size={14} /> Bloqueado</div>
                   </div>
                 </div>
-
               </div>
             </div>
-
           </motion.div>
         )}
 
       </AnimatePresence>
     </div>
+  );
+}
+
+// Exportación envuelta en Suspense (requerido al usar useSearchParams)
+export default function ClientDashboard() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center text-amber-500 gap-4">
+        <Loader2 className="animate-spin h-10 w-10 mb-4" />
+        <span className="text-[10px] font-black uppercase tracking-[0.5em]">Cargando Portal...</span>
+      </div>
+    }>
+      <ClientDashboardContent />
+    </Suspense>
   );
 }
