@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { createClient } from "@/utils/supabase/client";
 
-// IMPORTACIONES COMPLETAS Y CORREGIDAS
+// IMPORTACIONES CORREGIDAS: 'Heart' en lugar de 'Hearth' ❤️
 import { 
   LayoutDashboard, Users, Scissors, Tag, 
   DollarSign, TrendingUp, UserPlus, Edit3, Trash2, 
@@ -15,7 +15,7 @@ import {
   Package, Boxes, BadgePercent, BarChart3, ShoppingBag,
   Disc, Music, UploadCloud, Volume2, VolumeX, Volume1,
   MessageCircle, CalendarDays, KeyRound, Smartphone, ShieldAlert, XCircle,
-  LogOut, RefreshCw, Lock, Video, Hearth, Star, HelpCircle, Instagram
+  LogOut, RefreshCw, Lock, Video, Star, HelpCircle, Instagram, Heart
 } from "lucide-react";
 
 import * as LucideIcons from "lucide-react";
@@ -850,8 +850,8 @@ function AdminDashboardContent() {
                   <>
                     <InputField label="Nombre del Sillón" name="name" defaultValue={editingItem?.name || ""} required />
                     <div className="grid grid-cols-2 gap-5">
-                      <div className="space-y-2"><label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest pl-2">Estado</label><select name="status" defaultValue={editingItem?.status || "FREE"} className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white"><option value="FREE">Libre</option><option value="OCCUPIED">Arrendado</option></select></div>
-                      <div className="space-y-2"><label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest pl-2">Asignar A</label><select name="barber_id" defaultValue={editingItem?.current_barber_id || ""} className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white"><option value="">Ninguno</option>{barbers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
+                      <div className="space-y-2"><label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2 pl-2">Estado</label><select name="status" defaultValue={editingItem?.status || "FREE"} className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white"><option value="FREE">Libre</option><option value="OCCUPIED">Arrendado</option></select></div>
+                      <div className="space-y-2"><label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2 pl-2">Asignar A</label><select name="barber_id" defaultValue={editingItem?.current_barber_id || ""} className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white"><option value="">Ninguno</option>{barbers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
                     </div>
                     <InputField label="Fecha Pago" name="payment_due_date" type="date" defaultValue={editingItem?.payment_due_date || ""} />
                   </>
