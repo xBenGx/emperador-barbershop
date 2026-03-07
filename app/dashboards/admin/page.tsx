@@ -33,7 +33,7 @@ interface Client { id: string; name: string; phone: string; email?: string; visi
 interface Chair { id: string; name: string; status: "OCCUPIED" | "FREE"; current_barber_id?: string; payment_due_date?: string; }
 interface Product { id: string; name: string; subtitle: string; description: string; price: number; old_price?: number; discount_code?: string; stock: number; tag: string; image_url: string; category: string; sku: string; status: "ACTIVE" | "HIDDEN"; }
 
-// Sincronizado para aceptar formato plano (Booking Engine) y relacional
+// FIX: Sincronizado para aceptar formato plano (Booking Engine) y relacional
 interface Appointment { 
   id: string; 
   date: string; 
@@ -191,7 +191,7 @@ function AdminDashboardContent() {
     }
   }, [supabase, router]);
 
-  // Sincronización en tiempo real
+  // Sincronización en tiempo real OMNIPRESENTE
   useEffect(() => {
     verifyAdminAndFetchData();
     const channel = supabase.channel('admin-sync-master')
@@ -225,13 +225,13 @@ function AdminDashboardContent() {
 
   const handleTabClick = (tab: TabType) => {
     setActiveTab(tab);
-    setSearchQuery(""); // Limpia búsqueda al cambiar de pestaña
+    setSearchQuery(""); 
     router.push(`/dashboards/admin?tab=${tab}`, { scroll: false });
   };
 
   const handleResetSection = () => {
     setSearchQuery("");
-    verifyAdminAndFetchData(); // Fuerza actualización para resetear los datos de la vista
+    verifyAdminAndFetchData();
   };
 
   const handleCopyLink = (id: string, name: string) => {
@@ -435,21 +435,21 @@ function AdminDashboardContent() {
   };
 
   return (
-    // FIX LAYOUT: pt-[160px] md:pt-[200px] para que el contenido fluya debajo de la Navbar
-    <main className="min-h-screen bg-[#050505] pt-[160px] md:pt-[200px] pb-24 text-white relative">
+    // FIX: Reducimos el padding-top principal para que el "EMPERADOR SYSTEM" suba un poco y se alinee perfectamente.
+    <main className="min-h-screen bg-[#050505] pt-[110px] md:pt-[130px] pb-24 text-white relative">
       
       {/* ========================================================================================= */}
-      {/* FIX MÁGICO: Estilos inyectados que obligan al Sidebar (en el layout) a bajar y no taparse */}
+      {/* FIX MÁGICO Y PERFECTO PARA ALINEAR LA BARRA LATERAL (SIDEBAR) SIN TOCAR EL LAYOUT GLOBAL */}
       {/* ========================================================================================= */}
       <style dangerouslySetInnerHTML={{__html: `
-        /* Selecciona el elemento lateral (aside, sidebar) que viene del layout y lo empuja hacia abajo */
+        /* Empuja el sidebar hacia abajo la misma cantidad exacta que el contenido principal */
         aside, [class*="sidebar" i], [class*="SideBar" i] {
-          padding-top: 140px !important;
+          padding-top: 110px !important;
           z-index: 50 !important;
         }
         @media (min-width: 768px) {
           aside, [class*="sidebar" i], [class*="SideBar" i] {
-            padding-top: 180px !important;
+            padding-top: 130px !important;
           }
         }
       `}} />
@@ -461,7 +461,7 @@ function AdminDashboardContent() {
       <div className="max-w-[1600px] mx-auto px-6 lg:px-12 relative z-10">
         
         {/* HEADER DINÁMICO */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-4 bg-zinc-900/50 p-6 rounded-[2rem] border border-zinc-800/50 backdrop-blur-sm">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-4 bg-zinc-900/50 p-6 rounded-[2rem] border border-zinc-800/50 backdrop-blur-sm shadow-2xl">
           <div>
             <h1 className="text-4xl md:text-5xl font-black text-white tracking-tighter uppercase font-serif flex items-center gap-4">
               <Crown className="text-amber-500 w-10 h-10 md:w-12 md:h-12" />
@@ -473,13 +473,13 @@ function AdminDashboardContent() {
           <div className="flex items-center gap-3">
             {isFetching && <span className="text-amber-500 text-xs font-black uppercase tracking-widest animate-pulse px-4 hidden md:flex"><Clock size={16} className="mr-2"/> Sync...</span>}
             
-            {/* Botón Actualizar Funcional */}
+            {/* Botón Actualizar */}
             <button onClick={verifyAdminAndFetchData} className="flex items-center gap-2 px-5 py-3 bg-zinc-950 border border-zinc-800 text-zinc-300 hover:text-amber-500 hover:border-amber-500 rounded-xl transition-all shadow-inner font-bold text-xs uppercase tracking-widest" title="Actualizar Base de Datos">
               <RefreshCw size={16} className={isFetching ? "animate-spin" : ""} /> <span className="hidden md:block">Sincronizar</span>
             </button>
             
-            {/* Botón Cerrar Sesión Funcional */}
-            <button onClick={handleLogout} className="flex items-center gap-2 px-5 py-3 bg-red-500/10 border border-red-500/20 text-red-500 hover:bg-red-500 hover:text-black rounded-xl font-bold text-xs uppercase tracking-widest transition-all">
+            {/* Botón Cerrar Sesión */}
+            <button onClick={handleLogout} className="flex items-center gap-2 px-5 py-3 bg-red-500/10 border border-red-500/20 text-red-500 hover:bg-red-500 hover:text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all">
               <LogOut size={16} /> <span className="hidden md:block">Salir</span>
             </button>
           </div>
