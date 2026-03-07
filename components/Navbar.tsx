@@ -74,7 +74,8 @@ export default function Navbar() {
             : "bg-gradient-to-b from-black/95 via-black/50 to-transparent border-transparent py-6 md:py-8"
         }`}
       >
-        <div className="max-w-[1400px] mx-auto px-6 lg:px-8 xl:px-12 relative">
+        {/* FIX: Se cambia max-w-[1400px] por w-full y max-w-[1920px] para que abarque casi toda la pantalla en monitores grandes */}
+        <div className="w-full max-w-[1920px] mx-auto px-4 lg:px-8 xl:px-12 relative">
           <div className="flex items-center justify-between relative z-10">
             
             {/* ========================================== */}
@@ -112,18 +113,17 @@ export default function Navbar() {
             {/* ========================================== */}
             {/* ENLACES DE NAVEGACIÓN - DESKTOP */}
             {/* ========================================== */}
-            {/* FIX: Se usa flex-1 y flex-wrap: nowrap, combinado con whitespace-nowrap en los links */}
-            <div className="hidden lg:flex items-center justify-center gap-5 xl:gap-8 flex-1 ml-8 xl:ml-12 overflow-hidden">
+            {/* FIX: Se eliminó 'overflow-hidden'. Se ajustaron los gaps y márgenes para mayor fluidez. */}
+            <div className="hidden lg:flex items-center justify-center gap-4 lg:gap-6 xl:gap-8 flex-1 mx-4 lg:mx-8">
               {NAV_LINKS.map((link) => {
                 const isActive = pathname === link.href;
                 return (
                   <Link
                     key={link.name}
                     href={link.href}
-                    // FIX DEFINITIVO: whitespace-nowrap fuerza que el texto "SOBRE NOSOTROS" no se rompa
                     className="relative group py-2 whitespace-nowrap shrink-0"
                   >
-                    <span className={`text-[11px] xl:text-[13px] font-black tracking-[0.25em] uppercase transition-colors duration-300 drop-shadow-lg ${
+                    <span className={`text-[11px] xl:text-[13px] font-black tracking-[0.2em] xl:tracking-[0.25em] uppercase transition-colors duration-300 drop-shadow-lg ${
                       isActive ? "text-amber-500" : "text-zinc-300 group-hover:text-white"
                     }`}>
                       {link.name}
@@ -140,18 +140,17 @@ export default function Navbar() {
             {/* ========================================== */}
             {/* BOTONES DE ACCIÓN - DESKTOP */}
             {/* ========================================== */}
-            <div className="hidden lg:flex items-center gap-4 shrink-0">
-              {/* FIX DEL BOTÓN: Directo a /login, texto estático "INGRESAR" */}
+            <div className="hidden lg:flex items-center gap-3 xl:gap-4 shrink-0">
               <Link 
                 href="/login" 
-                className="group flex items-center gap-2 px-5 py-3 bg-[#0a0a0a]/60 backdrop-blur-md border border-zinc-800 text-zinc-300 rounded-xl text-[11px] font-black uppercase tracking-[0.2em] hover:border-amber-500/50 hover:text-white transition-all duration-300 shadow-xl whitespace-nowrap"
+                className="group flex items-center gap-2 px-4 xl:px-5 py-3 bg-[#0a0a0a]/60 backdrop-blur-md border border-zinc-800 text-zinc-300 rounded-xl text-[10px] xl:text-[11px] font-black uppercase tracking-[0.2em] hover:border-amber-500/50 hover:text-white transition-all duration-300 shadow-xl whitespace-nowrap"
               >
                 <User size={16} className="group-hover:text-amber-500 transition-colors" /> Ingresar
               </Link>
               
               <Link 
                 href="/reservar" 
-                className="relative overflow-hidden group flex items-center gap-2 px-6 xl:px-8 py-3 bg-amber-500 text-black rounded-xl text-[11px] font-black uppercase tracking-[0.2em] transition-all duration-300 shadow-[0_15px_30px_-10px_rgba(217,119,6,0.4)] hover:shadow-[0_20px_40px_-10px_rgba(217,119,6,0.6)] hover:-translate-y-1 active:scale-95 whitespace-nowrap"
+                className="relative overflow-hidden group flex items-center gap-2 px-5 xl:px-8 py-3 bg-amber-500 text-black rounded-xl text-[10px] xl:text-[11px] font-black uppercase tracking-[0.2em] transition-all duration-300 shadow-[0_15px_30px_-10px_rgba(217,119,6,0.4)] hover:shadow-[0_20px_40px_-10px_rgba(217,119,6,0.6)] hover:-translate-y-1 active:scale-95 whitespace-nowrap"
               >
                 <span className="absolute inset-0 w-full h-full bg-white/20 -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></span>
                 <span className="relative z-10">Agendar</span>
@@ -166,7 +165,7 @@ export default function Navbar() {
               <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                 aria-label="Toggle Mobile Menu"
-                className="relative w-14 h-14 flex items-center justify-center bg-[#0a0a0a] border border-zinc-800 rounded-xl text-amber-500 shadow-2xl focus:outline-none hover:border-amber-500 transition-colors"
+                className="relative w-12 h-12 md:w-14 md:h-14 flex items-center justify-center bg-[#0a0a0a] border border-zinc-800 rounded-xl text-amber-500 shadow-2xl focus:outline-none hover:border-amber-500 transition-colors"
               >
                 <AnimatePresence mode="wait">
                   {isMobileMenuOpen ? (

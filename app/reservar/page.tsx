@@ -176,33 +176,32 @@ export default function BookingEngine() {
   };
 
   return (
-    <main className="min-h-screen bg-[#050505] text-zinc-50 font-sans selection:bg-amber-500/30 selection:text-amber-200 relative overflow-x-hidden">
+    // FIX: Se agregó pt-[160px] md:pt-[200px] para librar la Navbar global
+    <main className="min-h-screen bg-[#050505] text-zinc-50 font-sans selection:bg-amber-500/30 selection:text-amber-200 relative overflow-x-hidden pt-[160px] md:pt-[200px] pb-24">
       
       {/* GLOBAL BACKGROUND: Ruido y Grid */}
       <div className="fixed inset-0 z-0 pointer-events-none opacity-[0.03]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}></div>
       <div className="fixed inset-0 z-0 pointer-events-none bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:32px_32px]"></div>
 
-      {/* HEADER TÁCTICO & PREMIUM */}
-      <header className="fixed top-0 w-full bg-[#050505]/90 backdrop-blur-2xl z-50 border-b border-amber-500/10 shadow-[0_10px_40px_-10px_rgba(217,119,6,0.1)]">
-        <div className="max-w-[1400px] mx-auto px-6 h-24 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-4 group">
-            <div className="relative w-12 h-12 rounded-full overflow-hidden border border-amber-500/30 group-hover:border-amber-500 transition-all shadow-[0_0_15px_rgba(217,119,6,0.2)]">
-              <Image src="/logo.png" alt="Emperador Logo" fill className="object-cover" />
-            </div>
+      {/* HEADER TÁCTICO INTERNO */}
+      {/* FIX: Se cambió de 'fixed top-0' a 'relative mb-12' para que fluya con el documento y no se superponga con la Navbar */}
+      <header className="relative w-full z-40 mb-8 md:mb-12">
+        <div className="max-w-[1400px] mx-auto px-6 flex items-center justify-between">
+          <div className="flex items-center gap-4 group">
             <div className="flex flex-col text-left">
-              <span className="font-serif font-black text-xl leading-none tracking-tight text-white uppercase drop-shadow-md">EMPERADOR</span>
-              <span className="text-[10px] text-amber-500 font-bold uppercase tracking-[0.3em] mt-1">Booking System</span>
+              <span className="font-serif font-black text-2xl md:text-3xl leading-none tracking-tight text-white uppercase drop-shadow-md">EMPERADOR</span>
+              <span className="text-[10px] md:text-xs text-amber-500 font-bold uppercase tracking-[0.3em] mt-1">Booking System</span>
             </div>
-          </Link>
+          </div>
           
           <div className="flex items-center gap-4">
             {step > 1 && step < 5 && (
-              <button onClick={prevStep} className="px-6 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-black uppercase tracking-widest text-zinc-400 hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2">
-                <ChevronLeft size={14} /> Volver
+              <button onClick={prevStep} className="px-5 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-[10px] md:text-xs font-black uppercase tracking-widest text-zinc-400 hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2">
+                <ChevronLeft size={16} /> Volver
               </button>
             )}
             {/* Indicador de Progreso Desktop */}
-            <div className="hidden md:flex items-center gap-2">
+            <div className="hidden md:flex items-center gap-2 ml-4">
                {[1,2,3,4].map(i => (
                  <div key={i} className={`h-2 rounded-full transition-all duration-500 ${step >= i ? 'w-8 bg-amber-500 shadow-[0_0_10px_rgba(217,119,6,0.5)]' : 'w-2 bg-zinc-800'}`} />
                ))}
@@ -211,11 +210,13 @@ export default function BookingEngine() {
         </div>
       </header>
 
-      <div className="pt-36 pb-24 px-6 max-w-[1400px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-16 text-left relative z-10">
+      {/* CONTENIDO PRINCIPAL */}
+      <div className="px-6 max-w-[1400px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-16 text-left relative z-10">
         
         {/* COLUMNA IZQUIERDA: RESUMEN DINÁMICO (Sticky Sidebar) */}
         <div className="hidden lg:block lg:col-span-4 text-left">
-          <div className="sticky top-36 space-y-6">
+          {/* FIX: top-40 ajustado para que el sticky baje bien después de la Navbar */}
+          <div className="sticky top-40 space-y-6">
             
             <div className="bg-zinc-950/80 border border-zinc-800 p-10 rounded-[3rem] overflow-hidden relative shadow-2xl backdrop-blur-md">
               <div className="absolute -top-10 -right-10 opacity-5 pointer-events-none">
@@ -280,9 +281,7 @@ export default function BookingEngine() {
         <div className="lg:col-span-8 text-left">
           <AnimatePresence mode="wait">
             
-            {/* ========================================================= */}
             {/* PASO 1: SELECCIÓN DE SERVICIOS */}
-            {/* ========================================================= */}
             {step === 1 && (
               <motion.div key="s1" variants={slideIn} initial="hidden" animate="visible" exit="exit" className="space-y-10 text-left">
                 <div>
@@ -325,9 +324,7 @@ export default function BookingEngine() {
               </motion.div>
             )}
 
-            {/* ========================================================= */}
             {/* PASO 2: BARBEROS */}
-            {/* ========================================================= */}
             {step === 2 && (
               <motion.div key="s2" variants={slideIn} initial="hidden" animate="visible" exit="exit" className="space-y-10 text-left">
                 <div>
@@ -357,9 +354,7 @@ export default function BookingEngine() {
               </motion.div>
             )}
 
-            {/* ========================================================= */}
-            {/* PASO 3: CALENDARIO Y HORA (Sincronizado con BD) */}
-            {/* ========================================================= */}
+            {/* PASO 3: CALENDARIO Y HORA */}
             {step === 3 && (
               <motion.div key="s3" variants={slideIn} initial="hidden" animate="visible" exit="exit" className="space-y-12 text-left pb-32">
                 <div>
@@ -370,7 +365,6 @@ export default function BookingEngine() {
                   </p>
                 </div>
                 
-                {/* Carrusel de Días */}
                 <div className="flex gap-4 overflow-x-auto pb-6 pt-2 scrollbar-hide -mx-6 px-6 lg:mx-0 lg:px-0">
                   {DATES.map((d, i) => (
                     <button 
@@ -385,7 +379,6 @@ export default function BookingEngine() {
                   ))}
                 </div>
 
-                {/* Slots de Hora */}
                 {booking.date && (
                   <div className="bg-zinc-900/40 border border-zinc-800 rounded-[3rem] p-8 md:p-10 space-y-10 relative overflow-hidden">
                     {[
@@ -423,7 +416,6 @@ export default function BookingEngine() {
                   </div>
                 )}
 
-                {/* Botón Flotante Continuar */}
                 <AnimatePresence>
                   {booking.time && (
                     <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="fixed bottom-8 right-6 left-6 lg:left-auto lg:w-[calc(66.666%-4rem)] max-w-[1400px] mx-auto z-50">
@@ -436,9 +428,7 @@ export default function BookingEngine() {
               </motion.div>
             )}
 
-            {/* ========================================================= */}
             {/* PASO 4: FORMULARIO GUEST & CONFIRMACIÓN */}
-            {/* ========================================================= */}
             {step === 4 && (
               <motion.div key="s4" variants={slideIn} initial="hidden" animate="visible" exit="exit" className="space-y-10 text-left">
                 <div>
@@ -483,13 +473,9 @@ export default function BookingEngine() {
               </motion.div>
             )}
 
-            {/* ========================================================= */}
-            {/* PASO 5: FINALIZADO (Éxito Automático) */}
-            {/* ========================================================= */}
+            {/* PASO 5: FINALIZADO */}
             {step === 5 && (
               <motion.div key="s5" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-center py-20 space-y-10 relative">
-                
-                {/* Lluvia de confeti simulada con Glow */}
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-amber-500/10 blur-[150px] rounded-full pointer-events-none z-0"></div>
 
                 <div className="w-40 h-40 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto mb-10 border border-amber-500/30 relative z-10">
