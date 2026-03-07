@@ -8,7 +8,7 @@ import * as LucideIcons from "lucide-react";
 import { 
   Gamepad2, MapPin, Instagram, ChevronRight, 
   Crown, Star, Scissors, Zap, Flame, Crosshair,
-  Minus, Plus, CheckCircle, Hearth, ShieldCheck, 
+  Minus, Plus, CheckCircle, ShieldCheck, 
   MessageSquare, Heart, MessageCircle, ExternalLink, 
   Lock, LayoutGrid, Clapperboard, Sparkles,
   UserCircle, Briefcase, KeyRound, ShoppingCart, Disc, Volume2, VolumeX, Volume1, Music,
@@ -88,7 +88,7 @@ const DynamicIcon = ({ name, size = 24 }: { name: string, size?: number }) => {
 
 // MOTOR MULTIMEDIA: Reproduce Video o Imagen según la Base de Datos
 const MediaRenderer = ({ type, url, alt, className }: { type: string, url: string, alt: string, className: string }) => {
-  if (type === 'video' || url.includes('.mp4')) {
+  if (type === 'video' || url?.includes('.mp4')) {
     return (
       <video 
         src={url} 
@@ -261,28 +261,26 @@ export default function UltimateEmperadorLanding() {
   };
 
   // ============================================================================
-  // FETCH DE DATOS DESDE SUPABASE (Sincronización Autoadministrable)
+  // FETCH Y SLIDERS
   // ============================================================================
   useEffect(() => {
-    const slideInterval = setInterval(() => setCurrentHeroSlide((prev) => (prev + 1) % totalSlides), 8000); 
+    const slideInterval = setInterval(() => setCurrentHeroSlide((prev) => (prev + 1) % totalSlides), 7000); 
     return () => clearInterval(slideInterval);
   }, [totalSlides]);
 
   useEffect(() => {
     async function fetchAdminData() {
       try {
-        // Música Global
         const { data: dbSettings } = await supabase.from('settings').select('*').eq('key', 'background_music').single();
         if (dbSettings?.value) setMusicSrc(dbSettings.value);
 
-        // Tablas
         const { data: dbHero } = await supabase.from('HeroSlides').select('*').order('order_index', { ascending: true });
         if (dbHero?.length) setHeroSlides(dbHero);
 
-        const { data: dbTeam } = await supabase.from('Barbers').select('*').eq('status', 'ACTIVE').order('created_at', { ascending: true });
+        const { data: dbTeam } = await supabase.from('Barbers').select('*').order('created_at', { ascending: true });
         if (dbTeam?.length) setTeam(dbTeam);
 
-        const { data: dbServices } = await supabase.from('Services').select('*').order('price', { ascending: true });
+        const { data: dbServices } = await supabase.from('Services').select('*').order('created_at', { ascending: true });
         if (dbServices?.length) setServices(dbServices);
 
         const { data: dbStore } = await supabase.from('StorePromos').select('*').order('created_at', { ascending: false });
@@ -296,9 +294,8 @@ export default function UltimateEmperadorLanding() {
 
         const { data: dbReels } = await supabase.from('InstagramReels').select('*').order('created_at', { ascending: false });
         if (dbReels?.length) setReels(dbReels);
-
       } catch (error) {
-        console.log("Conectando con base de datos, usando datos por defecto temporales.");
+        console.log("Usando datos por defecto.");
       }
     }
     fetchAdminData();
@@ -307,6 +304,7 @@ export default function UltimateEmperadorLanding() {
   const VolumeIcon = isMuted || volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
 
   return (
+    // FIX DE ESPACIO: El margen negativo principal anula el padding global del layout para que la imagen cubra al 100%
     <main className="bg-[#050505] min-h-screen font-sans selection:bg-amber-500 selection:text-black overflow-x-hidden relative -mt-24 md:-mt-28">
       
       {/* ELEMENTO DE AUDIO OCULTO */}
@@ -314,7 +312,7 @@ export default function UltimateEmperadorLanding() {
       <div className="fixed inset-0 z-0 pointer-events-none bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:32px_32px]"></div>
       
       {/* ========================================================================= */}
-      {/* WIDGETS FLOTANTES */}
+      {/* COMPONENTES FLOTANTES */}
       {/* ========================================================================= */}
       
       {/* MÚSICA (Avanzado) */}
@@ -358,7 +356,7 @@ export default function UltimateEmperadorLanding() {
         </motion.div>
       )}
 
-      {/* BOTÓN AGENDAR FLOTANTE (Derecha) */}
+      {/* BOTÓN AGENDAR (Derecha) */}
       <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 2, type: "spring", stiffness: 100 }} className="fixed bottom-6 right-6 md:bottom-10 md:right-10 z-[100]">
         <Link href="/reservar" className="relative flex items-center justify-center w-16 h-16 md:w-20 md:h-20 bg-amber-500 rounded-full shadow-[0_0_30px_rgba(217,119,6,0.8)] hover:scale-110 transition-transform group border-2 border-amber-300">
           <motion.div animate={{ scale: [1, 1.3, 1], opacity: [0.6, 0, 0] }} transition={{ repeat: Infinity, duration: 1.5 }} className="absolute inset-0 rounded-full bg-amber-500"></motion.div>
@@ -367,14 +365,14 @@ export default function UltimateEmperadorLanding() {
       </motion.div>
 
       {/* ========================================================================= */}
-      {/* 1. HERO GLOBAL (Carrusel Multi-Media Autoadministrable) */}
+      {/* 1. HERO GLOBAL (Carrusel) */}
       {/* ========================================================================= */}
       <section className="relative w-full h-[100dvh] flex flex-col justify-center overflow-hidden bg-black">
         
         <AnimatePresence mode="wait">
           <motion.div key={currentHeroSlide} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.8, ease: "easeInOut" }} className="absolute inset-0 w-full h-full flex flex-col justify-center">
             
-            {/* SLIDES DEL HERO */}
+            {/* SLIDES DEL HERO DINÁMICO */}
             <div className="w-full h-full relative flex flex-col justify-center items-center">
               <motion.div style={{ y: yHero }} className="absolute inset-0 w-full h-full z-0">
                 <MediaRenderer 
@@ -386,6 +384,7 @@ export default function UltimateEmperadorLanding() {
                 <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/60 to-transparent" />
               </motion.div>
 
+              {/* FIX DEL LOGO GIGANTE: Padding top extremo para que el texto baje y no choque con la Navbar */}
               <div className="relative z-10 w-full max-w-[1400px] px-6 text-center pt-[150px] md:pt-[220px]">
                 <motion.div initial="hidden" animate="visible" variants={staggerContainer}>
                   <motion.div variants={popUp} className="mb-6 inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/50 px-6 py-2 rounded-full text-[10px] md:text-xs font-black text-amber-500 uppercase tracking-[0.4em] shadow-[0_0_20px_rgba(217,119,6,0.2)] backdrop-blur-md">
@@ -446,7 +445,7 @@ export default function UltimateEmperadorLanding() {
       </div>
 
       {/* ========================================================================= */}
-      {/* 2. EQUIPO DE TRABAJO (TEAM EMPERADOR Sincronizado) */}
+      {/* 2. EQUIPO DE TRABAJO (TEAM EMPERADOR) */}
       {/* ========================================================================= */}
       <section id="squad" className="py-24 md:py-32 bg-[#050505] relative overflow-hidden border-b border-zinc-900">
         <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-amber-600/5 blur-[150px] rounded-full pointer-events-none" />
@@ -481,7 +480,7 @@ export default function UltimateEmperadorLanding() {
       </section>
 
       {/* ========================================================================= */}
-      {/* 3. SERVICIOS (MENÚ Sincronizado) */}
+      {/* 3. SERVICIOS (MENÚ) */}
       {/* ========================================================================= */}
       <section id="servicios" className="py-24 md:py-32 bg-zinc-950 relative">
         <div className="max-w-[1400px] mx-auto px-6 relative z-10">
@@ -560,7 +559,7 @@ export default function UltimateEmperadorLanding() {
       </section>
 
       {/* ========================================================================= */}
-      {/* 5. REVIEWS (Sincronizadas) */}
+      {/* 5. REVIEWS & TRUST */}
       {/* ========================================================================= */}
       <section className="py-24 bg-zinc-900/30 border-y border-zinc-900">
         <div className="max-w-[1400px] mx-auto px-6">
@@ -586,14 +585,14 @@ export default function UltimateEmperadorLanding() {
       </section>
 
       {/* ========================================================================= */}
-      {/* 6. INSTAGRAM V2 SINCRONIZADO (Soporte Videos e Imágenes Real) */}
+      {/* 6. INSTAGRAM V2 SINCRONIZADO AL PERFIL OFICIAL */}
       {/* ========================================================================= */}
       <section id="instagram" className="py-24 md:py-32 bg-black relative overflow-hidden border-b border-zinc-900">
          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[1000px] h-[400px] bg-gradient-to-r from-purple-600/10 via-pink-600/10 to-amber-500/10 blur-[120px] rounded-full pointer-events-none" />
          
          <div className="max-w-[950px] mx-auto px-4 md:px-6 relative z-10">
             
-            {/* Cabecera Tipo Instagram */}
+            {/* Cabecera Tipo Instagram Sincronizada */}
             <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} className="flex flex-col sm:flex-row items-center sm:items-start gap-6 sm:gap-10 mb-12">
                
                <a href="https://www.instagram.com/emperador_barbershop/?hl=es" target="_blank" rel="noopener noreferrer" className="relative w-28 h-28 sm:w-36 sm:h-36 shrink-0 group cursor-pointer block">
@@ -641,7 +640,7 @@ export default function UltimateEmperadorLanding() {
                </div>
             </motion.div>
 
-            {/* Pestañas */}
+            {/* Pestañas de Navegación Instagram */}
             <div className="flex justify-center border-t border-zinc-800 mb-1 gap-12">
                <button className="flex items-center gap-2 pt-4 font-bold text-xs uppercase tracking-widest text-white border-t border-white -mt-px">
                  <LayoutGrid size={14} /> Publicaciones
@@ -651,7 +650,7 @@ export default function UltimateEmperadorLanding() {
                </a>
             </div>
 
-            {/* Grid Sincronizado de Medios (Videos y Fotos) */}
+            {/* Grid Sincronizado de Medios */}
             <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={staggerContainer} className="grid grid-cols-3 gap-1 md:gap-2">
                {reels.map((post) => (
                   <motion.a 
@@ -672,8 +671,8 @@ export default function UltimateEmperadorLanding() {
                         {post.type === 'reel' || post.media_type === 'video' ? <Clapperboard size={18} fill="currentColor" /> : null}
                      </div>
                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-4 sm:gap-6 backdrop-blur-[2px]">
-                        <div className="flex items-center gap-2 text-white font-bold text-sm sm:text-lg"><Heart fill="currentColor" className="w-4 h-4 sm:w-6 sm:h-6" /> {post.likes || "1.2k"}</div>
-                        <div className="flex items-center gap-2 text-white font-bold text-sm sm:text-lg"><MessageCircle fill="currentColor" className="w-4 h-4 sm:w-6 sm:h-6" /> {post.comments || "45"}</div>
+                        <div className="flex items-center gap-2 text-white font-bold text-sm sm:text-lg"><Heart fill="currentColor" className="w-4 h-4 sm:w-6 sm:h-6" /> {post.likes}</div>
+                        <div className="flex items-center gap-2 text-white font-bold text-sm sm:text-lg"><MessageCircle fill="currentColor" className="w-4 h-4 sm:w-6 sm:h-6" /> {post.comments}</div>
                      </div>
                   </motion.a>
                ))}
@@ -681,7 +680,7 @@ export default function UltimateEmperadorLanding() {
             
             <div className="text-center mt-12">
                <a href="https://www.instagram.com/emperador_barbershop/?hl=es" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-zinc-400 hover:text-amber-500 text-sm font-bold uppercase tracking-widest transition-colors">
-                 Ver más trabajos en nuestro Instagram Oficial <ExternalLink size={16} />
+                 Ver más fotos en nuestro Instagram Oficial <ExternalLink size={16} />
                </a>
             </div>
          </div>
