@@ -19,7 +19,6 @@ import {
 } from "lucide-react";
 
 import * as LucideIcons from "lucide-react";
-import { createBarberAccount } from "@/app/actions/admin"; 
 
 // ============================================================================
 // TIPADOS REALES EXTENDIDOS
@@ -33,7 +32,7 @@ interface Client { id: string; name: string; phone: string; email?: string; visi
 interface Chair { id: string; name: string; status: "OCCUPIED" | "FREE"; current_barber_id?: string; payment_due_date?: string; }
 interface Product { id: string; name: string; subtitle: string; description: string; price: number; old_price?: number; discount_code?: string; stock: number; tag: string; image_url: string; category: string; sku: string; status: "ACTIVE" | "HIDDEN"; }
 
-// FIX: Sincronizado para aceptar formato plano (Booking Engine) y relacional
+// Sincronizado para aceptar formato plano (Booking Engine) y relacional
 interface Appointment { 
   id: string; 
   date: string; 
@@ -292,7 +291,23 @@ function AdminDashboardContent() {
   const handleDelete = async (table: string, id: string) => {
     if (!window.confirm("¿Confirmas la eliminación permanente de este registro?")) return;
     try {
+      // Si eliminamos un Barbero, primero llamamos al backend para borrarlo de Auth
+      if (table === 'Barbers') {
+        const response = await fetch('/api/admin/delete-barber', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id }),
+        });
+        
+        if (!response.ok) {
+          const resError = await response.json();
+          throw new Error(resError.error || 'Error al eliminar usuario Auth');
+        }
+      }
+
+      // Si no es barbero, o si ya se borró de auth, borramos de la tabla
       if (isValidUUID(id)) await supabase.from(table).delete().eq('id', id);
+      
       verifyAdminAndFetchData(); 
     } catch (error: any) {
       alert(`No se pudo eliminar: ${error.message}`);
@@ -325,27 +340,29 @@ function AdminDashboardContent() {
         const emailInput = formData.get("email") as string;
         const passwordInput = formData.get("password") as string;
         
-        const updateData = { 
+        const payload = { 
+          id: editingItem?.id, // Pasamos el ID si existe para actualizar
           name: formData.get("name") as string, 
           phone: formData.get("phone") as string, 
           role: formData.get("role") as string, 
           tag: formData.get("tag") as string, 
           status: formData.get("status") as string || "ACTIVE", 
-          img: mediaUrl 
+          img: mediaUrl,
+          email: emailInput,
+          password: passwordInput
         };
 
-        if (editingItem && isValidUUID(editingItem.id)) {
-          if (!editingItem.email && emailInput && passwordInput) {
-            const upgradeData = { ...updateData, id: editingItem.id, email: emailInput, password: passwordInput };
-            const result = await createBarberAccount(upgradeData);
-            if (result.error) throw new Error(result.error);
-          } else {
-            await supabase.from('Barbers').update(updateData).eq('id', editingItem.id);
-          }
-        } else {
-          const newBarberData = { ...updateData, email: emailInput, password: passwordInput };
-          const result = await createBarberAccount(newBarberData);
-          if (result.error) throw new Error(result.error);
+        // Llama a tu API Route para crear/actualizar
+        const response = await fetch('/api/admin/create-barber', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        const result = await response.json();
+        
+        if (!response.ok) {
+           throw new Error(result.error || "Error al procesar el Barbero.");
         }
       }
 
@@ -473,12 +490,12 @@ function AdminDashboardContent() {
           <div className="flex items-center gap-3">
             {isFetching && <span className="text-amber-500 text-xs font-black uppercase tracking-widest animate-pulse px-4 hidden md:flex"><Clock size={16} className="mr-2"/> Sync...</span>}
             
-            {/* Botón Actualizar */}
+            {/* Botón Actualizar Funcional */}
             <button onClick={verifyAdminAndFetchData} className="flex items-center gap-2 px-5 py-3 bg-zinc-950 border border-zinc-800 text-zinc-300 hover:text-amber-500 hover:border-amber-500 rounded-xl transition-all shadow-inner font-bold text-xs uppercase tracking-widest" title="Actualizar Base de Datos">
               <RefreshCw size={16} className={isFetching ? "animate-spin" : ""} /> <span className="hidden md:block">Sincronizar</span>
             </button>
             
-            {/* Botón Cerrar Sesión */}
+            {/* Botón Cerrar Sesión Funcional */}
             <button onClick={handleLogout} className="flex items-center gap-2 px-5 py-3 bg-red-500/10 border border-red-500/20 text-red-500 hover:bg-red-500 hover:text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all">
               <LogOut size={16} /> <span className="hidden md:block">Salir</span>
             </button>
@@ -1003,14 +1020,19 @@ function AdminDashboardContent() {
                             <input name="password" type="text" minLength={6} className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl pl-10 pr-6 py-4 text-white focus:border-amber-500 outline-none" required={!editingItem} placeholder={editingItem ? "Obligatorio para dar acceso" : ""} />
                           </div>
                         </div>
-                      ) : (
-                        <InputField label="Teléfono" name="phone" defaultValue={editingItem?.phone || ""} />
-                      )}
+                      ) : null}
                     </div>
                     
-                    {(!editingItem || !editingItem.email) && <InputField label="Teléfono" name="phone" defaultValue={editingItem?.phone || ""} />}
-                    
-                    <div className="space-y-2"><label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest pl-2">Estado</label><select name="status" defaultValue={editingItem?.status || "ACTIVE"} className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white font-bold"><option value="ACTIVE">Activo</option><option value="INACTIVE">Inactivo</option></select></div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      <InputField label="Teléfono" name="phone" defaultValue={editingItem?.phone || ""} />
+                      <div className="space-y-2">
+                        <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest pl-2">Estado</label>
+                        <select name="status" defaultValue={editingItem?.status || "ACTIVE"} className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white font-bold">
+                          <option value="ACTIVE">Activo</option>
+                          <option value="INACTIVE">Inactivo</option>
+                        </select>
+                      </div>
+                    </div>
                   </>
                 )}
 
