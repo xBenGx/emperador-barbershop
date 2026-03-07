@@ -33,7 +33,7 @@ interface Client { id: string; name: string; phone: string; email?: string; visi
 interface Chair { id: string; name: string; status: "OCCUPIED" | "FREE"; current_barber_id?: string; payment_due_date?: string; }
 interface Product { id: string; name: string; subtitle: string; description: string; price: number; old_price?: number; discount_code?: string; stock: number; tag: string; image_url: string; category: string; sku: string; status: "ACTIVE" | "HIDDEN"; }
 
-// FIX: Sincronizado para aceptar formato plano (Booking Engine) y relacional
+// Sincronizado para aceptar formato plano (Booking Engine) y relacional
 interface Appointment { 
   id: string; 
   date: string; 
@@ -191,7 +191,7 @@ function AdminDashboardContent() {
     }
   }, [supabase, router]);
 
-  // Sincronización en tiempo real OMNIPRESENTE
+  // Sincronización en tiempo real
   useEffect(() => {
     verifyAdminAndFetchData();
     const channel = supabase.channel('admin-sync-master')
@@ -225,13 +225,13 @@ function AdminDashboardContent() {
 
   const handleTabClick = (tab: TabType) => {
     setActiveTab(tab);
-    setSearchQuery(""); // Limpia búsqueda al cambiar pestaña
+    setSearchQuery(""); // Limpia búsqueda al cambiar de pestaña
     router.push(`/dashboards/admin?tab=${tab}`, { scroll: false });
   };
 
   const handleResetSection = () => {
     setSearchQuery("");
-    verifyAdminAndFetchData(); // Fuerza actualización completa
+    verifyAdminAndFetchData(); // Fuerza actualización para resetear los datos de la vista
   };
 
   const handleCopyLink = (id: string, name: string) => {
@@ -435,9 +435,25 @@ function AdminDashboardContent() {
   };
 
   return (
-    // FIX LAYOUT: Agregado padding-top generoso para que fluya por debajo de la Navbar global
+    // FIX LAYOUT: pt-[160px] md:pt-[200px] para que el contenido fluya debajo de la Navbar
     <main className="min-h-screen bg-[#050505] pt-[160px] md:pt-[200px] pb-24 text-white relative">
       
+      {/* ========================================================================================= */}
+      {/* FIX MÁGICO: Estilos inyectados que obligan al Sidebar (en el layout) a bajar y no taparse */}
+      {/* ========================================================================================= */}
+      <style dangerouslySetInnerHTML={{__html: `
+        /* Selecciona el elemento lateral (aside, sidebar) que viene del layout y lo empuja hacia abajo */
+        aside, [class*="sidebar" i], [class*="SideBar" i] {
+          padding-top: 140px !important;
+          z-index: 50 !important;
+        }
+        @media (min-width: 768px) {
+          aside, [class*="sidebar" i], [class*="SideBar" i] {
+            padding-top: 180px !important;
+          }
+        }
+      `}} />
+
       {/* Fondo de patrón para el dashboard */}
       <div className="fixed inset-0 z-0 pointer-events-none opacity-[0.03]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}></div>
       <div className="fixed inset-0 z-0 pointer-events-none bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:32px_32px]"></div>
@@ -457,12 +473,12 @@ function AdminDashboardContent() {
           <div className="flex items-center gap-3">
             {isFetching && <span className="text-amber-500 text-xs font-black uppercase tracking-widest animate-pulse px-4 hidden md:flex"><Clock size={16} className="mr-2"/> Sync...</span>}
             
-            {/* Botón Actualizar */}
+            {/* Botón Actualizar Funcional */}
             <button onClick={verifyAdminAndFetchData} className="flex items-center gap-2 px-5 py-3 bg-zinc-950 border border-zinc-800 text-zinc-300 hover:text-amber-500 hover:border-amber-500 rounded-xl transition-all shadow-inner font-bold text-xs uppercase tracking-widest" title="Actualizar Base de Datos">
               <RefreshCw size={16} className={isFetching ? "animate-spin" : ""} /> <span className="hidden md:block">Sincronizar</span>
             </button>
             
-            {/* Botón Cerrar Sesión */}
+            {/* Botón Cerrar Sesión Funcional */}
             <button onClick={handleLogout} className="flex items-center gap-2 px-5 py-3 bg-red-500/10 border border-red-500/20 text-red-500 hover:bg-red-500 hover:text-black rounded-xl font-bold text-xs uppercase tracking-widest transition-all">
               <LogOut size={16} /> <span className="hidden md:block">Salir</span>
             </button>
