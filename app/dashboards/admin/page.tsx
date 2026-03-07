@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { createClient } from "@/utils/supabase/client";
 
-// IMPORTACIONES CORREGIDAS: 'Heart' (Corazón) está correctamente escrito para evitar el error de compilación.
+// IMPORTACIONES CORREGIDAS Y VERIFICADAS
 import { 
   LayoutDashboard, Users, Scissors, Tag, 
   DollarSign, TrendingUp, UserPlus, Edit3, Trash2, 
@@ -66,7 +66,7 @@ function AdminDashboardContent() {
   const [isFetching, setIsFetching] = useState(true);
   const [authError, setAuthError] = useState(false);
 
-  // Estados de Datos
+  // Estados de Datos Base
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [inventory, setInventory] = useState<Product[]>([]);
@@ -325,7 +325,7 @@ function AdminDashboardContent() {
         else await supabase.from('chairs').insert([data]);
       }
 
-      // --- NUEVOS MÓDULOS DE LANDING PAGE ---
+      // --- MÓDULOS DE LANDING PAGE ---
       if (modalType === "HERO_SLIDE") {
         const data = { media_url: mediaUrl, media_type: mediaType, order_index: parseInt(formData.get("order_index") as string) || 0 };
         if (editingItem && isValidUUID(editingItem.id)) await supabase.from('HeroSlides').update(data).eq('id', editingItem.id);
