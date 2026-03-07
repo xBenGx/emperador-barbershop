@@ -15,7 +15,7 @@ import {
   Package, Boxes, BadgePercent, BarChart3, ShoppingBag,
   Disc, Music, UploadCloud, Volume2, VolumeX, Volume1,
   MessageCircle, CalendarDays, KeyRound, Smartphone, ShieldAlert, XCircle,
-  LogOut, RefreshCw, Lock, Video, Star, HelpCircle, Instagram, Heart
+  LogOut, RefreshCw, Lock, Video, Star, HelpCircle, Instagram, Heart, Link2, RotateCcw
 } from "lucide-react";
 
 import * as LucideIcons from "lucide-react";
@@ -32,7 +32,22 @@ interface Service { id: string; name: string; desc: string; price: string | numb
 interface Client { id: string; name: string; phone: string; email?: string; visits: number; last_visit: string; total_spent: number; points: number; }
 interface Chair { id: string; name: string; status: "OCCUPIED" | "FREE"; current_barber_id?: string; payment_due_date?: string; }
 interface Product { id: string; name: string; subtitle: string; description: string; price: number; old_price?: number; discount_code?: string; stock: number; tag: string; image_url: string; category: string; sku: string; status: "ACTIVE" | "HIDDEN"; }
-interface Appointment { id: string; date: string; time: string; status: string; client: Client; barber: Barber; service: Service; notes: string; }
+
+// FIX: Sincronizado para aceptar formato plano (Booking Engine) y relacional
+interface Appointment { 
+  id: string; 
+  date: string; 
+  time: string; 
+  status: string; 
+  notes: string;
+  client?: Client; 
+  barber?: Barber; 
+  service?: Service; 
+  client_name?: string; 
+  client_phone?: string; 
+  barber_name?: string; 
+  service_name?: string; 
+}
 
 // Tipos para la Landing Page Autoadministrable
 interface HeroSlide { id: string; media_type: string; media_url: string; order_index: number; }
@@ -65,6 +80,7 @@ function AdminDashboardContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
   const [authError, setAuthError] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Estados de Datos Base
   const [barbers, setBarbers] = useState<Barber[]>([]);
@@ -128,7 +144,7 @@ function AdminDashboardContent() {
         supabase.from('clients').select('*').order('created_at', { ascending: false }),
         supabase.from('chairs').select('*').order('name', { ascending: true }),
         supabase.from('settings').select('*').eq('key', 'background_music').single(),
-        supabase.from('appointments').select(`id, date, time, status, notes, client:client_id (id, name, phone), barber:barber_id (id, name, email), service:service_id (id, name, price)`).order('date', { ascending: false }).order('time', { ascending: false }),
+        supabase.from('Appointments').select(`id, date, time, status, notes, client_name, client_phone, barber_name, service_name, client:client_id (id, name, phone), barber:barber_id (id, name, email), service:service_id (id, name, price)`).order('date', { ascending: false }).order('time', { ascending: false }),
         supabase.from('HeroSlides').select('*').order('order_index', { ascending: true }),
         supabase.from('StorePromos').select('*').order('created_at', { ascending: false }),
         supabase.from('InstagramReels').select('*').order('created_at', { ascending: false }),
@@ -161,6 +177,7 @@ function AdminDashboardContent() {
         setAppointments(dbAppts.data as unknown as Appointment[]);
         const todayStr = new Date().toISOString().split('T')[0];
         const todayAppts = dbAppts.data.filter(a => a.date === todayStr && a.status === 'COMPLETED');
+        
         const ingresosHoy = todayAppts.reduce((acc, curr) => acc + Number((curr.service as any)?.price || 0), 0);
         
         setKpis(prev => ({ ...prev, cortesHoy: todayAppts.length, totalIngresos: ingresosHoy }));
@@ -179,7 +196,7 @@ function AdminDashboardContent() {
     verifyAdminAndFetchData();
     const channel = supabase.channel('admin-sync-master')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'Services' }, verifyAdminAndFetchData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, verifyAdminAndFetchData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'Appointments' }, verifyAdminAndFetchData)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' }, verifyAdminAndFetchData)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, verifyAdminAndFetchData)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'chairs' }, verifyAdminAndFetchData)
@@ -208,7 +225,21 @@ function AdminDashboardContent() {
 
   const handleTabClick = (tab: TabType) => {
     setActiveTab(tab);
+    setSearchQuery(""); // Limpia búsqueda al cambiar pestaña
     router.push(`/dashboards/admin?tab=${tab}`, { scroll: false });
+  };
+
+  const handleResetSection = () => {
+    setSearchQuery("");
+    verifyAdminAndFetchData(); // Fuerza actualización completa
+  };
+
+  const handleCopyLink = (id: string, name: string) => {
+    const formattedName = name.toLowerCase().replace(/\s+/g, '-');
+    const url = `${window.location.origin}/reservar?barber=${formattedName}`;
+    navigator.clipboard.writeText(url);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2500);
   };
 
   if (authError) {
@@ -304,18 +335,14 @@ function AdminDashboardContent() {
         };
 
         if (editingItem && isValidUUID(editingItem.id)) {
-          // LÓGICA DE ASCENSO (Upgrading un barbero existente para darle acceso)
           if (!editingItem.email && emailInput && passwordInput) {
             const upgradeData = { ...updateData, id: editingItem.id, email: emailInput, password: passwordInput };
-            // Importante: tu action `createBarberAccount` debe ser capaz de recibir un ID y actualizar
             const result = await createBarberAccount(upgradeData);
             if (result.error) throw new Error(result.error);
           } else {
-            // Actualización normal
             await supabase.from('Barbers').update(updateData).eq('id', editingItem.id);
           }
         } else {
-          // Creación de barbero nuevo
           const newBarberData = { ...updateData, email: emailInput, password: passwordInput };
           const result = await createBarberAccount(newBarberData);
           if (result.error) throw new Error(result.error);
@@ -352,7 +379,6 @@ function AdminDashboardContent() {
         else await supabase.from('chairs').insert([data]);
       }
 
-      // --- MÓDULOS DE LANDING PAGE ---
       if (modalType === "HERO_SLIDE") {
         const data = { media_url: mediaUrl, media_type: mediaType, order_index: parseInt(formData.get("order_index") as string) || 0 };
         if (editingItem && isValidUUID(editingItem.id)) await supabase.from('HeroSlides').update(data).eq('id', editingItem.id);
@@ -409,425 +435,488 @@ function AdminDashboardContent() {
   };
 
   return (
-    <div className="max-w-[1600px] mx-auto pb-20 p-6 md:p-10">
+    // FIX LAYOUT: Agregado padding-top generoso para que fluya por debajo de la Navbar global
+    <main className="min-h-screen bg-[#050505] pt-[160px] md:pt-[200px] pb-24 text-white relative">
       
-      {/* HEADER DINÁMICO */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-4">
-        <div>
-          <h1 className="text-4xl md:text-5xl font-black text-white tracking-tighter uppercase font-serif flex items-center gap-4">
-            <Crown className="text-amber-500 w-10 h-10 md:w-12 md:h-12" />
-            <span>Emperador <span className="text-amber-500">System</span></span>
-          </h1>
-          <p className="text-zinc-400 mt-2 font-medium tracking-wide">Acceso Nivel Dios: Control y Administración Global</p>
-        </div>
+      {/* Fondo de patrón para el dashboard */}
+      <div className="fixed inset-0 z-0 pointer-events-none opacity-[0.03]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}></div>
+      <div className="fixed inset-0 z-0 pointer-events-none bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:32px_32px]"></div>
+
+      <div className="max-w-[1600px] mx-auto px-6 lg:px-12 relative z-10">
         
-        <div className="flex items-center gap-3">
-          {isFetching && <span className="text-amber-500 text-xs font-black uppercase tracking-widest animate-pulse px-4 hidden md:flex"><Clock size={16} className="mr-2"/> Sync...</span>}
-          <button onClick={verifyAdminAndFetchData} className="p-3 bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-amber-500 rounded-xl transition-all" title="Actualizar Datos">
-            <RefreshCw size={20} className={isFetching ? "animate-spin" : ""} />
-          </button>
-          <button onClick={handleLogout} className="flex items-center gap-2 px-4 py-3 bg-zinc-900 border border-zinc-800 text-red-400 hover:bg-red-500 hover:text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all">
-            <LogOut size={16} /> <span className="hidden md:block">Cerrar Sesión</span>
-          </button>
+        {/* HEADER DINÁMICO */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-4 bg-zinc-900/50 p-6 rounded-[2rem] border border-zinc-800/50 backdrop-blur-sm">
+          <div>
+            <h1 className="text-4xl md:text-5xl font-black text-white tracking-tighter uppercase font-serif flex items-center gap-4">
+              <Crown className="text-amber-500 w-10 h-10 md:w-12 md:h-12" />
+              <span>Emperador <span className="text-amber-500">System</span></span>
+            </h1>
+            <p className="text-zinc-400 mt-2 font-medium tracking-wide">Acceso Nivel Dios: Control y Administración Global</p>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            {isFetching && <span className="text-amber-500 text-xs font-black uppercase tracking-widest animate-pulse px-4 hidden md:flex"><Clock size={16} className="mr-2"/> Sync...</span>}
+            
+            {/* Botón Actualizar */}
+            <button onClick={verifyAdminAndFetchData} className="flex items-center gap-2 px-5 py-3 bg-zinc-950 border border-zinc-800 text-zinc-300 hover:text-amber-500 hover:border-amber-500 rounded-xl transition-all shadow-inner font-bold text-xs uppercase tracking-widest" title="Actualizar Base de Datos">
+              <RefreshCw size={16} className={isFetching ? "animate-spin" : ""} /> <span className="hidden md:block">Sincronizar</span>
+            </button>
+            
+            {/* Botón Cerrar Sesión */}
+            <button onClick={handleLogout} className="flex items-center gap-2 px-5 py-3 bg-red-500/10 border border-red-500/20 text-red-500 hover:bg-red-500 hover:text-black rounded-xl font-bold text-xs uppercase tracking-widest transition-all">
+              <LogOut size={16} /> <span className="hidden md:block">Salir</span>
+            </button>
+          </div>
         </div>
-      </div>
 
-      {/* TABS DE NAVEGACIÓN */}
-      <div className="flex gap-2 mb-8 border-b border-zinc-800 pb-4 overflow-x-auto hide-scrollbar scroll-smooth">
-        {[
-          { id: "RESUMEN", icon: <LayoutDashboard size={18}/> },
-          { id: "CITAS", icon: <CalendarDays size={18}/> },
-          { id: "USUARIOS", icon: <Users size={18}/> },
-          { id: "CLIENTES", icon: <Search size={18}/> },
-          { id: "SILLONES", icon: <Armchair size={18}/> },
-          { id: "SERVICIOS", icon: <Scissors size={18}/> },
-          { id: "INVENTARIO", icon: <Boxes size={18}/> },
-          { id: "WEB_HOME", icon: <LayoutDashboard size={18}/> },
-          { id: "MUSICA", icon: <Music size={18}/> }
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => handleTabClick(tab.id as TabType)}
-            className={`px-6 py-3.5 rounded-xl font-black text-[11px] tracking-[0.2em] uppercase transition-all whitespace-nowrap flex-shrink-0 flex items-center gap-2 ${
-              activeTab === tab.id 
-                ? "bg-amber-500 text-black shadow-[0_0_20px_rgba(217,119,6,0.3)]" 
-                : "bg-zinc-900/50 text-zinc-400 hover:bg-zinc-800 hover:text-white border border-zinc-800/50"
-            }`}
-          >
-            {tab.icon} {tab.id.replace('_', ' ')}
-          </button>
-        ))}
-      </div>
+        {/* TABS DE NAVEGACIÓN */}
+        <div className="flex gap-2 mb-8 border-b border-zinc-800 pb-4 overflow-x-auto hide-scrollbar scroll-smooth">
+          {[
+            { id: "RESUMEN", icon: <LayoutDashboard size={18}/> },
+            { id: "CITAS", icon: <CalendarDays size={18}/> },
+            { id: "USUARIOS", icon: <Users size={18}/> },
+            { id: "CLIENTES", icon: <Search size={18}/> },
+            { id: "SILLONES", icon: <Armchair size={18}/> },
+            { id: "SERVICIOS", icon: <Scissors size={18}/> },
+            { id: "INVENTARIO", icon: <Boxes size={18}/> },
+            { id: "WEB_HOME", icon: <LayoutDashboard size={18}/> },
+            { id: "MUSICA", icon: <Music size={18}/> }
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => handleTabClick(tab.id as TabType)}
+              className={`px-6 py-3.5 rounded-xl font-black text-[11px] tracking-[0.2em] uppercase transition-all whitespace-nowrap flex-shrink-0 flex items-center gap-2 ${
+                activeTab === tab.id 
+                  ? "bg-amber-500 text-black shadow-[0_0_20px_rgba(217,119,6,0.3)]" 
+                  : "bg-zinc-900/50 text-zinc-400 hover:bg-zinc-800 hover:text-white border border-zinc-800/50"
+              }`}
+            >
+              {tab.icon} {tab.id.replace('_', ' ')}
+            </button>
+          ))}
+        </div>
 
-      <AnimatePresence mode="wait">
-        
-        {/* --- TAB: RESUMEN --- */}
-        {activeTab === "RESUMEN" && (
-          <motion.div key="resumen" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <KpiCard icon={<DollarSign />} title="Ingresos Totales (Hoy)" value={formatMoney(kpis.totalIngresos)} statusColor="text-green-500" />
-              <KpiCard icon={<Scissors />} title="Cortes Generales Hoy" value={kpis.cortesHoy} />
-              <KpiCard icon={<Boxes />} title="Productos en Stock" value={kpis.stockTotal} statusColor="text-amber-500" />
-              <KpiCard icon={<Users />} title="Total Clientes Registrados" value={kpis.clientesTotales} />
-            </div>
-            <div className="bg-amber-500/5 border border-amber-500/20 p-8 rounded-[2rem] flex items-center gap-6">
-               <div className="w-16 h-16 bg-amber-500 text-black rounded-2xl flex items-center justify-center shrink-0 shadow-lg"><ShieldAlert size={32}/></div>
-               <div>
-                  <h3 className="text-xl font-black text-white uppercase tracking-tight">Escudo Administrador Activo</h3>
-                  <p className="text-zinc-400 text-sm mt-1">Este panel está protegido. Solo los usuarios con rol 'ADMIN' en la base de datos pueden visualizar o modificar esta información.</p>
-               </div>
-            </div>
-          </motion.div>
-        )}
-
-        {/* --- TAB: CITAS GLOBALES --- */}
-        {activeTab === "CITAS" && (
-          <motion.div key="citas" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
-            <div className="flex justify-between items-center mb-6">
-              <div>
-                <h2 className="text-2xl font-bold text-white mb-1">Agenda Maestra (Todas las Citas)</h2>
-                <p className="text-sm text-zinc-500">Supervisa las reservas de todos los barberos en tiempo real.</p>
+        <AnimatePresence mode="wait">
+          
+          {/* --- TAB: RESUMEN --- */}
+          {activeTab === "RESUMEN" && (
+            <motion.div key="resumen" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-8">
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold text-white">Rendimiento en Tiempo Real</h2>
+                <button onClick={handleResetSection} className="flex items-center gap-2 text-zinc-400 hover:text-amber-500 transition-colors text-xs font-bold uppercase tracking-widest"><RotateCcw size={14}/> Limpiar Datos</button>
               </div>
-            </div>
-            
-            <div className="relative mb-6">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={20} />
-              <input 
-                type="text" placeholder="Buscar por nombre de cliente, barbero o fecha (ej. 2026-03-06)..." 
-                value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl pl-12 pr-4 py-4 text-white focus:border-amber-500 outline-none transition-all shadow-inner"
-              />
-            </div>
-
-            <div className="bg-zinc-900/40 border border-zinc-800 rounded-[2rem] overflow-hidden">
-              <table className="w-full text-left text-sm text-zinc-400">
-                <thead className="bg-zinc-950 text-[10px] uppercase font-black tracking-[0.2em] border-b border-zinc-800 text-zinc-500">
-                  <tr><th className="px-6 py-6">Fecha / Hora</th><th className="px-6 py-6">Cliente</th><th className="px-6 py-6">Barbero Asignado</th><th className="px-6 py-6 text-center">Estado</th><th className="px-6 py-6 text-right">Acciones Globales</th></tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-800/50">
-                  {appointments.filter(a => (a.client?.name || "").toLowerCase().includes(searchQuery.toLowerCase()) || (a.barber?.name || "").toLowerCase().includes(searchQuery.toLowerCase()) || a.date.includes(searchQuery)).slice(0, 50).map(app => (
-                    <tr key={app.id} className="hover:bg-zinc-800/20 transition-colors group">
-                      <td className="px-6 py-5"><p className="font-bold text-white text-sm">{app.date}</p><p className="text-amber-500 font-black">{app.time}</p></td>
-                      <td className="px-6 py-5"><p className="font-bold text-white">{app.client?.name || 'Usuario Eliminado'}</p><p className="text-xs text-zinc-500">{app.service?.name}</p></td>
-                      <td className="px-6 py-5 font-bold text-zinc-300">{app.barber?.name || 'No asignado'}</td>
-                      <td className="px-6 py-5 text-center">{getStatusBadge(app.status)}</td>
-                      <td className="px-6 py-5 text-right"><button onClick={() => handleDelete('appointments', app.id)} className="p-2 text-zinc-500 hover:text-red-500 transition-colors"><Trash2 size={18}/></button></td>
-                    </tr>
-                  ))}
-                  {appointments.length === 0 && <tr><td colSpan={5} className="p-8 text-center text-zinc-500">No hay citas registradas en el sistema.</td></tr>}
-                </tbody>
-              </table>
-            </div>
-          </motion.div>
-        )}
-
-        {/* --- TAB: USUARIOS / STAFF --- */}
-        {activeTab === "USUARIOS" && (
-          <motion.div key="usuarios" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
-            <div className="flex justify-between items-center mb-6">
-              <div>
-                <h2 className="text-2xl font-bold text-white mb-1">Gestión de Usuarios y Staff</h2>
-                <p className="text-sm text-zinc-500">Administra los perfiles y accesos privados de tu equipo.</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <KpiCard icon={<DollarSign />} title="Ingresos Totales (Hoy)" value={formatMoney(kpis.totalIngresos)} statusColor="text-green-500" />
+                <KpiCard icon={<Scissors />} title="Cortes Generales Hoy" value={kpis.cortesHoy} />
+                <KpiCard icon={<Boxes />} title="Productos en Stock" value={kpis.stockTotal} statusColor="text-amber-500" />
+                <KpiCard icon={<Users />} title="Total Clientes Registrados" value={kpis.clientesTotales} />
               </div>
-              <button onClick={() => openModal("BARBER", null)} className="flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-400 text-black font-black text-xs uppercase tracking-widest rounded-xl transition-all shadow-[0_0_20px_rgba(217,119,6,0.3)]">
-                <UserPlus size={16} /> Crear Barbero
-              </button>
-            </div>
+              <div className="bg-amber-500/5 border border-amber-500/20 p-8 rounded-[2rem] flex items-center gap-6">
+                 <div className="w-16 h-16 bg-amber-500 text-black rounded-2xl flex items-center justify-center shrink-0 shadow-lg"><ShieldAlert size={32}/></div>
+                 <div>
+                    <h3 className="text-xl font-black text-white uppercase tracking-tight">Escudo Administrador Activo</h3>
+                    <p className="text-zinc-400 text-sm mt-1">Este panel está protegido. Solo los usuarios con rol 'ADMIN' en la base de datos pueden visualizar o modificar esta información.</p>
+                 </div>
+              </div>
+            </motion.div>
+          )}
 
-            <div className="bg-zinc-900/40 border border-zinc-800 rounded-[2.5rem] overflow-hidden">
-              <table className="w-full text-left text-sm text-zinc-400">
-                <thead className="bg-zinc-950 text-[10px] uppercase font-black tracking-[0.2em] border-b border-zinc-800">
-                  <tr><th className="px-8 py-6">Perfil (Web)</th><th className="px-6 py-6">Rol / Etiqueta</th><th className="px-6 py-6">Estado App</th><th className="px-8 py-6 text-right">Configuración</th></tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-800/50">
-                  {barbers.map(b => (
-                    <tr key={b.id} className="hover:bg-zinc-800/20 transition-colors">
-                      <td className="px-8 py-5">
-                        <div className="flex items-center gap-4">
-                          <div className="relative w-14 h-14 rounded-2xl overflow-hidden border border-zinc-700 bg-zinc-800 shrink-0">
-                            {b.img ? <Image src={b.img} alt={b.name} fill className="object-cover" unoptimized /> : <UserCircle2 className="w-full h-full p-2 text-zinc-500" />}
-                          </div>
-                          <div>
-                            <span className="font-bold text-white text-base block">{b.name}</span>
-                            <span className={`text-[10px] font-mono flex items-center gap-1 mt-1 ${b.email ? 'text-green-500' : 'text-zinc-500'}`}>
-                              <KeyRound size={10}/> {b.email ? 'Acceso Habilitado' : 'Sin Acceso'}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-5"><p className="text-white font-bold mb-1">{b.role}</p><span className="inline-block px-2 py-0.5 bg-amber-500/10 text-amber-500 text-[9px] uppercase font-black rounded">{b.tag}</span></td>
-                      <td className="px-6 py-5"><span className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest ${b.status === 'ACTIVE' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>{b.status === 'ACTIVE' ? 'Visible' : 'Oculto'}</span></td>
-                      <td className="px-8 py-5 text-right"><div className="flex justify-end gap-2"><button onClick={() => openModal("BARBER", b)} className="p-2 text-zinc-500 hover:text-white transition-colors" title="Editar Perfil"><Edit3 size={18} /></button><button onClick={() => handleDelete('Barbers', b.id)} className="p-2 text-zinc-500 hover:text-red-500 transition-colors" title="Borrar Barbero"><Trash2 size={18} /></button></div></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </motion.div>
-        )}
-
-        {/* --- TAB: SILLONES --- */}
-        {activeTab === "SILLONES" && (
-          <motion.div key="sillones" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
-            <div className="flex justify-between items-center mb-6">
-              <div><h2 className="text-2xl font-bold text-white mb-1">Arriendo de Sillones</h2></div>
-              <button onClick={() => openModal("CHAIR", null)} className="flex items-center gap-2 px-6 py-3 bg-zinc-800 hover:bg-zinc-700 text-white font-black text-xs uppercase tracking-widest rounded-xl"><Plus size={16} /> Crear Estación</button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {chairs.map(chair => {
-                const assignedBarber = barbers.find(b => b.id === chair.current_barber_id);
-                return (
-                  <div key={chair.id} className={`p-8 rounded-[2rem] border relative overflow-hidden transition-all duration-500 group ${chair.status === 'OCCUPIED' ? 'bg-zinc-900/80 border-amber-500/40 shadow-[0_0_30px_rgba(217,119,6,0.1)]' : 'bg-zinc-950 border-zinc-800'}`}>
-                    <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={() => openModal("CHAIR", chair)} className="p-2 bg-black text-zinc-400 hover:text-amber-500 rounded-lg"><Edit3 size={14}/></button></div>
-                    <div className="flex justify-between items-start mb-6">
-                      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${chair.status === 'OCCUPIED' ? 'bg-amber-500 text-black shadow-lg' : 'bg-zinc-900 text-zinc-600'}`}><Armchair size={28} /></div>
-                      <span className={`px-3 py-1 rounded-md text-[9px] font-black uppercase tracking-widest ${chair.status === 'OCCUPIED' ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30' : 'bg-zinc-800 text-zinc-500'}`}>{chair.status === 'OCCUPIED' ? 'Arrendado' : 'Disponible'}</span>
-                    </div>
-                    <h3 className="text-xl font-black text-white mb-4 tracking-tight">{chair.name}</h3>
-                    {chair.status === 'OCCUPIED' ? (
-                      <div className="space-y-4">
-                        <div className="bg-black/50 border border-zinc-800/50 p-4 rounded-xl">
-                          <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1 flex items-center gap-1"><UserCircle2 size={12}/> Barbero Asignado</p>
-                          <p className="text-white font-bold text-sm truncate">{assignedBarber ? assignedBarber.name : "Sin asignar"}</p>
-                        </div>
-                        {chair.payment_due_date && <div className="flex items-center gap-2 text-xs font-bold text-amber-500 bg-amber-500/10 p-3 rounded-xl border border-amber-500/20"><CalendarDays size={16} /> Pago: {new Date(chair.payment_due_date).toLocaleDateString('es-CL')}</div>}
-                      </div>
-                    ) : (<p className="text-zinc-600 text-sm font-medium">Estación libre lista para arriendo.</p>)}
-                  </div>
-                );
-              })}
-            </div>
-          </motion.div>
-        )}
-
-        {/* --- TAB: CLIENTES --- */}
-        {activeTab === "CLIENTES" && (
-          <motion.div key="clientes" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
-            <div className="flex justify-between items-center mb-6">
-              <div><h2 className="text-2xl font-bold text-white mb-1">Cartera de Clientes</h2></div>
-              <button onClick={() => openModal("CLIENT", null)} className="flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-400 text-black font-black text-xs uppercase tracking-widest rounded-xl"><UserPlus size={16} /> Nuevo Cliente</button>
-            </div>
-            <div className="relative mb-6">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={20} />
-              <input type="text" placeholder="Buscar cliente por nombre o celular..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl pl-12 pr-4 py-4 text-white focus:border-amber-500 outline-none transition-all shadow-inner" />
-            </div>
-            <div className="bg-zinc-900/40 border border-zinc-800 rounded-[2rem] overflow-hidden">
-              <table className="w-full text-left text-sm text-zinc-400">
-                <thead className="bg-zinc-950 text-[10px] uppercase font-black tracking-[0.2em] border-b border-zinc-800 text-zinc-500">
-                  <tr><th className="px-8 py-6">Cliente</th><th className="px-6 py-6">Contacto</th><th className="px-6 py-6 text-center">Puntos VIP</th><th className="px-6 py-6 text-right">Acciones</th></tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-800/50">
-                  {clients.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()) || c.phone.includes(searchQuery)).map(c => (
-                    <tr key={c.id} className="hover:bg-zinc-800/20 transition-colors group">
-                      <td className="px-8 py-5"><p className="font-black text-white text-base">{c.name}</p></td>
-                      <td className="px-6 py-5"><p className="font-mono text-xs text-white flex items-center gap-2"><Smartphone size={14} className="text-zinc-500"/> {c.phone}</p></td>
-                      <td className="px-6 py-5 text-center"><span className="bg-amber-500/10 border border-amber-500/30 text-amber-500 px-3 py-1.5 rounded-lg text-xs font-black shadow-sm">{c.points || 0} PTS</span></td>
-                      <td className="px-8 py-5 text-right">
-                        <div className="flex justify-end gap-3">
-                          <a href={`https://wa.me/${c.phone.replace(/[^0-9]/g, '')}?text=Hola%20${c.name}...`} target="_blank" className="p-2 text-green-500 hover:bg-green-500 hover:text-black rounded-lg transition-colors"><MessageCircle size={18} /></a>
-                          <button onClick={() => openModal("CLIENT", c)} className="p-2 text-zinc-500 hover:text-white transition-colors"><Edit3 size={18}/></button>
-                          <button onClick={() => handleDelete('clients', c.id)} className="p-2 text-zinc-500 hover:text-red-500 transition-colors"><Trash2 size={18}/></button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </motion.div>
-        )}
-
-        {/* --- TAB: SERVICIOS --- */}
-        {activeTab === "SERVICIOS" && (
-          <motion.div key="servicios" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
-             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-white">Menú de Servicios Públicos</h2>
-              <button onClick={() => openModal("SERVICE", null)} className="flex items-center gap-2 px-6 py-3 bg-zinc-800 text-white font-black text-xs uppercase tracking-widest rounded-xl"><Plus size={16} /> Nuevo</button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {services.map(s => (
-                <div key={s.id} className="bg-zinc-900/40 border border-zinc-800 rounded-[2.5rem] p-8 relative group hover:border-amber-500/40 transition-colors">
-                  <div className="absolute top-6 right-6 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => openModal("SERVICE", s)} className="p-2 bg-black text-zinc-400 hover:text-amber-500 rounded-lg"><Edit3 size={16}/></button>
-                    <button onClick={() => handleDelete('Services', s.id)} className="p-2 bg-black text-zinc-400 hover:text-red-500 rounded-lg"><Trash2 size={16}/></button>
-                  </div>
-                  <div className="w-14 h-14 bg-black border border-zinc-800 rounded-2xl flex items-center justify-center text-amber-500 mb-6 shadow-lg"><DynamicIcon name={s.iconName || "Scissors"} size={24} /></div>
-                  <h3 className="text-xl font-black text-white pr-16 mb-3 uppercase">{s.name}</h3>
-                  <p className="text-sm text-zinc-400 mb-8 line-clamp-2">{s.desc}</p>
-                  <div className="flex justify-between items-end pt-6 border-t border-zinc-800/80">
-                    <div><span className="block text-[10px] text-zinc-600 font-black uppercase tracking-widest mb-1 flex items-center gap-1"><Clock size={12}/> {s.time}</span><span className="text-3xl font-black text-amber-500 tracking-tighter">{typeof s.price === 'number' ? formatMoney(s.price as number) : s.price}</span></div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        )}
-
-        {/* --- TAB: INVENTARIO --- */}
-        {activeTab === "INVENTARIO" && (
-          <motion.div key="inventario" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-white">Inventario Tienda</h2>
-              <button onClick={() => openModal("PRODUCT", null)} className="flex items-center gap-2 px-6 py-3 bg-amber-500 text-black font-black text-xs uppercase tracking-widest rounded-xl"><Plus size={16} /> Añadir Producto</button>
-            </div>
-            <div className="bg-zinc-900/40 border border-zinc-800 rounded-[2.5rem] overflow-hidden">
-              <table className="w-full text-left text-sm text-zinc-400">
-                <thead className="bg-zinc-950 text-[10px] uppercase font-black tracking-[0.2em] border-b border-zinc-800">
-                  <tr><th className="px-8 py-6">Producto</th><th className="px-6 py-6">SKU</th><th className="px-6 py-6">Precio</th><th className="px-6 py-6 text-center">Stock</th><th className="px-8 py-6 text-right">Acciones</th></tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-800/50">
-                  {inventory.map(p => (
-                    <tr key={p.id} className="hover:bg-zinc-800/20 transition-colors">
-                      <td className="px-8 py-5 flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-xl bg-zinc-800 relative overflow-hidden border border-zinc-700">
-                          {p.image_url ? <Image src={p.image_url} alt={p.name} fill className="object-cover" unoptimized /> : <Package className="w-full h-full p-3 text-zinc-600"/>}
-                        </div>
-                        <p className="font-bold text-white text-base">{p.name}</p>
-                      </td>
-                      <td className="px-6 py-5 font-mono text-xs">{p.sku}</td>
-                      <td className="px-6 py-5 font-black text-amber-500 text-lg">{formatMoney(p.price)}</td>
-                      <td className="px-6 py-5 text-center"><span className="px-3 py-1 rounded-lg font-black text-xs bg-zinc-800 text-white">{p.stock}</span></td>
-                      <td className="px-8 py-5 text-right">
-                        <button onClick={() => openModal("PRODUCT", p)} className="p-2 text-zinc-500 hover:text-white transition-colors"><Edit3 size={18}/></button>
-                        <button onClick={() => handleDelete('inventory', p.id)} className="p-2 text-zinc-500 hover:text-red-500 transition-colors"><Trash2 size={18}/></button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </motion.div>
-        )}
-
-        {/* --- TAB: WEB & HOME ADMIN --- */}
-        {activeTab === "WEB_HOME" && (
-          <motion.div key="web_home" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-12">
-            
-            {/* Hero / Portada */}
-            <div>
+          {/* --- TAB: CITAS GLOBALES --- */}
+          {activeTab === "CITAS" && (
+            <motion.div key="citas" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-2xl font-bold text-white flex items-center gap-2"><Video className="text-amber-500"/> Multimedia Portada (Hero)</h3>
-                <button onClick={() => openModal("HERO_SLIDE", null)} className="px-4 py-2 bg-zinc-800 text-white text-xs font-bold uppercase rounded-lg hover:bg-amber-500 hover:text-black transition-colors">Añadir Archivo</button>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {heroSlides.map(slide => (
-                  <div key={slide.id} className="relative aspect-[9/16] bg-zinc-900 rounded-2xl overflow-hidden group border border-zinc-800">
-                    {slide.media_type === 'video' ? (
-                      <video src={slide.media_url} className="w-full h-full object-cover" muted loop autoPlay />
-                    ) : (
-                      <Image src={slide.media_url} fill alt="Hero" className="object-cover" unoptimized />
-                    )}
-                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                      <button onClick={() => openModal("HERO_SLIDE", slide)} className="p-2 bg-zinc-800 text-white rounded-lg hover:text-amber-500"><Edit3 size={16}/></button>
-                      <button onClick={() => handleDelete('HeroSlides', slide.id)} className="p-2 bg-zinc-800 text-white rounded-lg hover:text-red-500"><Trash2 size={16}/></button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Promociones Store */}
-            <div>
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-2xl font-bold text-white flex items-center gap-2"><ShoppingBag className="text-amber-500"/> Promociones Tienda Web</h3>
-                <button onClick={() => openModal("STORE_PROMO", null)} className="px-4 py-2 bg-zinc-800 text-white text-xs font-bold uppercase rounded-lg hover:bg-amber-500 hover:text-black transition-colors">Añadir Promo</button>
-              </div>
-              <div className="space-y-4">
-                {storePromos.map(promo => (
-                  <div key={promo.id} className="p-6 bg-zinc-900/50 border border-zinc-800 rounded-2xl flex justify-between items-center">
-                    <div className="flex items-center gap-4">
-                      <div className="w-16 h-16 rounded-xl overflow-hidden relative">
-                        <Image src={promo.media_url} fill alt="Promo" className="object-cover" unoptimized />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-white uppercase">{promo.tag}</h4>
-                        <p className="text-xs text-zinc-500">{promo.title_left} & {promo.title_right}</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <button onClick={() => openModal("STORE_PROMO", promo)} className="p-2 text-zinc-400 hover:text-white"><Edit3 size={18}/></button>
-                      <button onClick={() => handleDelete('StorePromos', promo.id)} className="p-2 text-zinc-400 hover:text-red-500"><Trash2 size={18}/></button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Grid Instagram */}
-            <div>
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-2xl font-bold text-white flex items-center gap-2"><Instagram className="text-amber-500"/> Grid Instagram Web</h3>
-                <button onClick={() => openModal("REEL", null)} className="px-4 py-2 bg-zinc-800 text-white text-xs font-bold uppercase rounded-lg hover:bg-amber-500 hover:text-black transition-colors">Añadir Post/Reel</button>
-              </div>
-              <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-                {reels.map(reel => (
-                  <div key={reel.id} className="relative aspect-square bg-zinc-900 overflow-hidden group">
-                    {reel.media_type === 'video' ? <video src={reel.media_url} className="w-full h-full object-cover" muted /> : <Image src={reel.media_url} fill alt="Reel" className="object-cover" unoptimized />}
-                    <div className="absolute inset-0 bg-black/80 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
-                      <span className="text-[10px] font-bold text-white"><Heart size={10} className="inline"/> {reel.likes}</span>
-                      <button onClick={() => handleDelete('InstagramReels', reel.id)} className="text-red-500"><Trash2 size={14}/></button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Reviews y FAQs */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-              <div>
-                <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-xl font-bold text-white flex items-center gap-2"><Star className="text-amber-500"/> Reseñas (Testimonios)</h3>
-                  <button onClick={() => openModal("REVIEW", null)} className="px-3 py-1.5 bg-zinc-800 text-white text-[10px] font-bold uppercase rounded-lg hover:bg-amber-500 hover:text-black">Añadir</button>
+                <div>
+                  <h2 className="text-2xl font-bold text-white mb-1">Agenda Maestra (Todas las Citas)</h2>
+                  <p className="text-sm text-zinc-500">Supervisa las reservas de todos los barberos en tiempo real.</p>
                 </div>
-                <div className="space-y-2">
-                  {reviews.map(r => (
-                    <div key={r.id} className="p-4 bg-zinc-900/50 border border-zinc-800 rounded-xl flex justify-between items-start">
-                      <div><p className="font-bold text-white text-sm">{r.name} <span className="text-amber-500 ml-2">({r.rating}⭐)</span></p><p className="text-xs text-zinc-400 mt-1 line-clamp-1">{r.text}</p></div>
-                      <button onClick={() => handleDelete('Reviews', r.id)} className="text-zinc-500 hover:text-red-500"><Trash2 size={16}/></button>
-                    </div>
-                  ))}
-                </div>
+                <button onClick={handleResetSection} className="flex items-center gap-2 px-4 py-2 bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-colors"><RotateCcw size={14}/> Limpiar Búsqueda</button>
               </div>
               
+              <div className="relative mb-6">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={20} />
+                <input 
+                  type="text" placeholder="Buscar por nombre de cliente, barbero o fecha (ej. 2026-03-06)..." 
+                  value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl pl-12 pr-4 py-4 text-white focus:border-amber-500 outline-none transition-all shadow-inner"
+                />
+              </div>
+
+              <div className="bg-zinc-900/40 border border-zinc-800 rounded-[2rem] overflow-hidden">
+                <table className="w-full text-left text-sm text-zinc-400">
+                  <thead className="bg-zinc-950 text-[10px] uppercase font-black tracking-[0.2em] border-b border-zinc-800 text-zinc-500">
+                    <tr><th className="px-6 py-6">Fecha / Hora</th><th className="px-6 py-6">Cliente y Servicio</th><th className="px-6 py-6">Barbero Asignado</th><th className="px-6 py-6 text-center">Estado</th><th className="px-6 py-6 text-right">Acciones Globales</th></tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-800/50">
+                    {appointments.filter(a => 
+                      (a.client?.name || a.client_name || "").toLowerCase().includes(searchQuery.toLowerCase()) || 
+                      (a.barber?.name || a.barber_name || "").toLowerCase().includes(searchQuery.toLowerCase()) || 
+                      a.date.includes(searchQuery)
+                    ).slice(0, 50).map(app => (
+                      <tr key={app.id} className="hover:bg-zinc-800/20 transition-colors group">
+                        <td className="px-6 py-5"><p className="font-bold text-white text-sm">{app.date}</p><p className="text-amber-500 font-black">{app.time}</p></td>
+                        <td className="px-6 py-5">
+                          <p className="font-bold text-white">{app.client?.name || app.client_name || 'Usuario Eliminado'}</p>
+                          <p className="text-xs text-zinc-500">{app.service?.name || app.service_name}</p>
+                          <p className="text-[10px] text-zinc-600 font-mono mt-1"><Smartphone size={10} className="inline"/> {app.client?.phone || app.client_phone || 'Sin teléfono'}</p>
+                        </td>
+                        <td className="px-6 py-5 font-bold text-zinc-300">{app.barber?.name || app.barber_name || 'No asignado'}</td>
+                        <td className="px-6 py-5 text-center">{getStatusBadge(app.status)}</td>
+                        <td className="px-6 py-5 text-right"><button onClick={() => handleDelete('Appointments', app.id)} className="p-2 text-zinc-500 hover:text-red-500 transition-colors"><Trash2 size={18}/></button></td>
+                      </tr>
+                    ))}
+                    {appointments.length === 0 && <tr><td colSpan={5} className="p-8 text-center text-zinc-500">No hay citas registradas en el sistema.</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            </motion.div>
+          )}
+
+          {/* --- TAB: USUARIOS / STAFF --- */}
+          {activeTab === "USUARIOS" && (
+            <motion.div key="usuarios" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold text-white mb-1">Gestión de Usuarios y Staff</h2>
+                  <p className="text-sm text-zinc-500">Administra los perfiles, accesos privados y enlaces de reserva únicos.</p>
+                </div>
+                <div className="flex gap-4">
+                  <button onClick={handleResetSection} className="flex items-center gap-2 px-4 py-2 bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-colors"><RotateCcw size={14}/> Recargar</button>
+                  <button onClick={() => openModal("BARBER", null)} className="flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-400 text-black font-black text-xs uppercase tracking-widest rounded-xl transition-all shadow-[0_0_20px_rgba(217,119,6,0.3)]">
+                    <UserPlus size={16} /> Crear Barbero
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-zinc-900/40 border border-zinc-800 rounded-[2.5rem] overflow-hidden">
+                <table className="w-full text-left text-sm text-zinc-400">
+                  <thead className="bg-zinc-950 text-[10px] uppercase font-black tracking-[0.2em] border-b border-zinc-800">
+                    <tr><th className="px-8 py-6">Perfil (Web)</th><th className="px-6 py-6">Rol / Etiqueta</th><th className="px-6 py-6">Estado App</th><th className="px-8 py-6 text-right">Configuración & Link</th></tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-800/50">
+                    {barbers.map(b => (
+                      <tr key={b.id} className="hover:bg-zinc-800/20 transition-colors">
+                        <td className="px-8 py-5">
+                          <div className="flex items-center gap-4">
+                            <div className="relative w-14 h-14 rounded-2xl overflow-hidden border border-zinc-700 bg-zinc-800 shrink-0">
+                              {b.img ? <Image src={b.img} alt={b.name} fill className="object-cover" unoptimized /> : <UserCircle2 className="w-full h-full p-2 text-zinc-500" />}
+                            </div>
+                            <div>
+                              <span className="font-bold text-white text-base block">{b.name}</span>
+                              <span className={`text-[10px] font-mono flex items-center gap-1 mt-1 ${b.email ? 'text-green-500' : 'text-zinc-500'}`}>
+                                <KeyRound size={10}/> {b.email ? 'Acceso Habilitado' : 'Sin Acceso'}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-5"><p className="text-white font-bold mb-1">{b.role}</p><span className="inline-block px-2 py-0.5 bg-amber-500/10 text-amber-500 text-[9px] uppercase font-black rounded">{b.tag}</span></td>
+                        <td className="px-6 py-5"><span className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest ${b.status === 'ACTIVE' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>{b.status === 'ACTIVE' ? 'Visible' : 'Oculto'}</span></td>
+                        <td className="px-8 py-5 text-right">
+                          <div className="flex justify-end items-center gap-4">
+                            {/* BOTÓN MÁGICO: Copiar Enlace Único */}
+                            <button 
+                              onClick={() => handleCopyLink(b.id, b.name)} 
+                              className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 text-amber-500 hover:bg-amber-500 hover:text-black rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors"
+                              title="El enlace dirige al cliente directo a la agenda de este barbero"
+                            >
+                              {copiedId === b.id ? <><CheckCircle2 size={14}/> Copiado</> : <><Link2 size={14}/> Link Reserva</>}
+                            </button>
+
+                            <div className="h-6 w-px bg-zinc-800"></div>
+
+                            <button onClick={() => openModal("BARBER", b)} className="p-2 text-zinc-500 hover:text-white transition-colors" title="Editar Perfil"><Edit3 size={18} /></button>
+                            <button onClick={() => handleDelete('Barbers', b.id)} className="p-2 text-zinc-500 hover:text-red-500 transition-colors" title="Borrar Barbero"><Trash2 size={18} /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </motion.div>
+          )}
+
+          {/* --- TAB: SILLONES --- */}
+          {activeTab === "SILLONES" && (
+            <motion.div key="sillones" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
+              <div className="flex justify-between items-center mb-6">
+                <div><h2 className="text-2xl font-bold text-white mb-1">Arriendo de Sillones</h2></div>
+                <div className="flex gap-4">
+                  <button onClick={handleResetSection} className="flex items-center gap-2 px-4 py-2 bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-colors"><RotateCcw size={14}/> Recargar</button>
+                  <button onClick={() => openModal("CHAIR", null)} className="flex items-center gap-2 px-6 py-3 bg-zinc-800 hover:bg-zinc-700 text-white font-black text-xs uppercase tracking-widest rounded-xl"><Plus size={16} /> Crear Estación</button>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {chairs.map(chair => {
+                  const assignedBarber = barbers.find(b => b.id === chair.current_barber_id);
+                  return (
+                    <div key={chair.id} className={`p-8 rounded-[2rem] border relative overflow-hidden transition-all duration-500 group ${chair.status === 'OCCUPIED' ? 'bg-zinc-900/80 border-amber-500/40 shadow-[0_0_30px_rgba(217,119,6,0.1)]' : 'bg-zinc-950 border-zinc-800'}`}>
+                      <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={() => openModal("CHAIR", chair)} className="p-2 bg-black text-zinc-400 hover:text-amber-500 rounded-lg"><Edit3 size={14}/></button></div>
+                      <div className="flex justify-between items-start mb-6">
+                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${chair.status === 'OCCUPIED' ? 'bg-amber-500 text-black shadow-lg' : 'bg-zinc-900 text-zinc-600'}`}><Armchair size={28} /></div>
+                        <span className={`px-3 py-1 rounded-md text-[9px] font-black uppercase tracking-widest ${chair.status === 'OCCUPIED' ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30' : 'bg-zinc-800 text-zinc-500'}`}>{chair.status === 'OCCUPIED' ? 'Arrendado' : 'Disponible'}</span>
+                      </div>
+                      <h3 className="text-xl font-black text-white mb-4 tracking-tight">{chair.name}</h3>
+                      {chair.status === 'OCCUPIED' ? (
+                        <div className="space-y-4">
+                          <div className="bg-black/50 border border-zinc-800/50 p-4 rounded-xl">
+                            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1 flex items-center gap-1"><UserCircle2 size={12}/> Barbero Asignado</p>
+                            <p className="text-white font-bold text-sm truncate">{assignedBarber ? assignedBarber.name : "Sin asignar"}</p>
+                          </div>
+                          {chair.payment_due_date && <div className="flex items-center gap-2 text-xs font-bold text-amber-500 bg-amber-500/10 p-3 rounded-xl border border-amber-500/20"><CalendarDays size={16} /> Pago: {new Date(chair.payment_due_date).toLocaleDateString('es-CL')}</div>}
+                        </div>
+                      ) : (<p className="text-zinc-600 text-sm font-medium">Estación libre lista para arriendo.</p>)}
+                    </div>
+                  );
+                })}
+              </div>
+            </motion.div>
+          )}
+
+          {/* --- TAB: CLIENTES --- */}
+          {activeTab === "CLIENTES" && (
+            <motion.div key="clientes" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
+              <div className="flex justify-between items-center mb-6">
+                <div><h2 className="text-2xl font-bold text-white mb-1">Cartera de Clientes</h2></div>
+                <div className="flex gap-4">
+                  <button onClick={handleResetSection} className="flex items-center gap-2 px-4 py-2 bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-colors"><RotateCcw size={14}/> Limpiar Búsqueda</button>
+                  <button onClick={() => openModal("CLIENT", null)} className="flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-400 text-black font-black text-xs uppercase tracking-widest rounded-xl"><UserPlus size={16} /> Nuevo Cliente</button>
+                </div>
+              </div>
+              <div className="relative mb-6">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={20} />
+                <input type="text" placeholder="Buscar cliente por nombre o celular..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl pl-12 pr-4 py-4 text-white focus:border-amber-500 outline-none transition-all shadow-inner" />
+              </div>
+              <div className="bg-zinc-900/40 border border-zinc-800 rounded-[2rem] overflow-hidden">
+                <table className="w-full text-left text-sm text-zinc-400">
+                  <thead className="bg-zinc-950 text-[10px] uppercase font-black tracking-[0.2em] border-b border-zinc-800 text-zinc-500">
+                    <tr><th className="px-8 py-6">Cliente</th><th className="px-6 py-6">Contacto</th><th className="px-6 py-6 text-center">Puntos VIP</th><th className="px-6 py-6 text-right">Acciones</th></tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-800/50">
+                    {clients.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()) || c.phone.includes(searchQuery)).map(c => (
+                      <tr key={c.id} className="hover:bg-zinc-800/20 transition-colors group">
+                        <td className="px-8 py-5"><p className="font-black text-white text-base">{c.name}</p></td>
+                        <td className="px-6 py-5"><p className="font-mono text-xs text-white flex items-center gap-2"><Smartphone size={14} className="text-zinc-500"/> {c.phone}</p></td>
+                        <td className="px-6 py-5 text-center"><span className="bg-amber-500/10 border border-amber-500/30 text-amber-500 px-3 py-1.5 rounded-lg text-xs font-black shadow-sm">{c.points || 0} PTS</span></td>
+                        <td className="px-8 py-5 text-right">
+                          <div className="flex justify-end gap-3">
+                            <a href={`https://wa.me/${c.phone.replace(/[^0-9]/g, '')}?text=Hola%20${c.name}...`} target="_blank" rel="noreferrer" className="p-2 text-green-500 hover:bg-green-500 hover:text-black rounded-lg transition-colors"><MessageCircle size={18} /></a>
+                            <button onClick={() => openModal("CLIENT", c)} className="p-2 text-zinc-500 hover:text-white transition-colors"><Edit3 size={18}/></button>
+                            <button onClick={() => handleDelete('clients', c.id)} className="p-2 text-zinc-500 hover:text-red-500 transition-colors"><Trash2 size={18}/></button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </motion.div>
+          )}
+
+          {/* --- TAB: SERVICIOS --- */}
+          {activeTab === "SERVICIOS" && (
+            <motion.div key="servicios" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
+               <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-white">Menú de Servicios Públicos</h2>
+                <div className="flex gap-4">
+                  <button onClick={handleResetSection} className="flex items-center gap-2 px-4 py-2 bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-colors"><RotateCcw size={14}/> Recargar</button>
+                  <button onClick={() => openModal("SERVICE", null)} className="flex items-center gap-2 px-6 py-3 bg-zinc-800 text-white font-black text-xs uppercase tracking-widest rounded-xl"><Plus size={16} /> Nuevo</button>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                {services.map(s => (
+                  <div key={s.id} className="bg-zinc-900/40 border border-zinc-800 rounded-[2.5rem] p-8 relative group hover:border-amber-500/40 transition-colors">
+                    <div className="absolute top-6 right-6 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => openModal("SERVICE", s)} className="p-2 bg-black text-zinc-400 hover:text-amber-500 rounded-lg"><Edit3 size={16}/></button>
+                      <button onClick={() => handleDelete('Services', s.id)} className="p-2 bg-black text-zinc-400 hover:text-red-500 rounded-lg"><Trash2 size={16}/></button>
+                    </div>
+                    <div className="w-14 h-14 bg-black border border-zinc-800 rounded-2xl flex items-center justify-center text-amber-500 mb-6 shadow-lg"><DynamicIcon name={s.iconName || "Scissors"} size={24} /></div>
+                    <h3 className="text-xl font-black text-white pr-16 mb-3 uppercase">{s.name}</h3>
+                    <p className="text-sm text-zinc-400 mb-8 line-clamp-2">{s.desc}</p>
+                    <div className="flex justify-between items-end pt-6 border-t border-zinc-800/80">
+                      <div><span className="block text-[10px] text-zinc-600 font-black uppercase tracking-widest mb-1 flex items-center gap-1"><Clock size={12}/> {s.time}</span><span className="text-3xl font-black text-amber-500 tracking-tighter">{typeof s.price === 'number' ? formatMoney(s.price as number) : s.price}</span></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {/* --- TAB: INVENTARIO --- */}
+          {activeTab === "INVENTARIO" && (
+            <motion.div key="inventario" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-white">Inventario Tienda</h2>
+                <div className="flex gap-4">
+                  <button onClick={handleResetSection} className="flex items-center gap-2 px-4 py-2 bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-colors"><RotateCcw size={14}/> Recargar</button>
+                  <button onClick={() => openModal("PRODUCT", null)} className="flex items-center gap-2 px-6 py-3 bg-amber-500 text-black font-black text-xs uppercase tracking-widest rounded-xl"><Plus size={16} /> Añadir Producto</button>
+                </div>
+              </div>
+              <div className="bg-zinc-900/40 border border-zinc-800 rounded-[2.5rem] overflow-hidden">
+                <table className="w-full text-left text-sm text-zinc-400">
+                  <thead className="bg-zinc-950 text-[10px] uppercase font-black tracking-[0.2em] border-b border-zinc-800">
+                    <tr><th className="px-8 py-6">Producto</th><th className="px-6 py-6">SKU</th><th className="px-6 py-6">Precio</th><th className="px-6 py-6 text-center">Stock</th><th className="px-8 py-6 text-right">Acciones</th></tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-800/50">
+                    {inventory.map(p => (
+                      <tr key={p.id} className="hover:bg-zinc-800/20 transition-colors">
+                        <td className="px-8 py-5 flex items-center gap-4">
+                          <div className="w-14 h-14 rounded-xl bg-zinc-800 relative overflow-hidden border border-zinc-700">
+                            {p.image_url ? <Image src={p.image_url} alt={p.name} fill className="object-cover" unoptimized /> : <Package className="w-full h-full p-3 text-zinc-600"/>}
+                          </div>
+                          <p className="font-bold text-white text-base">{p.name}</p>
+                        </td>
+                        <td className="px-6 py-5 font-mono text-xs">{p.sku}</td>
+                        <td className="px-6 py-5 font-black text-amber-500 text-lg">{formatMoney(p.price)}</td>
+                        <td className="px-6 py-5 text-center"><span className="px-3 py-1 rounded-lg font-black text-xs bg-zinc-800 text-white">{p.stock}</span></td>
+                        <td className="px-8 py-5 text-right">
+                          <button onClick={() => openModal("PRODUCT", p)} className="p-2 text-zinc-500 hover:text-white transition-colors"><Edit3 size={18}/></button>
+                          <button onClick={() => handleDelete('inventory', p.id)} className="p-2 text-zinc-500 hover:text-red-500 transition-colors"><Trash2 size={18}/></button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </motion.div>
+          )}
+
+          {/* --- TAB: WEB & HOME ADMIN --- */}
+          {activeTab === "WEB_HOME" && (
+            <motion.div key="web_home" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-12">
+              
+              <div className="flex justify-end">
+                <button onClick={handleResetSection} className="flex items-center gap-2 px-4 py-2 bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-colors"><RotateCcw size={14}/> Recargar Web</button>
+              </div>
+
+              {/* Hero / Portada */}
               <div>
                 <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-xl font-bold text-white flex items-center gap-2"><HelpCircle className="text-amber-500"/> Preguntas Frecuentes</h3>
-                  <button onClick={() => openModal("FAQ", null)} className="px-3 py-1.5 bg-zinc-800 text-white text-[10px] font-bold uppercase rounded-lg hover:bg-amber-500 hover:text-black">Añadir</button>
+                  <h3 className="text-2xl font-bold text-white flex items-center gap-2"><Video className="text-amber-500"/> Multimedia Portada (Hero)</h3>
+                  <button onClick={() => openModal("HERO_SLIDE", null)} className="px-4 py-2 bg-zinc-800 text-white text-xs font-bold uppercase rounded-lg hover:bg-amber-500 hover:text-black transition-colors">Añadir Archivo</button>
                 </div>
-                <div className="space-y-2">
-                  {faqs.map(f => (
-                    <div key={f.id} className="p-4 bg-zinc-900/50 border border-zinc-800 rounded-xl flex justify-between items-start">
-                      <div><p className="font-bold text-white text-sm">{f.q}</p><p className="text-xs text-zinc-400 mt-1 line-clamp-1">{f.a}</p></div>
-                      <button onClick={() => handleDelete('Faqs', f.id)} className="text-zinc-500 hover:text-red-500"><Trash2 size={16}/></button>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {heroSlides.map(slide => (
+                    <div key={slide.id} className="relative aspect-[9/16] bg-zinc-900 rounded-2xl overflow-hidden group border border-zinc-800">
+                      {slide.media_type === 'video' ? (
+                        <video src={slide.media_url} className="w-full h-full object-cover" muted loop autoPlay />
+                      ) : (
+                        <Image src={slide.media_url} fill alt="Hero" className="object-cover" unoptimized />
+                      )}
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        <button onClick={() => openModal("HERO_SLIDE", slide)} className="p-2 bg-zinc-800 text-white rounded-lg hover:text-amber-500"><Edit3 size={16}/></button>
+                        <button onClick={() => handleDelete('HeroSlides', slide.id)} className="p-2 bg-zinc-800 text-white rounded-lg hover:text-red-500"><Trash2 size={16}/></button>
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
-            </div>
 
-          </motion.div>
-        )}
+              {/* Promociones Store */}
+              <div>
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-2xl font-bold text-white flex items-center gap-2"><ShoppingBag className="text-amber-500"/> Promociones Tienda Web</h3>
+                  <button onClick={() => openModal("STORE_PROMO", null)} className="px-4 py-2 bg-zinc-800 text-white text-xs font-bold uppercase rounded-lg hover:bg-amber-500 hover:text-black transition-colors">Añadir Promo</button>
+                </div>
+                <div className="space-y-4">
+                  {storePromos.map(promo => (
+                    <div key={promo.id} className="p-6 bg-zinc-900/50 border border-zinc-800 rounded-2xl flex justify-between items-center">
+                      <div className="flex items-center gap-4">
+                        <div className="w-16 h-16 rounded-xl overflow-hidden relative">
+                          <Image src={promo.media_url} fill alt="Promo" className="object-cover" unoptimized />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-white uppercase">{promo.tag}</h4>
+                          <p className="text-xs text-zinc-500">{promo.title_left} & {promo.title_right}</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => openModal("STORE_PROMO", promo)} className="p-2 text-zinc-400 hover:text-white"><Edit3 size={18}/></button>
+                        <button onClick={() => handleDelete('StorePromos', promo.id)} className="p-2 text-zinc-400 hover:text-red-500"><Trash2 size={18}/></button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
 
-        {/* --- TAB: MUSICA --- */}
-        {activeTab === "MUSICA" && (
-          <motion.div key="musica" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
-            <h2 className="text-2xl font-bold text-white mb-6">Reproductor de Música Global</h2>
-            <div className="bg-zinc-900/40 border border-zinc-800 rounded-[2.5rem] p-10 max-w-4xl shadow-xl">
-               <label className="text-xs font-black text-zinc-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                 Enlace del Audio MP3 
-                 <span className="bg-green-500/10 border border-green-500/20 text-green-500 px-2 py-0.5 rounded-lg text-[9px] flex items-center gap-1"><Clock size={10}/> Autoguardado</span>
-               </label>
-               <div className="flex flex-col md:flex-row gap-4 mb-8">
-                 <input type="text" value={musicUrl} onChange={(e) => setMusicUrl(e.target.value)} className="flex-1 bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white focus:border-amber-500 outline-none" />
-                 <button onClick={() => musicInputRef.current?.click()} className="bg-zinc-800 hover:bg-zinc-700 text-white px-8 py-4 rounded-2xl font-black text-xs tracking-widest uppercase flex gap-3"><UploadCloud size={18} /> Subir MP3</button>
-                 <input type="file" accept="audio/*" className="hidden" ref={musicInputRef} onChange={handleMusicUpload} />
-               </div>
-               {musicUrl && <audio src={musicUrl} controls className="w-full mt-4" />}
-            </div>
-          </motion.div>
-        )}
+              {/* Grid Instagram */}
+              <div>
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-2xl font-bold text-white flex items-center gap-2"><Instagram className="text-amber-500"/> Grid Instagram Web</h3>
+                  <button onClick={() => openModal("REEL", null)} className="px-4 py-2 bg-zinc-800 text-white text-xs font-bold uppercase rounded-lg hover:bg-amber-500 hover:text-black transition-colors">Añadir Post/Reel</button>
+                </div>
+                <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+                  {reels.map(reel => (
+                    <div key={reel.id} className="relative aspect-square bg-zinc-900 overflow-hidden group">
+                      {reel.media_type === 'video' ? <video src={reel.media_url} className="w-full h-full object-cover" muted /> : <Image src={reel.media_url} fill alt="Reel" className="object-cover" unoptimized />}
+                      <div className="absolute inset-0 bg-black/80 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
+                        <span className="text-[10px] font-bold text-white"><Heart size={10} className="inline"/> {reel.likes}</span>
+                        <button onClick={() => handleDelete('InstagramReels', reel.id)} className="text-red-500"><Trash2 size={14}/></button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
 
-      </AnimatePresence>
+              {/* Reviews y FAQs */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                <div>
+                  <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xl font-bold text-white flex items-center gap-2"><Star className="text-amber-500"/> Reseñas (Testimonios)</h3>
+                    <button onClick={() => openModal("REVIEW", null)} className="px-3 py-1.5 bg-zinc-800 text-white text-[10px] font-bold uppercase rounded-lg hover:bg-amber-500 hover:text-black">Añadir</button>
+                  </div>
+                  <div className="space-y-2">
+                    {reviews.map(r => (
+                      <div key={r.id} className="p-4 bg-zinc-900/50 border border-zinc-800 rounded-xl flex justify-between items-start">
+                        <div><p className="font-bold text-white text-sm">{r.name} <span className="text-amber-500 ml-2">({r.rating}⭐)</span></p><p className="text-xs text-zinc-400 mt-1 line-clamp-1">{r.text}</p></div>
+                        <button onClick={() => handleDelete('Reviews', r.id)} className="text-zinc-500 hover:text-red-500"><Trash2 size={16}/></button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                <div>
+                  <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xl font-bold text-white flex items-center gap-2"><HelpCircle className="text-amber-500"/> Preguntas Frecuentes</h3>
+                    <button onClick={() => openModal("FAQ", null)} className="px-3 py-1.5 bg-zinc-800 text-white text-[10px] font-bold uppercase rounded-lg hover:bg-amber-500 hover:text-black">Añadir</button>
+                  </div>
+                  <div className="space-y-2">
+                    {faqs.map(f => (
+                      <div key={f.id} className="p-4 bg-zinc-900/50 border border-zinc-800 rounded-xl flex justify-between items-start">
+                        <div><p className="font-bold text-white text-sm">{f.q}</p><p className="text-xs text-zinc-400 mt-1 line-clamp-1">{f.a}</p></div>
+                        <button onClick={() => handleDelete('Faqs', f.id)} className="text-zinc-500 hover:text-red-500"><Trash2 size={16}/></button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+            </motion.div>
+          )}
+
+          {/* --- TAB: MUSICA --- */}
+          {activeTab === "MUSICA" && (
+            <motion.div key="musica" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-white">Reproductor de Música Global</h2>
+                <button onClick={handleResetSection} className="flex items-center gap-2 px-4 py-2 bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-colors"><RotateCcw size={14}/> Recargar Estado</button>
+              </div>
+              <div className="bg-zinc-900/40 border border-zinc-800 rounded-[2.5rem] p-10 max-w-4xl shadow-xl">
+                 <label className="text-xs font-black text-zinc-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                   Enlace del Audio MP3 
+                   <span className="bg-green-500/10 border border-green-500/20 text-green-500 px-2 py-0.5 rounded-lg text-[9px] flex items-center gap-1"><Clock size={10}/> Autoguardado</span>
+                 </label>
+                 <div className="flex flex-col md:flex-row gap-4 mb-8">
+                   <input type="text" value={musicUrl} onChange={(e) => setMusicUrl(e.target.value)} className="flex-1 bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white focus:border-amber-500 outline-none" />
+                   <button onClick={() => musicInputRef.current?.click()} className="bg-zinc-800 hover:bg-zinc-700 text-white px-8 py-4 rounded-2xl font-black text-xs tracking-widest uppercase flex gap-3"><UploadCloud size={18} /> Subir MP3</button>
+                   <input type="file" accept="audio/*" className="hidden" ref={musicInputRef} onChange={handleMusicUpload} />
+                 </div>
+                 {musicUrl && <audio src={musicUrl} controls className="w-full mt-4" />}
+              </div>
+            </motion.div>
+          )}
+
+        </AnimatePresence>
+      </div>
 
       {/* =================================================================== */}
       {/* MODAL MAESTRO MULTIPROPÓSITO */}
@@ -837,7 +926,7 @@ function AdminDashboardContent() {
           <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setModalType(null)} className="absolute inset-0 bg-black/90 backdrop-blur-sm" />
             
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-[#0a0a0a] border border-zinc-800 rounded-[3rem] p-8 md:p-12 w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-[#0a0a0a] border border-zinc-800 rounded-[3rem] p-8 md:p-12 w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar z-10">
               <button onClick={() => setModalType(null)} className="absolute top-8 right-8 text-zinc-500 hover:text-white bg-zinc-900 p-2 rounded-full"><X size={20}/></button>
               
               <div className="mb-8">
@@ -888,10 +977,8 @@ function AdminDashboardContent() {
                     <div className="grid grid-cols-2 gap-5"><InputField label="Especialidad (Rol)" name="role" defaultValue={editingItem?.role || ""} required /><InputField label="Etiqueta Visual" name="tag" defaultValue={editingItem?.tag || ""} required /></div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                      {/* Si el barbero ya tiene correo, se deshabilita. Si no tiene, se permite ingresar para darle acceso */}
                       <InputField label="Email (Acceso)" name="email" type="email" defaultValue={editingItem?.email || ""} disabled={!!editingItem?.email} />
                       
-                      {/* Mostrar campo de contraseña SOLAMENTE si es nuevo o si se le está asignando correo por primera vez */}
                       {(!editingItem || !editingItem.email) ? (
                         <div className="space-y-2">
                           <label className="block text-[10px] font-black text-amber-500 uppercase tracking-widest pl-2">Contraseña Temporal</label>
@@ -967,7 +1054,7 @@ function AdminDashboardContent() {
           </div>
         )}
       </AnimatePresence>
-    </div>
+    </main>
   );
 }
 
