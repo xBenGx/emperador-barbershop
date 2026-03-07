@@ -231,7 +231,7 @@ function AdminDashboardContent() {
 
   const handleResetSection = () => {
     setSearchQuery("");
-    verifyAdminAndFetchData();
+    verifyAdminAndFetchData(); // Fuerza actualización completa
   };
 
   const handleCopyLink = (id: string, name: string) => {
@@ -435,21 +435,21 @@ function AdminDashboardContent() {
   };
 
   return (
-    // FIX: Reducimos el padding-top principal para que el "EMPERADOR SYSTEM" suba un poco y se alinee perfectamente.
-    <main className="min-h-screen bg-[#050505] pt-[110px] md:pt-[130px] pb-24 text-white relative">
+    // FIX ALINEACIÓN HORIZONTAL: pt-[140px] empuja todo exactamente igual que el menú lateral
+    <main className="min-h-screen bg-[#050505] pt-[140px] md:pt-[180px] pb-24 text-white relative">
       
       {/* ========================================================================================= */}
-      {/* FIX MÁGICO Y PERFECTO PARA ALINEAR LA BARRA LATERAL (SIDEBAR) SIN TOCAR EL LAYOUT GLOBAL */}
+      {/* FIX MÁGICO: Estilos inyectados que obligan al Sidebar (en el layout) a alinearse perfecto  */}
       {/* ========================================================================================= */}
       <style dangerouslySetInnerHTML={{__html: `
-        /* Empuja el sidebar hacia abajo la misma cantidad exacta que el contenido principal */
+        /* Selecciona el elemento lateral y lo empuja hacia abajo la misma distancia */
         aside, [class*="sidebar" i], [class*="SideBar" i] {
-          padding-top: 110px !important;
+          padding-top: 140px !important;
           z-index: 50 !important;
         }
         @media (min-width: 768px) {
           aside, [class*="sidebar" i], [class*="SideBar" i] {
-            padding-top: 130px !important;
+            padding-top: 180px !important;
           }
         }
       `}} />
