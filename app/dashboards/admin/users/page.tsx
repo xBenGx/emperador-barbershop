@@ -7,19 +7,19 @@ import { createClient } from "@/utils/supabase/client";
 import Image from "next/image";
 import { 
   Users, Plus, Edit3, Trash2, X, Save, UploadCloud, 
-  ShieldAlert, Clock, ArrowLeft, UserCircle2, KeyRound, Lock, Heart
+  ShieldAlert, Clock, ArrowLeft, UserCircle2, KeyRound, Lock
 } from "lucide-react";
 import { createBarberAccount } from "@/app/actions/admin";
 
 // ============================================================================
-// INTERFAZ DE DATOS (Solución raíz al error ts2339)
+// TIPADOS ESTRICTOS
 // ============================================================================
 export interface Barber {
   id: string;
   name: string;
   email?: string;
   phone?: string;
-  status: "ACTIVE" | "INACTIVE" | string;
+  status: string;
   role: string;
   tag: string;
   img: string;
@@ -38,7 +38,7 @@ export default function AdminUsersPage() {
   // Estados del Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   
-  // FIX CRÍTICO: Definimos explícitamente que puede ser Barber o null
+  // FIX DEFINITIVO: Forzamos a TypeScript a reconocer que es un objeto Barber o nulo
   const [editingItem, setEditingItem] = useState<Barber | null>(null);
   
   // Estados de Imágenes
@@ -47,7 +47,7 @@ export default function AdminUsersPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   // ============================================================================
-  // SEGURIDAD Y CARGA DE DATOS
+  // SEGURIDAD DEL ADMIN Y CARGA DE DATOS
   // ============================================================================
   const verifyAdminAndFetchData = useCallback(async () => {
     setIsFetching(true);
@@ -82,7 +82,7 @@ export default function AdminUsersPage() {
   }, [verifyAdminAndFetchData, supabase]);
 
   // ============================================================================
-  // MANEJADORES DE ACCIONES
+  // MANEJADORES DE ACCIONES Y MODALES
   // ============================================================================
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -122,16 +122,17 @@ export default function AdminUsersPage() {
       
       if (selectedImage) {
         const fileExt = selectedImage.name.split('.').pop();
-        const fileName = `barber_${Date.now()}.${fileExt}`;
+        const fileName = `barber_${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
         const { error: uploadError } = await supabase.storage.from('barber-profiles').upload(fileName, selectedImage);
+        
         if (!uploadError) {
           const { data: publicUrlData } = supabase.storage.from('barber-profiles').getPublicUrl(fileName);
           imageUrl = publicUrlData.publicUrl;
         }
       }
 
+      // MODO EDICIÓN
       if (editingItem && editingItem.id) {
-        // MODO EDICIÓN
         const updateData = {
           name: formData.get("name") as string,
           phone: formData.get("phone") as string,
@@ -142,8 +143,10 @@ export default function AdminUsersPage() {
         };
         const { error } = await supabase.from('Barbers').update(updateData).eq('id', editingItem.id);
         if (error) throw error;
-      } else {
-        // MODO CREACIÓN
+        alert("¡Perfil actualizado con éxito!");
+      } 
+      // MODO CREACIÓN
+      else {
         const newBarberData = {
           name: formData.get("name") as string,
           email: formData.get("email") as string,
@@ -154,21 +157,34 @@ export default function AdminUsersPage() {
           status: formData.get("status") as string || "ACTIVE",
           img: imageUrl
         };
+
         const result = await createBarberAccount(newBarberData);
         if (result.error) throw new Error(result.error);
+        alert("¡Barbero creado y credenciales generadas exitosamente!");
       }
 
       setIsModalOpen(false);
       verifyAdminAndFetchData(); 
-      alert("¡Operación exitosa!");
+      
     } catch (error: any) {
-      alert(`Error: ${error.message}`);
+      console.error("Error guardando:", error);
+      alert(`Hubo un error: ${error.message}`);
     } finally {
       setIsLoading(false);
     }
   };
 
-  if (authError) return <div className="min-h-screen bg-black flex items-center justify-center text-red-500 font-black tracking-widest uppercase">Acceso Denegado</div>;
+  // ============================================================================
+  // PANTALLA DE RESTRICCIÓN
+  // ============================================================================
+  if (authError) {
+    return (
+      <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center text-red-500 gap-4">
+        <ShieldAlert size={60} className="animate-pulse" />
+        <h1 className="text-2xl font-black uppercase tracking-widest">Acceso Restringido</h1>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-[1400px] mx-auto pb-20 p-6 md:p-10">
@@ -182,7 +198,7 @@ export default function AdminUsersPage() {
           <h1 className="text-4xl md:text-5xl font-black text-white tracking-tighter uppercase font-serif flex items-center gap-4">
             <Users className="text-amber-500 w-10 h-10" /> Staff & <span className="text-amber-500">Usuarios</span>
           </h1>
-          <p className="text-zinc-400 mt-2 font-medium tracking-wide">Administra los accesos privados de tus barberos.</p>
+          <p className="text-zinc-400 mt-2 font-medium tracking-wide">Crea y administra los perfiles y accesos privados de tus barberos.</p>
         </div>
         
         <div className="flex items-center gap-4">
@@ -193,16 +209,18 @@ export default function AdminUsersPage() {
         </div>
       </div>
 
-      {/* TABLA DE USUARIOS */}
+      {/* =================================================================== */}
+      {/* TABLA MAESTRA DE BARBEROS */}
+      {/* =================================================================== */}
       <div className="bg-zinc-900/40 border border-zinc-800 rounded-[2.5rem] overflow-hidden shadow-2xl">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm text-zinc-400">
             <thead className="bg-zinc-950 text-[10px] uppercase font-black tracking-[0.2em] border-b border-zinc-800 text-zinc-500">
               <tr>
-                <th className="px-8 py-6">Perfil</th>
+                <th className="px-8 py-6">Perfil del Barbero</th>
                 <th className="px-6 py-6">Especialidad</th>
-                <th className="px-6 py-6">Acceso</th>
-                <th className="px-6 py-6 text-center">Estado</th>
+                <th className="px-6 py-6">Acceso Email</th>
+                <th className="px-6 py-6 text-center">Estado App</th>
                 <th className="px-8 py-6 text-right">Acciones</th>
               </tr>
             </thead>
@@ -211,45 +229,49 @@ export default function AdminUsersPage() {
                 <tr key={b.id} className="hover:bg-zinc-800/20 transition-colors group">
                   <td className="px-8 py-5">
                     <div className="flex items-center gap-4">
-                      <div className="relative w-14 h-14 rounded-2xl overflow-hidden border border-zinc-700 bg-zinc-800">
-                        {b.img ? <Image src={b.img} alt={b.name} fill className="object-cover" unoptimized /> : <UserCircle2 className="w-full h-full p-2 text-zinc-500" />}
+                      <div className="relative w-16 h-16 rounded-2xl overflow-hidden border border-zinc-700 bg-zinc-800 shrink-0 shadow-lg">
+                        {b.img ? <Image src={b.img} alt={b.name} fill className="object-cover" unoptimized /> : <UserCircle2 className="w-full h-full p-3 text-zinc-500" />}
                       </div>
                       <div>
-                        <span className="font-black text-white text-base block">{b.name}</span>
-                        <span className="text-[9px] uppercase font-black text-amber-500 bg-amber-500/10 px-2 rounded">{b.tag}</span>
+                          <span className="font-black text-white text-lg block">{b.name}</span>
+                          <span className="inline-block px-2 py-1 bg-amber-500/10 text-amber-500 text-[9px] uppercase font-black rounded mt-1">{b.tag}</span>
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-5 font-bold text-white uppercase tracking-tight">{b.role}</td>
-                  <td className="px-6 py-5 font-mono text-xs"><KeyRound size={14} className="inline mr-2 text-amber-500"/>{b.email}</td>
+                  <td className="px-6 py-5 font-mono text-xs flex items-center gap-2"><KeyRound size={14} className="text-amber-500"/> {b.email || 'Sin correo de login'}</td>
                   <td className="px-6 py-5 text-center">
-                    <span className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest ${b.status === 'ACTIVE' ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 'bg-red-500/10 text-red-500'}`}>
+                    <span className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest ${b.status === 'ACTIVE' ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 'bg-red-500/10 text-red-500 border border-red-500/20'}`}>
                       {b.status === 'ACTIVE' ? 'Activo' : 'Suspendido'}
                     </span>
                   </td>
                   <td className="px-8 py-5 text-right">
                     <div className="flex justify-end gap-3">
-                        <button onClick={() => openModal(b)} className="p-3 bg-zinc-950 rounded-xl text-zinc-500 hover:text-white border border-zinc-800 transition-colors"><Edit3 size={18} /></button>
-                        <button onClick={() => handleDelete(b.id)} className="p-3 bg-zinc-950 rounded-xl text-zinc-500 hover:text-red-500 border border-zinc-800 transition-colors"><Trash2 size={18} /></button>
+                        <button onClick={() => openModal(b)} className="p-3 bg-zinc-950 rounded-xl text-zinc-500 hover:text-white hover:border-amber-500 border border-zinc-800 transition-colors shadow-sm" title="Editar Perfil"><Edit3 size={18} /></button>
+                        <button onClick={() => handleDelete(b.id)} className="p-3 bg-zinc-950 rounded-xl text-zinc-500 hover:text-white hover:bg-red-500 hover:border-red-500 border border-zinc-800 transition-colors shadow-sm" title="Eliminar Barbero"><Trash2 size={18} /></button>
                     </div>
                   </td>
                 </tr>
               ))}
+              {barbers.length === 0 && !isFetching && <tr><td colSpan={5} className="text-center py-12 text-zinc-500 font-medium">No hay usuarios registrados en el sistema.</td></tr>}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* MODAL MAESTRO */}
+      {/* =================================================================== */}
+      {/* MODAL CREAR / EDITAR */}
+      {/* =================================================================== */}
       <AnimatePresence>
         {isModalOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsModalOpen(false)} className="absolute inset-0 bg-black/90 backdrop-blur-md" />
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-[#0a0a0a] border border-zinc-800 rounded-[3rem] p-8 md:p-12 w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
-              <button onClick={() => setIsModalOpen(false)} className="absolute top-8 right-8 text-zinc-500 hover:text-white bg-zinc-900 p-2 rounded-full transition-colors"><X size={20}/></button>
+            
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-[#0a0a0a] border border-zinc-800 rounded-[3rem] p-8 md:p-12 w-full max-w-2xl shadow-[0_30px_100px_rgba(0,0,0,0.8)] max-h-[90vh] overflow-y-auto custom-scrollbar">
+              <button type="button" onClick={() => setIsModalOpen(false)} className="absolute top-8 right-8 text-zinc-500 hover:text-white bg-zinc-900 p-2 rounded-full transition-colors"><X size={20}/></button>
               
               <h3 className="text-3xl font-black text-white uppercase tracking-tighter italic mb-8">
-                {editingItem ? "Editar Perfil" : "Nueva Cuenta Staff"}
+                {editingItem ? "Editar Perfil" : "Nueva Cuenta de Staff"}
               </h3>
               
               <form onSubmit={handleSaveAction} className="space-y-6">
@@ -263,36 +285,38 @@ export default function AdminUsersPage() {
                       <Image src={editingItem.img} alt="Current" fill className="object-cover grayscale group-hover:grayscale-0 transition-all" unoptimized />
                     ) : (
                       <>
-                        <UploadCloud className="text-zinc-600 mb-3 group-hover:text-amber-500" size={32} />
-                        <span className="text-[10px] text-zinc-500 font-black uppercase tracking-widest group-hover:text-amber-500">Subir Foto</span>
+                        <UploadCloud className="text-zinc-600 mb-3 group-hover:text-amber-500 transition-colors" size={32} />
+                        <span className="text-[10px] text-zinc-500 font-black uppercase tracking-widest group-hover:text-amber-500 transition-colors">Subir Foto</span>
                       </>
                     )}
-                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity backdrop-blur-sm"><UploadCloud className="text-white" size={32} /></div>
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity backdrop-blur-sm">
+                       <UploadCloud className="text-white" size={32} />
+                    </div>
                   </div>
                   <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageChange} />
                 </div>
 
-                {/* 2. Datos Generales */}
+                {/* 2. Datos Básicos */}
                 <div className="space-y-2">
                   <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest pl-2">Nombre Público</label>
-                  <input name="name" defaultValue={editingItem?.name || ""} required placeholder="Ej. Cesar Luna" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white focus:border-amber-500 outline-none transition-colors" />
+                  <input name="name" defaultValue={editingItem?.name || ""} required placeholder="Ej. Cesar Luna" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white focus:border-amber-500 outline-none transition-colors shadow-inner" />
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div className="space-y-2">
                     <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest pl-2">Especialidad</label>
-                    <input name="role" defaultValue={editingItem?.role || ""} required placeholder="Master Barber" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white focus:border-amber-500 outline-none" />
+                    <input name="role" defaultValue={editingItem?.role || ""} required placeholder="Ej. Master Barber" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white focus:border-amber-500 outline-none transition-colors shadow-inner" />
                   </div>
                   <div className="space-y-2">
                     <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest pl-2">Etiqueta Destacada</label>
-                    <input name="tag" defaultValue={editingItem?.tag || ""} required placeholder="El Arquitecto" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white focus:border-amber-500 outline-none" />
+                    <input name="tag" defaultValue={editingItem?.tag || ""} required placeholder="Ej. El Arquitecto" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white focus:border-amber-500 outline-none transition-colors shadow-inner" />
                   </div>
                 </div>
 
-                {/* 3. Accesos */}
+                {/* 3. Datos de Acceso y Contacto */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div className="space-y-2">
-                    <label className="block text-[10px] font-black text-amber-500 uppercase tracking-widest pl-2">Email Login</label>
+                    <label className="block text-[10px] font-black text-amber-500 uppercase tracking-widest pl-2">Email de Login</label>
                     <input name="email" type="email" defaultValue={editingItem?.email || ""} disabled={!!editingItem} placeholder="ejemplo@emperador.cl" className={`w-full bg-black border border-zinc-800 rounded-2xl px-6 py-4 text-white focus:border-amber-500 outline-none transition-colors shadow-inner ${editingItem ? 'opacity-50 cursor-not-allowed' : ''}`} required />
                   </div>
                   
@@ -301,35 +325,36 @@ export default function AdminUsersPage() {
                       <label className="block text-[10px] font-black text-amber-500 uppercase tracking-widest pl-2">Contraseña Temporal</label>
                       <div className="relative">
                         <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600" size={16} />
-                        <input name="password" type="text" placeholder="Min. 6 caracteres" minLength={6} className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl pl-10 pr-6 py-4 text-white focus:border-amber-500 outline-none" required />
+                        <input name="password" type="text" placeholder="Min. 6 caracteres" minLength={6} className="w-full bg-black border border-zinc-800 rounded-2xl pl-10 pr-6 py-4 text-white focus:border-amber-500 outline-none transition-colors shadow-inner" required />
                       </div>
                     </div>
                   ) : (
                     <div className="space-y-2">
                       <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest pl-2">Teléfono</label>
-                      <input name="phone" defaultValue={editingItem?.phone || ""} placeholder="+56 9..." className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white focus:border-amber-500 outline-none" />
+                      <input name="phone" defaultValue={editingItem?.phone || ""} placeholder="+56 9..." className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white focus:border-amber-500 outline-none transition-colors shadow-inner" />
                     </div>
                   )}
                 </div>
 
+                {/* Input de Teléfono al CREAR (Corregido: sin hacer referencia a editingItem?.phone) */}
                 {!editingItem && (
                   <div className="space-y-2">
                     <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest pl-2">Teléfono</label>
-                    <input name="phone" defaultValue={editingItem?.phone || ""} placeholder="+56 9..." className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white focus:border-amber-500 outline-none" />
+                    <input name="phone" defaultValue="" placeholder="+56 9..." className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white focus:border-amber-500 outline-none transition-colors shadow-inner" />
                   </div>
                 )}
 
                 <div className="space-y-2">
-                  <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest pl-2">Estado en App</label>
-                  <select name="status" defaultValue={editingItem?.status || "ACTIVE"} className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white focus:border-amber-500 outline-none font-bold cursor-pointer">
-                    <option value="ACTIVE">Activo y Visible</option>
+                  <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest pl-2">Estado en la Plataforma</label>
+                  <select name="status" defaultValue={editingItem?.status || "ACTIVE"} className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white focus:border-amber-500 outline-none appearance-none font-bold shadow-inner cursor-pointer">
+                    <option value="ACTIVE">Activo y Público (Visible en Web)</option>
                     <option value="INACTIVE">Suspendido / Deshabilitado</option>
                   </select>
                 </div>
 
                 <div className="pt-8 border-t border-zinc-800 mt-8">
-                  <button type="submit" disabled={isLoading} className="w-full py-5 text-black font-black uppercase tracking-[0.2em] text-sm bg-amber-500 hover:bg-amber-400 rounded-2xl transition-all shadow-[0_10px_30px_rgba(217,119,6,0.3)] active:scale-95 flex justify-center items-center gap-3">
-                    {isLoading ? <Clock className="animate-spin" /> : <><Save size={20}/> Guardar Cambios</>}
+                  <button type="submit" disabled={isLoading} className="w-full py-5 text-black font-black uppercase tracking-[0.2em] text-sm bg-amber-500 hover:bg-amber-400 rounded-2xl transition-all shadow-[0_10px_30px_rgba(217,119,6,0.3)] flex justify-center items-center gap-3 active:scale-95 disabled:opacity-50">
+                    {isLoading ? <Clock className="animate-spin" /> : <><Save size={20}/> Procesar y Guardar Usuario</>}
                   </button>
                 </div>
               </form>
