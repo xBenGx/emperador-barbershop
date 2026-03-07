@@ -128,7 +128,7 @@ function AdminDashboardContent() {
         supabase.from('clients').select('*').order('created_at', { ascending: false }),
         supabase.from('chairs').select('*').order('name', { ascending: true }),
         supabase.from('settings').select('*').eq('key', 'background_music').single(),
-        supabase.from('appointments').select(`id, date, time, status, notes, client:client_id (id, name, phone), barber:barber_id (id, name), service:service_id (id, name, price)`).order('date', { ascending: false }).order('time', { ascending: false }),
+        supabase.from('appointments').select(`id, date, time, status, notes, client:client_id (id, name, phone), barber:barber_id (id, name, email), service:service_id (id, name, price)`).order('date', { ascending: false }).order('time', { ascending: false }),
         supabase.from('HeroSlides').select('*').order('order_index', { ascending: true }),
         supabase.from('StorePromos').select('*').order('created_at', { ascending: false }),
         supabase.from('InstagramReels').select('*').order('created_at', { ascending: false }),
@@ -291,18 +291,45 @@ function AdminDashboardContent() {
       }
 
       if (modalType === "BARBER") {
+        const emailInput = formData.get("email") as string;
+        const passwordInput = formData.get("password") as string;
+        
+        const updateData = { 
+          name: formData.get("name") as string, 
+          phone: formData.get("phone") as string, 
+          role: formData.get("role") as string, 
+          tag: formData.get("tag") as string, 
+          status: formData.get("status") as string || "ACTIVE", 
+          img: mediaUrl 
+        };
+
         if (editingItem && isValidUUID(editingItem.id)) {
-          const updateData = { name: formData.get("name") as string, phone: formData.get("phone") as string, role: formData.get("role") as string, tag: formData.get("tag") as string, status: formData.get("status") as string || "ACTIVE", img: mediaUrl };
-          await supabase.from('Barbers').update(updateData).eq('id', editingItem.id);
+          // LÓGICA DE ASCENSO (Upgrading un barbero existente para darle acceso)
+          if (!editingItem.email && emailInput && passwordInput) {
+            const upgradeData = { ...updateData, id: editingItem.id, email: emailInput, password: passwordInput };
+            // Importante: tu action `createBarberAccount` debe ser capaz de recibir un ID y actualizar
+            const result = await createBarberAccount(upgradeData);
+            if (result.error) throw new Error(result.error);
+          } else {
+            // Actualización normal
+            await supabase.from('Barbers').update(updateData).eq('id', editingItem.id);
+          }
         } else {
-          const newBarberData = { name: formData.get("name") as string, email: formData.get("email") as string, password: formData.get("password") as string, phone: formData.get("phone") as string, role: formData.get("role") as string, tag: formData.get("tag") as string, status: formData.get("status") as string || "ACTIVE", img: mediaUrl };
+          // Creación de barbero nuevo
+          const newBarberData = { ...updateData, email: emailInput, password: passwordInput };
           const result = await createBarberAccount(newBarberData);
           if (result.error) throw new Error(result.error);
         }
       }
 
       if (modalType === "SERVICE") {
-         const data = { name: formData.get("name") as string, price: formData.get("price") as string, time: formData.get("time") as string, desc: formData.get("desc") as string, iconName: (formData.get("iconName") as string) || "Scissors" };
+         const data = { 
+           name: formData.get("name") as string, 
+           price: parseFloat(formData.get("price") as string), 
+           time: formData.get("time") as string, 
+           desc: formData.get("desc") as string, 
+           iconName: (formData.get("iconName") as string) || "Scissors" 
+         };
          if (editingItem && isValidUUID(editingItem.id)) await supabase.from('Services').update(data).eq('id', editingItem.id);
          else await supabase.from('Services').insert([data]);
       }
@@ -520,7 +547,12 @@ function AdminDashboardContent() {
                           <div className="relative w-14 h-14 rounded-2xl overflow-hidden border border-zinc-700 bg-zinc-800 shrink-0">
                             {b.img ? <Image src={b.img} alt={b.name} fill className="object-cover" unoptimized /> : <UserCircle2 className="w-full h-full p-2 text-zinc-500" />}
                           </div>
-                          <div><span className="font-bold text-white text-base block">{b.name}</span><span className="text-[10px] font-mono text-zinc-500 flex items-center gap-1 mt-1"><KeyRound size={10}/> Acceso Habilitado</span></div>
+                          <div>
+                            <span className="font-bold text-white text-base block">{b.name}</span>
+                            <span className={`text-[10px] font-mono flex items-center gap-1 mt-1 ${b.email ? 'text-green-500' : 'text-zinc-500'}`}>
+                              <KeyRound size={10}/> {b.email ? 'Acceso Habilitado' : 'Sin Acceso'}
+                            </span>
+                          </div>
                         </div>
                       </td>
                       <td className="px-6 py-5"><p className="text-white font-bold mb-1">{b.role}</p><span className="inline-block px-2 py-0.5 bg-amber-500/10 text-amber-500 text-[9px] uppercase font-black rounded">{b.tag}</span></td>
@@ -667,7 +699,7 @@ function AdminDashboardContent() {
           </motion.div>
         )}
 
-        {/* --- NUEVA TAB: WEB & HOME ADMIN --- */}
+        {/* --- TAB: WEB & HOME ADMIN --- */}
         {activeTab === "WEB_HOME" && (
           <motion.div key="web_home" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-12">
             
@@ -831,22 +863,55 @@ function AdminDashboardContent() {
                   </div>
                 )}
 
-                {/* FORMULARIOS POR TIPO */}
+                {/* --- FORMULARIO: SERVICIO --- */}
+                {modalType === "SERVICE" && (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      <InputField label="Nombre del Servicio" name="name" defaultValue={editingItem?.name || ""} required />
+                      <InputField label="Icono (Ej: Scissors, Star, Tag)" name="iconName" defaultValue={editingItem?.iconName || "Scissors"} required />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      <InputField label="Precio" name="price" type="number" defaultValue={editingItem?.price || ""} required />
+                      <InputField label="Duración (Ej: 45 Min)" name="time" defaultValue={editingItem?.time || ""} required />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest pl-2">Descripción</label>
+                      <textarea name="desc" defaultValue={editingItem?.desc || ""} required className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white outline-none focus:border-amber-500 transition-colors" rows={3} />
+                    </div>
+                  </>
+                )}
+
+                {/* --- FORMULARIO: BARBERO --- */}
                 {modalType === "BARBER" && (
                   <>
                     <InputField label="Nombre Completo" name="name" defaultValue={editingItem?.name || ""} required />
                     <div className="grid grid-cols-2 gap-5"><InputField label="Especialidad (Rol)" name="role" defaultValue={editingItem?.role || ""} required /><InputField label="Etiqueta Visual" name="tag" defaultValue={editingItem?.tag || ""} required /></div>
-                    <div className="grid grid-cols-2 gap-5">
-                      <InputField label="Email (Acceso)" name="email" type="email" defaultValue={editingItem?.email || ""} disabled={!!editingItem} />
-                      {!editingItem ? (
-                        <div className="space-y-2"><label className="block text-[10px] font-black text-amber-500 uppercase tracking-widest pl-2">Contraseña Temporal</label><div className="relative"><Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600" size={16} /><input name="password" type="text" minLength={6} className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl pl-10 pr-6 py-4 text-white focus:border-amber-500 outline-none" required /></div></div>
-                      ) : (<InputField label="Teléfono" name="phone" defaultValue={editingItem?.phone || ""} />)}
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      {/* Si el barbero ya tiene correo, se deshabilita. Si no tiene, se permite ingresar para darle acceso */}
+                      <InputField label="Email (Acceso)" name="email" type="email" defaultValue={editingItem?.email || ""} disabled={!!editingItem?.email} />
+                      
+                      {/* Mostrar campo de contraseña SOLAMENTE si es nuevo o si se le está asignando correo por primera vez */}
+                      {(!editingItem || !editingItem.email) ? (
+                        <div className="space-y-2">
+                          <label className="block text-[10px] font-black text-amber-500 uppercase tracking-widest pl-2">Contraseña Temporal</label>
+                          <div className="relative">
+                            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600" size={16} />
+                            <input name="password" type="text" minLength={6} className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl pl-10 pr-6 py-4 text-white focus:border-amber-500 outline-none" required={!editingItem} placeholder={editingItem ? "Obligatorio para dar acceso" : ""} />
+                          </div>
+                        </div>
+                      ) : (
+                        <InputField label="Teléfono" name="phone" defaultValue={editingItem?.phone || ""} />
+                      )}
                     </div>
-                    {!editingItem && <InputField label="Teléfono" name="phone" defaultValue={editingItem?.phone || ""} />}
+                    
+                    {(!editingItem || !editingItem.email) && <InputField label="Teléfono" name="phone" defaultValue={editingItem?.phone || ""} />}
+                    
                     <div className="space-y-2"><label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest pl-2">Estado</label><select name="status" defaultValue={editingItem?.status || "ACTIVE"} className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white font-bold"><option value="ACTIVE">Activo</option><option value="INACTIVE">Inactivo</option></select></div>
                   </>
                 )}
 
+                {/* --- FORMULARIOS RESTANTES --- */}
                 {modalType === "CHAIR" && (
                   <>
                     <InputField label="Nombre del Sillón" name="name" defaultValue={editingItem?.name || ""} required />
@@ -913,7 +978,7 @@ function InputField({ label, name, type = "text", defaultValue, required = false
   return (
     <div className="space-y-2">
       <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest pl-2">{label}</label>
-      <input name={name} type={type} defaultValue={defaultValue} required={required} placeholder={placeholder} disabled={disabled} className={`w-full border rounded-2xl px-6 py-4 text-white focus:border-amber-500 outline-none transition-all placeholder:text-zinc-700 ${disabled ? 'bg-zinc-950/50 border-zinc-800 text-zinc-500 cursor-not-allowed' : 'bg-zinc-950 border-zinc-800 shadow-inner'}`} />
+      <input name={name} type={type} defaultValue={defaultValue} required={required} placeholder={placeholder} disabled={disabled} className={`w-full rounded-2xl px-6 py-4 text-white focus:border-amber-500 outline-none transition-all placeholder:text-zinc-700 ${disabled ? 'bg-zinc-950/50 border border-zinc-800/50 text-zinc-500 cursor-not-allowed' : 'bg-zinc-950 border border-zinc-800 shadow-inner'}`} />
     </div>
   );
 }
