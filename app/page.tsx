@@ -22,7 +22,7 @@ import { createClient } from "@/utils/supabase/client";
 // ============================================================================
 const FALLBACK_HERO_SLIDES = [
   { id: "h1", media_type: "image", media_url: "https://images.unsplash.com/photo-1599351431202-1e0f0137899a?q=80&w=2000&auto=format&fit=crop" },
-  { id: "h2", media_type: "video", media_url: "https://cdn.pixabay.com/video/2023/10/22/185955-876723223_large.mp4" } // Ejemplo de video fallback
+  { id: "h2", media_type: "video", media_url: "https://cdn.pixabay.com/video/2023/10/22/185955-876723223_large.mp4" } 
 ];
 
 const FALLBACK_STORE_PROMOS = [
@@ -50,10 +50,10 @@ const FALLBACK_TEAM = [
 ];
 
 const FALLBACK_SERVICES = [
-  { id: "s1", name: "Corte Clásico / Degradado", time: "1 hrs", price: "$12.000", desc: "El corte que define tu estilo. Clean, fresh, de líneas perfectas.", iconName: "Scissors" },
-  { id: "s2", name: "Corte + Perfilado de Cejas", time: "1 hrs", price: "$14.000", desc: "Sube de nivel tu mirada. Detalles quirúrgicos que marcan la diferencia.", iconName: "Crosshair" },
-  { id: "s3", name: "Barba + Vapor Caliente", time: "30 min", price: "$7.000", desc: "Afeitado VIP. Abrimos los poros para un acabado de seda y cero irritación.", iconName: "Flame" },
-  { id: "s4", name: "Corte + Barba + Lavado GRATIS", time: "1h 5m", price: "$17.000", desc: "El combo indispensable para salir listo directo al fin de semana.", iconName: "Zap" },
+  { id: "s1", name: "Corte Clásico / Degradado", time: "45 min", duration: 45, price: "$12.000", desc: "El corte que define tu estilo. Clean, fresh, de líneas perfectas.", iconName: "Scissors" },
+  { id: "s2", name: "Corte + Perfilado de Cejas", time: "1 hrs", duration: 60, price: "$14.000", desc: "Sube de nivel tu mirada. Detalles quirúrgicos que marcan la diferencia.", iconName: "Crosshair" },
+  { id: "s3", name: "Barba + Vapor Caliente", time: "30 min", duration: 30, price: "$7.000", desc: "Afeitado VIP. Abrimos los poros para un acabado de seda y cero irritación.", iconName: "Flame" },
+  { id: "s4", name: "Corte + Barba + Lavado", time: "1h 15m", duration: 75, price: "$17.000", desc: "El combo indispensable para salir listo directo al fin de semana.", iconName: "Zap" },
 ];
 
 const FALLBACK_REVIEWS = [
@@ -84,6 +84,14 @@ const INSTA_REELS = [
 const DynamicIcon = ({ name, size = 24 }: { name: string, size?: number }) => {
   const IconComponent = (LucideIcons as any)[name] || LucideIcons.Scissors;
   return <IconComponent size={size} />;
+};
+
+// Formateador robusto para precios de servicios
+const formatPrice = (price: string | number) => {
+  if (typeof price === 'number') {
+    return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(price);
+  }
+  return price.startsWith('$') ? price : `$${price}`;
 };
 
 // MOTOR MULTIMEDIA: Reproduce Video o Imagen según la Base de Datos
@@ -277,10 +285,11 @@ export default function UltimateEmperadorLanding() {
         const { data: dbHero } = await supabase.from('HeroSlides').select('*').order('order_index', { ascending: true });
         if (dbHero?.length) setHeroSlides(dbHero);
 
-        const { data: dbTeam } = await supabase.from('Barbers').select('*').order('created_at', { ascending: true });
+        const { data: dbTeam } = await supabase.from('Barbers').select('*').eq('status', 'ACTIVE').order('created_at', { ascending: true });
         if (dbTeam?.length) setTeam(dbTeam);
 
-        const { data: dbServices } = await supabase.from('Services').select('*').order('created_at', { ascending: true });
+        // Limitamos a 4 servicios para la portada, ordenados por precio
+        const { data: dbServices } = await supabase.from('Services').select('*').order('price', { ascending: true }).limit(4);
         if (dbServices?.length) setServices(dbServices);
 
         const { data: dbStore } = await supabase.from('StorePromos').select('*').order('created_at', { ascending: false });
@@ -469,8 +478,8 @@ export default function UltimateEmperadorLanding() {
                   
                   <div className="overflow-hidden">
                      <Link href={`/reservar?barber=${t.id}`} className="w-full py-4 bg-white text-black font-black uppercase text-xs tracking-widest rounded-xl flex justify-center items-center gap-2 opacity-0 translate-y-full group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 hover:bg-amber-500 shadow-xl hover:scale-105 active:scale-95">
-                       Reservar con él <Zap size={14} fill="currentColor" />
-                     </Link>
+                        Reservar con él <Zap size={14} fill="currentColor" />
+                      </Link>
                   </div>
                 </div>
               </motion.div>
@@ -480,13 +489,13 @@ export default function UltimateEmperadorLanding() {
       </section>
 
       {/* ========================================================================= */}
-      {/* 3. SERVICIOS (MENÚ) */}
+      {/* 3. SERVICIOS DESTACADOS (Sincronizados) */}
       {/* ========================================================================= */}
       <section id="servicios" className="py-24 md:py-32 bg-zinc-950 relative">
         <div className="max-w-[1400px] mx-auto px-6 relative z-10">
           <div className="flex flex-col md:flex-row justify-between items-end mb-16 md:mb-24 gap-8">
              <div>
-               <motion.h2 initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} className="text-amber-500 font-black text-sm uppercase tracking-[0.4em] mb-4">El Menú Completo</motion.h2>
+               <motion.h2 initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} className="text-amber-500 font-black text-sm uppercase tracking-[0.4em] mb-4">Lo Más Pedido</motion.h2>
                <motion.h3 initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} className="text-5xl md:text-9xl font-serif font-black text-white uppercase tracking-tighter leading-none">SERVICIOS.</motion.h3>
              </div>
              <motion.p initial={{ opacity: 0, x: 20 }} whileInView={{ opacity: 1, x: 0 }} className="text-zinc-500 font-bold uppercase tracking-widest text-xs border-l-2 border-amber-500 pl-6 max-w-sm">
@@ -494,7 +503,7 @@ export default function UltimateEmperadorLanding() {
              </motion.p>
           </div>
           
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-50px" }} variants={staggerContainer} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-50px" }} variants={staggerContainer} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
              {services.map((s, i) => (
                <motion.div key={s.id || i} variants={popUp} whileHover={{ y: -10, scale: 1.02 }} className="group p-8 bg-zinc-900/40 border border-zinc-800 rounded-[2rem] hover:bg-zinc-900 hover:border-amber-500 transition-all duration-300 flex flex-col justify-between shadow-lg relative overflow-hidden">
                   <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
@@ -504,22 +513,28 @@ export default function UltimateEmperadorLanding() {
                       <DynamicIcon name={s.iconName || "Scissors"} />
                     </div>
                     <h4 className="text-xl font-black text-white uppercase mb-3 leading-tight group-hover:text-amber-500 transition-colors line-clamp-2">{s.name}</h4>
-                    <p className="text-zinc-500 font-medium mb-8 text-sm leading-relaxed">{s.desc}</p>
+                    <p className="text-zinc-500 font-medium mb-8 text-sm leading-relaxed line-clamp-3">{s.desc}</p>
                   </div>
                   <div className="relative z-10">
                     <div className="flex justify-between items-end pt-6 border-t border-zinc-800 mb-6 group-hover:border-amber-500/30 transition-colors">
                       <div>
                         <span className="block text-[10px] text-zinc-600 font-black uppercase tracking-widest mb-1">{s.time}</span>
-                        <span className="text-3xl font-black text-amber-500 tracking-tighter">{s.price}</span>
+                        <span className="text-3xl font-black text-amber-500 tracking-tighter">{formatPrice(s.price)}</span>
                       </div>
                     </div>
-                    <Link href="/reservar" className="w-full py-4 bg-black text-white font-black uppercase text-[10px] tracking-widest rounded-xl flex justify-center items-center gap-2 group-hover:bg-white group-hover:text-black transition-colors border border-zinc-800 active:scale-95">
+                    <Link href={`/reservar?service=${s.id}`} className="w-full py-4 bg-black text-white font-black uppercase text-[10px] tracking-widest rounded-xl flex justify-center items-center gap-2 group-hover:bg-white group-hover:text-black transition-colors border border-zinc-800 active:scale-95">
                        Seleccionar <ChevronRight size={14} />
                     </Link>
                   </div>
                </motion.div>
              ))}
           </motion.div>
+          
+          <div className="text-center mt-16">
+            <Link href="/servicios" className="inline-flex items-center gap-2 text-amber-500 hover:text-white font-black uppercase tracking-[0.2em] text-sm border-b border-amber-500 hover:border-white pb-1 transition-colors">
+              Ver Menú Completo <ChevronRight size={16} />
+            </Link>
+          </div>
         </div>
       </section>
 

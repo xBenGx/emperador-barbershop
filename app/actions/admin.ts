@@ -2,7 +2,6 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-// Usamos la clave secreta para tener poderes de Administrador Supremo en Supabase
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -13,61 +12,45 @@ export async function createBarberAccount(data: any) {
   try {
     console.log("Iniciando creación/actualización de cuenta para:", data.email);
 
-    // 1. Preparar la creación del usuario en Autenticación
     const authPayload: any = {
       email: data.email,
-      password: data.password,
-      email_confirm: true, // Auto-confirmar el correo para que puedan loguearse de inmediato
+      password: data.password, // Obligatorio para crear cuentas nuevas
+      email_confirm: true, 
       user_metadata: { 
-        full_name: data.name, // Para compatibilidad con triggers o integraciones de terceros
+        full_name: data.name, 
         name: data.name,      
         phone: data.phone,
-        specialty: data.role, // Su especialidad (Ej: "Master Barber")
-        tag: data.tag,        // Su etiqueta visual (Ej: "Alto Nivel")
-        
-        // LA CLAVE MAGICA: Le avisa a tu nuevo Trigger SQL que este usuario NO es un cliente
-        app_role: 'BARBER'    
+        specialty: data.role, 
+        tag: data.tag,        
+        app_role: 'BARBER' // Etiqueta clave para el Middleware y Triggers    
       }
     };
 
-    // ¡EL TRUCO DE LA SINCRONIZACIÓN Y ASCENSO!
-    // Si estamos editando un barbero que ya existía (para darle acceso al panel), 
-    // forzamos a Supabase Auth a inyectar las credenciales en su MISMO ID existente.
-    if (data.id) {
-      authPayload.id = data.id; 
-    }
+    if (data.id) authPayload.id = data.id; 
 
-    // 2. Crear el usuario en Auth
-    // Al ejecutarse esto, tu nuevo Trigger capturará el "app_role" y pre-creará las filas
+    // 1. Crear usuario en Auth (Esto dispara tu Trigger SQL)
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser(authPayload);
 
     if (authError) {
       console.error("Error en auth.admin.createUser:", authError);
-      throw new Error(`Error de Autenticación: ${authError.message}`);
+      throw new Error(`Auth Error: ${authError.message}`);
     }
 
     const userId = authData.user.id;
-    console.log("Usuario verificado en Auth con ID:", userId);
 
-    // 3. Confirmar Rol de BARBER en la tabla global de seguridad ("User")
-    // Usamos UPSERT por si el Trigger ya lo hizo, así evitamos errores de duplicado
-    const { error: roleError } = await supabaseAdmin.from('User').upsert({
+    // 2. Aseguramos su rol en la tabla User
+    await supabaseAdmin.from('User').upsert({
       id: userId,
       email: data.email,
       role: 'BARBER'
     });
 
-    if (roleError) {
-      console.error("Aviso no fatal al upsertar en tabla User (el trigger ya actuó):", roleError.message);
-    }
-
-    // 4. Actualizar/Rellenar su Perfil Público de Barbero ("Barbers")
-    // El Trigger crea la base, pero aquí inyectamos la imagen, el estado y datos finales
+    // 3. Completamos su perfil de Barbero público
     const { error: barberError } = await supabaseAdmin.from('Barbers').upsert({
       id: userId,
       name: data.name,
       email: data.email,
-      phone: data.phone,
+      phone: data.phone || '', // Respaldo por si viene vacío
       role: data.role,
       tag: data.tag,
       status: data.status || 'ACTIVE',
@@ -75,11 +58,9 @@ export async function createBarberAccount(data: any) {
     });
 
     if (barberError) {
-      console.error("Error al insertar/actualizar en Barbers:", barberError);
-      throw new Error(`Error guardando perfil del barbero: ${barberError.message}`);
+      throw new Error(`Error BD Barbers: ${barberError.message}`);
     }
 
-    console.log("Proceso completado con éxito para:", data.email);
     return { success: true };
 
   } catch (error: any) {

@@ -13,35 +13,48 @@ import {
 import { createClient } from "@/utils/supabase/client";
 
 // ============================================================================
-// TIPADOS
+// TIPADOS (Sincronizado con Admin y Reservas)
 // ============================================================================
 interface Service {
   id: string;
   name: string;
   desc: string;
-  price: string;
+  price: string | number; // Aceptamos ambos para dar soporte a la BD
   time: string;
+  duration?: number;
   iconName: string;
 }
 
-// Fallback por si la base de datos está vacía
+// Fallback de alta fidelidad por si la base de datos está vacía o sin conexión
 const FALLBACK_SERVICES: Service[] = [
-  { id: "s1", name: "Corte Clásico / Degradado", time: "1 hrs", price: "$12.000", desc: "El corte que define tu estilo. Clean, fresh, de líneas perfectas.", iconName: "Scissors" },
-  { id: "s2", name: "Corte + Perfilado de Cejas", time: "1 hrs", price: "$14.000", desc: "Sube de nivel tu mirada. Detalles quirúrgicos que marcan la diferencia.", iconName: "Crosshair" },
-  { id: "s3", name: "Barba + Vapor Caliente", time: "30 min", price: "$7.000", desc: "Afeitado VIP. Abrimos los poros para un acabado de seda y cero irritación.", iconName: "Flame" },
-  { id: "s4", name: "Corte + Barba + Lavado", time: "1h 5m", price: "$17.000", desc: "El combo indispensable para salir listo directo al fin de semana.", iconName: "Zap" },
-  { id: "s5", name: "Limpieza Facial", time: "25 min", price: "$10.000", desc: "Skin care masculino. Vapor, extracción de impurezas y mascarilla.", iconName: "Sparkles" },
-  { id: "s6", name: "Servicio Emperador VIP", time: "1h 30m", price: "$35.000", desc: "La experiencia definitiva. Trato de realeza garantizado con todo incluido.", iconName: "Crown" },
+  { id: "s1", name: "Corte Clásico / Degradado", time: "45 min", duration: 45, price: "$12.000", desc: "El corte que define tu estilo. Clean, fresh, de líneas perfectas.", iconName: "Scissors" },
+  { id: "s2", name: "Corte + Perfilado de Cejas", time: "1 hrs", duration: 60, price: "$14.000", desc: "Sube de nivel tu mirada. Detalles quirúrgicos que marcan la diferencia.", iconName: "Crosshair" },
+  { id: "s3", name: "Barba + Vapor Caliente", time: "30 min", duration: 30, price: "$7.000", desc: "Afeitado VIP. Abrimos los poros para un acabado de seda y cero irritación.", iconName: "Flame" },
+  { id: "s4", name: "Corte + Barba + Lavado", time: "1h 15m", duration: 75, price: "$17.000", desc: "El combo indispensable para salir listo directo al fin de semana.", iconName: "Zap" },
+  { id: "s5", name: "Limpieza Facial", time: "25 min", duration: 25, price: "$10.000", desc: "Skin care masculino. Vapor, extracción de impurezas y mascarilla.", iconName: "Sparkles" },
+  { id: "s6", name: "Servicio Emperador VIP", time: "1h 30m", duration: 90, price: "$35.000", desc: "La experiencia definitiva. Trato de realeza garantizado con todo incluido.", iconName: "Crown" },
 ];
 
-// Renderizador Dinámico de Iconos (lee el string de la BD y muestra el icono real)
+// ============================================================================
+// FUNCIONES DE APOYO
+// ============================================================================
+// Renderizador Dinámico de Iconos (lee el string de la BD y muestra el icono real de Lucide)
 const DynamicIcon = ({ name, size = 24 }: { name: string, size?: number }) => {
   const IconComponent = (LucideIcons as any)[name] || LucideIcons.Scissors;
   return <IconComponent size={size} />;
 };
 
+// Formateador robusto para asegurar que el precio siempre se vea como moneda
+const formatPrice = (price: string | number) => {
+  if (typeof price === 'number') {
+    return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(price);
+  }
+  // Si ya es un string como "$12.000", lo devolvemos tal cual
+  return price.startsWith('$') ? price : `$${price}`;
+};
+
 // ============================================================================
-// ANIMACIONES
+// ANIMACIONES (Framer Motion)
 // ============================================================================
 const fadeUp: Variants = {
   hidden: { opacity: 0, y: 40 },
@@ -63,6 +76,7 @@ export default function ServiciosPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Sincronización Maestra con Supabase
   useEffect(() => {
     async function fetchServices() {
       setLoading(true);
@@ -70,12 +84,14 @@ export default function ServiciosPage() {
         const { data, error } = await supabase
           .from('Services')
           .select('*')
-          .order('created_at', { ascending: true });
+          .order('price', { ascending: true }); // Ordenados por precio como en el Admin
+
+        if (error) throw error;
 
         if (data && data.length > 0) {
           setServices(data);
         } else {
-          // Si no hay datos, mostramos el fallback para que la página nunca se vea vacía
+          // Si la tabla está vacía, mostramos el fallback para no romper la UI
           setServices(FALLBACK_SERVICES);
         }
       } catch (error) {
@@ -140,8 +156,11 @@ export default function ServiciosPage() {
       <section className="relative z-10 max-w-[1400px] mx-auto px-6 py-20 md:py-32">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 text-amber-500">
-            <Scissors className="animate-spin-slow mb-4" size={40} />
-            <span className="font-black uppercase tracking-widest text-xs animate-pulse">Afilando Navajas...</span>
+            <div className="relative w-24 h-24 flex items-center justify-center mb-6">
+               <div className="absolute inset-0 border-4 border-amber-500/20 border-t-amber-500 rounded-full animate-spin"></div>
+               <Scissors className="animate-pulse" size={32} />
+            </div>
+            <span className="font-black uppercase tracking-[0.3em] text-xs animate-pulse">Afilando Navajas...</span>
           </div>
         ) : (
           <motion.div 
@@ -151,9 +170,9 @@ export default function ServiciosPage() {
             variants={staggerContainer}
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8"
           >
-            {services.map((service, index) => (
+            {services.map((service) => (
               <motion.div 
-                key={service.id || index} 
+                key={service.id} 
                 variants={fadeUp} 
                 whileHover={{ y: -10 }}
                 className="group p-8 md:p-10 bg-zinc-900/40 border border-zinc-800 rounded-[2.5rem] hover:bg-zinc-900 hover:border-amber-500/50 transition-all duration-500 flex flex-col justify-between shadow-lg relative overflow-hidden"
@@ -164,7 +183,7 @@ export default function ServiciosPage() {
                 <div className="relative z-10">
                   <div className="flex justify-between items-start mb-6">
                     <div className="w-16 h-16 bg-black border border-zinc-800 rounded-2xl flex items-center justify-center text-amber-500 group-hover:bg-amber-500 group-hover:text-black group-hover:border-amber-400 transition-colors shadow-lg duration-300">
-                      <DynamicIcon name={service.iconName} size={28} />
+                      <DynamicIcon name={service.iconName || "Scissors"} size={28} />
                     </div>
                     <div className="flex items-center gap-1 bg-zinc-950 border border-zinc-800 px-3 py-1.5 rounded-lg text-amber-500">
                       <Star size={12} fill="currentColor" />
@@ -175,7 +194,7 @@ export default function ServiciosPage() {
                   <h3 className="text-2xl md:text-3xl font-black text-white uppercase tracking-tight mb-4 leading-none group-hover:text-amber-500 transition-colors">
                     {service.name}
                   </h3>
-                  <p className="text-zinc-400 font-medium text-sm md:text-base leading-relaxed mb-8">
+                  <p className="text-zinc-400 font-medium text-sm md:text-base leading-relaxed mb-8 line-clamp-3">
                     {service.desc}
                   </p>
                 </div>
@@ -184,16 +203,16 @@ export default function ServiciosPage() {
                   <div className="flex justify-between items-end pt-6 border-t border-zinc-800/80 mb-8 group-hover:border-amber-500/30 transition-colors">
                     <div>
                       <span className="block text-[11px] text-zinc-500 font-black uppercase tracking-widest mb-1 flex items-center gap-1">
-                        <Clock size={12} /> Duración: {service.time}
+                        <Clock size={12} /> {service.time} {service.duration ? `(${service.duration} min)` : ''}
                       </span>
                       <span className="text-4xl font-black text-amber-500 tracking-tighter">
-                        {service.price}
+                        {formatPrice(service.price)}
                       </span>
                     </div>
                   </div>
                   
                   <Link 
-                    href="/reservar" 
+                    href={`/reservar?service=${service.id}`} // Redirige a reserva con el servicio en mente (Opcional, pero buen UX)
                     className="w-full py-5 bg-white text-black font-black uppercase text-xs tracking-widest rounded-2xl flex justify-center items-center gap-2 group-hover:bg-amber-500 transition-colors shadow-xl active:scale-95"
                   >
                     Reservar Turno <ChevronRight size={16} />

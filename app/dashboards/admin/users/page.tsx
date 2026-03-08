@@ -320,30 +320,24 @@ export default function AdminUsersPage() {
                     <input name="email" type="email" defaultValue={editingItem?.email || ""} disabled={!!editingItem} placeholder="ejemplo@emperador.cl" className={`w-full bg-black border border-zinc-800 rounded-2xl px-6 py-4 text-white focus:border-amber-500 outline-none transition-colors shadow-inner ${editingItem ? 'opacity-50 cursor-not-allowed' : ''}`} required />
                   </div>
                   
-                  {!editingItem ? (
-                    <div className="space-y-2">
-                      <label className="block text-[10px] font-black text-amber-500 uppercase tracking-widest pl-2">Contraseña Temporal</label>
-                      <div className="relative">
-                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600" size={16} />
-                        <input name="password" type="text" placeholder="Min. 6 caracteres" minLength={6} className="w-full bg-black border border-zinc-800 rounded-2xl pl-10 pr-6 py-4 text-white focus:border-amber-500 outline-none transition-colors shadow-inner" required />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest pl-2">Teléfono</label>
-                      <input name="phone" defaultValue={editingItem?.phone || ""} placeholder="+56 9..." className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white focus:border-amber-500 outline-none transition-colors shadow-inner" />
-                    </div>
-                  )}
-                </div>
-
-                {/* Input de Teléfono al CREAR (Corregido: sin hacer referencia a editingItem?.phone) */}
-                {!editingItem && (
                   <div className="space-y-2">
                     <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest pl-2">Teléfono</label>
-                    <input name="phone" defaultValue="" placeholder="+56 9..." className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white focus:border-amber-500 outline-none transition-colors shadow-inner" />
+                    <input name="phone" defaultValue={editingItem?.phone || ""} placeholder="+56 9..." className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white focus:border-amber-500 outline-none transition-colors shadow-inner" />
+                  </div>
+                </div>
+
+                {/* Input de contraseña solo visible al crear */}
+                {!editingItem && (
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-black text-amber-500 uppercase tracking-widest pl-2">Contraseña Temporal</label>
+                    <div className="relative">
+                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600" size={16} />
+                      <input name="password" type="text" placeholder="Min. 6 caracteres" minLength={6} className="w-full bg-black border border-zinc-800 rounded-2xl pl-10 pr-6 py-4 text-white focus:border-amber-500 outline-none transition-colors shadow-inner" required />
+                    </div>
                   </div>
                 )}
 
+                {/* 4. Estado */}
                 <div className="space-y-2">
                   <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest pl-2">Estado en la Plataforma</label>
                   <select name="status" defaultValue={editingItem?.status || "ACTIVE"} className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white focus:border-amber-500 outline-none appearance-none font-bold shadow-inner cursor-pointer">

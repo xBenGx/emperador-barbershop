@@ -27,6 +27,7 @@ type TabType = "RESUMEN" | "CITAS" | "SILLONES" | "USUARIOS" | "CLIENTES" | "SER
 type ModalType = "SERVICE" | "BARBER" | "PRODUCT" | "CLIENT" | "CHAIR" | "HERO_SLIDE" | "STORE_PROMO" | "REEL" | "REVIEW" | "FAQ" | null;
 
 interface Barber { id: string; name: string; email?: string; phone?: string; status: "ACTIVE" | "INACTIVE"; cutsToday: number; role: string; tag: string; img: string; }
+// FIX SERVICIOS: Agregado 'duration' para la lógica matemática de la agenda
 interface Service { id: string; name: string; desc: string; price: string | number; time: string; duration?: number; iconName: string; }
 interface Client { id: string; name: string; phone: string; email?: string; visits: number; last_visit: string; total_spent: number; points: number; }
 interface Chair { id: string; name: string; status: "OCCUPIED" | "FREE"; current_barber_id?: string; payment_due_date?: string; }
@@ -112,7 +113,7 @@ function AdminDashboardContent() {
 
   useEffect(() => {
     const tab = searchParams.get("tab") as TabType;
-    if (tab) setActiveTab(tab);
+    if (tab && tab !== "CITAS") setActiveTab(tab);
   }, [searchParams]);
 
   // ============================================================================
@@ -223,6 +224,11 @@ function AdminDashboardContent() {
   };
 
   const handleTabClick = (tab: TabType) => {
+    // FIX ENLACE CITAS: Redirige directamente a la página maestra de citas
+    if (tab === "CITAS") {
+      router.push('/dashboards/admin/todaslascitas');
+      return;
+    }
     setActiveTab(tab);
     setSearchQuery(""); 
     router.push(`/dashboards/admin?tab=${tab}`, { scroll: false });
@@ -291,7 +297,6 @@ function AdminDashboardContent() {
   const handleDelete = async (table: string, id: string) => {
     if (!window.confirm("¿Confirmas la eliminación permanente de este registro?")) return;
     try {
-      // Si eliminamos un Barbero, primero llamamos al backend para borrarlo de Auth
       if (table === 'Barbers') {
         const response = await fetch('/api/admin/delete-barber', {
           method: 'POST',
@@ -305,7 +310,6 @@ function AdminDashboardContent() {
         }
       }
 
-      // Si no es barbero, o si ya se borró de auth, borramos de la tabla
       if (isValidUUID(id)) await supabase.from(table).delete().eq('id', id);
       
       verifyAdminAndFetchData(); 
@@ -341,7 +345,7 @@ function AdminDashboardContent() {
         const passwordInput = formData.get("password") as string;
         
         const payload = { 
-          id: editingItem?.id, // Pasamos el ID si existe para actualizar
+          id: editingItem?.id, 
           name: formData.get("name") as string, 
           phone: formData.get("phone") as string, 
           role: formData.get("role") as string, 
@@ -352,7 +356,6 @@ function AdminDashboardContent() {
           password: passwordInput
         };
 
-        // Llama a tu API Route para crear/actualizar
         const response = await fetch('/api/admin/create-barber', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -371,6 +374,7 @@ function AdminDashboardContent() {
            name: formData.get("name") as string, 
            price: parseFloat(formData.get("price") as string), 
            time: formData.get("time") as string, 
+           duration: parseInt(formData.get("duration") as string) || 45, // Guardamos el valor numérico para la reserva
            desc: formData.get("desc") as string, 
            iconName: (formData.get("iconName") as string) || "Scissors" 
          };
@@ -452,7 +456,6 @@ function AdminDashboardContent() {
   };
 
   return (
-    // FIX ALINEACIÓN HORIZONTAL: pt-[140px] empuja todo exactamente igual que el menú lateral
     <main className="min-h-screen bg-[#050505] pt-[140px] md:pt-[180px] pb-24 text-white relative">
       
       {/* ========================================================================================= */}
@@ -490,12 +493,10 @@ function AdminDashboardContent() {
           <div className="flex items-center gap-3">
             {isFetching && <span className="text-amber-500 text-xs font-black uppercase tracking-widest animate-pulse px-4 hidden md:flex"><Clock size={16} className="mr-2"/> Sync...</span>}
             
-            {/* Botón Actualizar Funcional */}
             <button onClick={verifyAdminAndFetchData} className="flex items-center gap-2 px-5 py-3 bg-zinc-950 border border-zinc-800 text-zinc-300 hover:text-amber-500 hover:border-amber-500 rounded-xl transition-all shadow-inner font-bold text-xs uppercase tracking-widest" title="Actualizar Base de Datos">
               <RefreshCw size={16} className={isFetching ? "animate-spin" : ""} /> <span className="hidden md:block">Sincronizar</span>
             </button>
             
-            {/* Botón Cerrar Sesión Funcional */}
             <button onClick={handleLogout} className="flex items-center gap-2 px-5 py-3 bg-red-500/10 border border-red-500/20 text-red-500 hover:bg-red-500 hover:text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all">
               <LogOut size={16} /> <span className="hidden md:block">Salir</span>
             </button>
@@ -554,55 +555,7 @@ function AdminDashboardContent() {
             </motion.div>
           )}
 
-          {/* --- TAB: CITAS GLOBALES --- */}
-          {activeTab === "CITAS" && (
-            <motion.div key="citas" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
-              <div className="flex justify-between items-center mb-6">
-                <div>
-                  <h2 className="text-2xl font-bold text-white mb-1">Agenda Maestra (Todas las Citas)</h2>
-                  <p className="text-sm text-zinc-500">Supervisa las reservas de todos los barberos en tiempo real.</p>
-                </div>
-                <button onClick={handleResetSection} className="flex items-center gap-2 px-4 py-2 bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-colors"><RotateCcw size={14}/> Limpiar Búsqueda</button>
-              </div>
-              
-              <div className="relative mb-6">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={20} />
-                <input 
-                  type="text" placeholder="Buscar por nombre de cliente, barbero o fecha (ej. 2026-03-06)..." 
-                  value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl pl-12 pr-4 py-4 text-white focus:border-amber-500 outline-none transition-all shadow-inner"
-                />
-              </div>
-
-              <div className="bg-zinc-900/40 border border-zinc-800 rounded-[2rem] overflow-hidden">
-                <table className="w-full text-left text-sm text-zinc-400">
-                  <thead className="bg-zinc-950 text-[10px] uppercase font-black tracking-[0.2em] border-b border-zinc-800 text-zinc-500">
-                    <tr><th className="px-6 py-6">Fecha / Hora</th><th className="px-6 py-6">Cliente y Servicio</th><th className="px-6 py-6">Barbero Asignado</th><th className="px-6 py-6 text-center">Estado</th><th className="px-6 py-6 text-right">Acciones Globales</th></tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-800/50">
-                    {appointments.filter(a => 
-                      (a.client?.name || a.client_name || "").toLowerCase().includes(searchQuery.toLowerCase()) || 
-                      (a.barber?.name || a.barber_name || "").toLowerCase().includes(searchQuery.toLowerCase()) || 
-                      a.date.includes(searchQuery)
-                    ).slice(0, 50).map(app => (
-                      <tr key={app.id} className="hover:bg-zinc-800/20 transition-colors group">
-                        <td className="px-6 py-5"><p className="font-bold text-white text-sm">{app.date}</p><p className="text-amber-500 font-black">{app.time}</p></td>
-                        <td className="px-6 py-5">
-                          <p className="font-bold text-white">{app.client?.name || app.client_name || 'Usuario Eliminado'}</p>
-                          <p className="text-xs text-zinc-500">{app.service?.name || app.service_name}</p>
-                          <p className="text-[10px] text-zinc-600 font-mono mt-1"><Smartphone size={10} className="inline"/> {app.client?.phone || app.client_phone || 'Sin teléfono'}</p>
-                        </td>
-                        <td className="px-6 py-5 font-bold text-zinc-300">{app.barber?.name || app.barber_name || 'No asignado'}</td>
-                        <td className="px-6 py-5 text-center">{getStatusBadge(app.status)}</td>
-                        <td className="px-6 py-5 text-right"><button onClick={() => handleDelete('Appointments', app.id)} className="p-2 text-zinc-500 hover:text-red-500 transition-colors"><Trash2 size={18}/></button></td>
-                      </tr>
-                    ))}
-                    {appointments.length === 0 && <tr><td colSpan={5} className="p-8 text-center text-zinc-500">No hay citas registradas en el sistema.</td></tr>}
-                  </tbody>
-                </table>
-              </div>
-            </motion.div>
-          )}
+          {/* LA SECCIÓN CITAS FUE REDIRIGIDA EN LA LÓGICA DE PESTAÑAS (handleTabClick) */}
 
           {/* --- TAB: USUARIOS / STAFF --- */}
           {activeTab === "USUARIOS" && (
@@ -645,7 +598,6 @@ function AdminDashboardContent() {
                         <td className="px-6 py-5"><span className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest ${b.status === 'ACTIVE' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>{b.status === 'ACTIVE' ? 'Visible' : 'Oculto'}</span></td>
                         <td className="px-8 py-5 text-right">
                           <div className="flex justify-end items-center gap-4">
-                            {/* BOTÓN MÁGICO: Copiar Enlace Único */}
                             <button 
                               onClick={() => handleCopyLink(b.id, b.name)} 
                               className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 text-amber-500 hover:bg-amber-500 hover:text-black rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors"
@@ -722,7 +674,7 @@ function AdminDashboardContent() {
               <div className="bg-zinc-900/40 border border-zinc-800 rounded-[2rem] overflow-hidden">
                 <table className="w-full text-left text-sm text-zinc-400">
                   <thead className="bg-zinc-950 text-[10px] uppercase font-black tracking-[0.2em] border-b border-zinc-800 text-zinc-500">
-                    <tr><th className="px-8 py-6">Cliente</th><th className="px-6 py-6">Contacto</th><th className="px-6 py-6 text-center">Puntos VIP</th><th className="px-6 py-6 text-right">Acciones</th></tr>
+                    <tr><th className="px-8 py-6">Cliente</th><th className="px-6 py-6">Contacto</th><th className="px-6 py-6 text-center">Puntos VIP</th><th className="px-8 py-6 text-right">Acciones</th></tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-800/50">
                     {clients.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()) || c.phone.includes(searchQuery)).map(c => (
@@ -766,7 +718,10 @@ function AdminDashboardContent() {
                     <h3 className="text-xl font-black text-white pr-16 mb-3 uppercase">{s.name}</h3>
                     <p className="text-sm text-zinc-400 mb-8 line-clamp-2">{s.desc}</p>
                     <div className="flex justify-between items-end pt-6 border-t border-zinc-800/80">
-                      <div><span className="block text-[10px] text-zinc-600 font-black uppercase tracking-widest mb-1 flex items-center gap-1"><Clock size={12}/> {s.time}</span><span className="text-3xl font-black text-amber-500 tracking-tighter">{typeof s.price === 'number' ? formatMoney(s.price as number) : s.price}</span></div>
+                      <div>
+                        <span className="block text-[10px] text-zinc-600 font-black uppercase tracking-widest mb-1 flex items-center gap-1"><Clock size={12}/> {s.time} ({s.duration} MIN REA)</span>
+                        <span className="text-3xl font-black text-amber-500 tracking-tighter">{typeof s.price === 'number' ? formatMoney(s.price as number) : s.price}</span>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -985,16 +940,18 @@ function AdminDashboardContent() {
                   </div>
                 )}
 
-                {/* --- FORMULARIO: SERVICIO --- */}
+                {/* --- FORMULARIO: SERVICIO (Sincronizado Numéricamente) --- */}
                 {modalType === "SERVICE" && (
                   <>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                       <InputField label="Nombre del Servicio" name="name" defaultValue={editingItem?.name || ""} required />
                       <InputField label="Icono (Ej: Scissors, Star, Tag)" name="iconName" defaultValue={editingItem?.iconName || "Scissors"} required />
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                       <InputField label="Precio" name="price" type="number" defaultValue={editingItem?.price || ""} required />
-                      <InputField label="Duración (Ej: 45 Min)" name="time" defaultValue={editingItem?.time || ""} required />
+                      <InputField label="Etiqueta Visual (Ej: 45 Min)" name="time" defaultValue={editingItem?.time || ""} required />
+                      {/* FIX: CAMPO NUMÉRICO PARA LA AGENDA */}
+                      <InputField label="Minutos Reales (Agenda)" name="duration" type="number" defaultValue={editingItem?.duration || 45} required />
                     </div>
                     <div className="space-y-2">
                       <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest pl-2">Descripción</label>

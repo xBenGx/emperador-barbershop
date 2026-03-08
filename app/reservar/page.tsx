@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, useEffect, Suspense, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -20,38 +20,39 @@ import { createClient } from "@/utils/supabase/client";
 // DATA DE RESPALDO (Fallbacks) 
 // ============================================================================
 const FALLBACK_BARBERS = [
-  { id: "cesar", name: "Cesar Luna", role: "Master Barber", img: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=800&auto=format&fit=crop" },
-  { id: "jack", name: "Jack Guerra", role: "Fade Specialist", img: "https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=800&auto=format&fit=crop" },
+  { id: "cesar", name: "Cesar Luna", role: "Master Barber", img: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=800&auto=format&fit=crop", tag: "Elite" },
+  { id: "jack", name: "Jack Guerra", role: "Fade Specialist", img: "https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=800&auto=format&fit=crop", tag: "Pro" },
 ];
 
 const FALLBACK_SERVICES = [
-  { id: "s1", name: "Corte Clásico / Degradado", time: "1 hrs", price: "$12.000", desc: "Clean, fresh, de líneas perfectas.", iconName: "Scissors" },
-  { id: "s2", name: "Barba + Vapor Caliente", time: "30 min", price: "$7.000", desc: "Afeitado VIP. Poros abiertos, cero irritación.", iconName: "Flame" },
+  { id: "s1", name: "Corte Clásico / Degradado", time: "45 min", duration: 45, price: "$12.000", desc: "Clean, fresh, de líneas perfectas.", iconName: "Scissors" },
+  { id: "s2", name: "Barba + Vapor Caliente", time: "30 min", duration: 30, price: "$7.000", desc: "Afeitado VIP. Poros abiertos, cero irritación.", iconName: "Flame" },
 ];
 
-// Componente para renderizar iconos dinámicos
+// ============================================================================
+// FUNCIONES DE APOYO Y LÓGICA DE TIEMPO
+// ============================================================================
 const DynamicIcon = ({ name, size = 24 }: { name: string, size?: number }) => {
   const IconComponent = (LucideIcons as any)[name] || LucideIcons.Scissors;
   return <IconComponent size={size} />;
 };
 
-// Generador de fechas reales
 const generateDates = () => {
   const dates = [];
   const today = new Date();
   const days = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
   const months = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
   
-  for(let i = 0; i < 7; i++) {
+  for(let i = 0; i < 14; i++) { // Extendemos a 14 días para dar más opciones
     const d = new Date(today);
     d.setDate(today.getDate() + i);
-    // Saltamos el domingo si no trabajan
+    // Saltamos el domingo si no trabajan (Ajustable)
     if(d.getDay() !== 0) { 
       dates.push({ 
         day: days[d.getDay()], 
         date: d.getDate().toString(), 
         month: months[d.getMonth()],
-        fullDate: d.toISOString().split('T')[0] // Formato YYYY-MM-DD
+        fullDate: d.toISOString().split('T')[0] // YYYY-MM-DD
       });
     }
   }
@@ -59,10 +60,18 @@ const generateDates = () => {
 };
 const DATES = generateDates();
 
+// Intervalos de 30 minutos para máxima flexibilidad en la agenda
 const TIME_SLOTS = {
-  manana: ["10:00", "11:00"],
-  tarde: ["12:00", "13:00", "14:00", "15:00", "16:00", "17:00"],
-  noche: ["18:00", "19:00"]
+  manana: ["10:00", "10:30", "11:00", "11:30", "12:00", "12:30", "13:00", "13:30", "14:00"],
+  tarde: ["15:00", "15:30", "16:00", "16:30", "17:00", "17:30"],
+  noche: ["18:00", "18:30", "19:00", "19:30", "20:00"]
+};
+
+// Convierte "10:30" a minutos (630) para calcular cruces de horario fácilmente
+const timeToMinutes = (timeStr: string) => {
+  if (!timeStr) return 0;
+  const [h, m] = timeStr.split(':').map(Number);
+  return h * 60 + m;
 };
 
 // ============================================================================
@@ -80,7 +89,7 @@ const slideIn: Variants = {
 function BookingEngineContent() {
   const supabase = createClient();
   const searchParams = useSearchParams();
-  const barberParam = searchParams.get('barber'); // Lee el parámetro ?barber=...
+  const barberParam = searchParams.get('barber'); 
 
   const [step, setStep] = useState(1);
   const [booking, setBooking] = useState({
@@ -96,7 +105,9 @@ function BookingEngineContent() {
   // Estados de BD
   const [dbBarbers, setDbBarbers] = useState<any[]>(FALLBACK_BARBERS);
   const [dbServices, setDbServices] = useState<any[]>(FALLBACK_SERVICES);
-  const [bookedSlots, setBookedSlots] = useState<string[]>([]);
+  
+  // Guardamos las horas reservadas JUNTO con la duración de ese servicio
+  const [bookedSlots, setBookedSlots] = useState<{time: string, duration: number}[]>([]);
 
   // 1. Cargar Barberos, Servicios y Pre-seleccionar Barbero por URL
   useEffect(() => {
@@ -106,7 +117,6 @@ function BookingEngineContent() {
         if (barbersData && barbersData.length > 0) {
           setDbBarbers(barbersData);
           
-          // Si hay un parámetro en la URL, buscamos al barbero y lo pre-seleccionamos
           if (barberParam) {
             const preselectedBarber = barbersData.find(b => 
               b.id.toString() === barberParam || 
@@ -115,12 +125,12 @@ function BookingEngineContent() {
             
             if (preselectedBarber) {
               setBooking(prev => ({ ...prev, barber: preselectedBarber }));
-              setStep(2); // Saltamos al paso de Servicios automáticamente
+              setStep(2);
             }
           }
         }
 
-        const { data: servicesData } = await supabase.from('Services').select('*');
+        const { data: servicesData } = await supabase.from('Services').select('*').order('price', { ascending: true });
         if (servicesData && servicesData.length > 0) setDbServices(servicesData);
       } catch (error) {
         console.error("Usando datos de respaldo.");
@@ -129,20 +139,30 @@ function BookingEngineContent() {
     loadInitialData();
   }, [supabase, barberParam]);
 
-  // 2. Cargar horas ocupadas
+  // 2. Cargar horas ocupadas inteligentemente (Hora + Duración)
   useEffect(() => {
     const fetchBookedSlots = async () => {
       if (booking.barber && booking.date) {
         try {
+          // Consultamos la hora y hacemos un JOIN con el servicio para saber cuánto dura esa cita
           const { data, error } = await supabase
             .from('Appointments')
-            .select('time')
+            .select(`
+              time,
+              service_id,
+              service:service_id ( duration )
+            `)
             .eq('barber_id', booking.barber.id)
             .eq('date', booking.date.fullDate)
             .neq('status', 'CANCELLED');
             
           if (data) {
-            setBookedSlots(data.map(d => d.time));
+            // Mapeamos asegurando que si no hay duración, asumimos 45 min por defecto
+            const mappedSlots = data.map((d: any) => ({
+              time: d.time,
+              duration: d.service?.duration || 45
+            }));
+            setBookedSlots(mappedSlots);
           }
         } catch (error) {
           setBookedSlots([]);
@@ -159,40 +179,63 @@ function BookingEngineContent() {
   const nextStep = () => setStep((p) => Math.min(p + 1, 5));
   const prevStep = () => setStep((p) => Math.max(p - 1, 1));
 
-  // 3. Regla de 2 horas y disponibilidad
-  const isSlotUnavailable = (timeStr: string) => {
-    if (bookedSlots.includes(timeStr)) return true;
-    if (!booking.date) return true;
+  // 3. MOTOR DE COLISIONES: Regla de 2 horas + Traslape de Servicios
+  const isSlotUnavailable = useCallback((timeStr: string) => {
+    if (!booking.date || !booking.service) return true;
 
+    // A) REGLA DE 2 HORAS DE ANTICIPACIÓN
     const now = new Date();
     const [year, month, day] = booking.date.fullDate.split('-').map(Number);
     const [hours, minutes] = timeStr.split(':').map(Number);
-    
     const slotDate = new Date(year, month - 1, day, hours, minutes);
     const diffHours = (slotDate.getTime() - now.getTime()) / (1000 * 60 * 60);
 
-    return diffHours < 2;
-  };
+    // Si es hoy y falta menos de 2 horas, se bloquea (o si ya pasó)
+    if (diffHours < 2) return true;
 
+    // B) LÓGICA DE COLISIÓN MATEMÁTICA (El Servicio cruza con otro?)
+    const slotStart = timeToMinutes(timeStr);
+    const slotEnd = slotStart + (booking.service.duration || 45);
+
+    for (const booked of bookedSlots) {
+       const bStart = timeToMinutes(booked.time);
+       const bEnd = bStart + booked.duration;
+
+       // Condición de solapamiento: [InicioA, FinA] cruza con [InicioB, FinB]
+       // Un slot comienza antes de que el otro termine Y termina después de que el otro comience
+       if (slotStart < bEnd && slotEnd > bStart) {
+          return true; // Hay colisión, bloqueamos el botón
+       }
+    }
+
+    return false; // Libre
+  }, [booking.date, booking.service, bookedSlots]);
+
+
+  // 4. CONFIRMACIÓN FINAL A LA BASE DE DATOS
   const handleFinalConfirm = async () => {
     setIsConfirming(true);
     try {
       const appointmentData = {
         barber_id: booking.barber.id,
         barber_name: booking.barber.name,
+        service_id: booking.service.id, // CRÍTICO PARA EL ADMIN PANEL
         service_name: booking.service.name,
         date: booking.date.fullDate,
         time: booking.time,
         client_name: booking.guest.name,
         client_phone: booking.guest.phone,
-        status: 'PENDING'
+        status: 'PENDING',
+        notes: `Reserva online via web - Duración estimada: ${booking.service.duration || 45} min`
       };
 
       const { error } = await supabase.from('Appointments').insert([appointmentData]);
       if (error) throw error;
+      
       nextStep(); 
     } catch (error) {
-      alert("Hubo un error al confirmar tu reserva. Por favor intenta de nuevo.");
+      console.error(error);
+      alert("Hubo un error al procesar tu reserva. Por favor intenta de nuevo.");
     } finally {
       setIsConfirming(false);
     }
@@ -249,7 +292,7 @@ function BookingEngineContent() {
             
             <div className="bg-zinc-950/80 border border-zinc-800 p-10 rounded-[3rem] overflow-hidden relative shadow-2xl backdrop-blur-md">
               <div className="absolute -top-10 -right-10 opacity-5 pointer-events-none">
-                <Image src="/logo.png" alt="Watermark" width={300} height={300} className="grayscale" />
+                <Crown size={200} className="text-white" />
               </div>
               
               <h3 className="text-amber-500 font-black uppercase text-xs tracking-[0.4em] mb-10 border-b border-zinc-800 pb-4 inline-block relative z-10">Tu Trono</h3>
@@ -274,6 +317,7 @@ function BookingEngineContent() {
                   <div className="text-left flex-1">
                     <p className="text-[10px] uppercase font-black text-zinc-500 tracking-widest mb-1">Servicio</p>
                     <p className="text-base font-bold text-white leading-tight line-clamp-2">{booking.service?.name || "Pendiente..."}</p>
+                    {booking.service && <p className="text-[10px] text-amber-500 font-bold mt-1">🕒 {booking.service.duration || 45} Minutos</p>}
                   </div>
                 </li>
                 
@@ -295,7 +339,7 @@ function BookingEngineContent() {
                 <div className="flex justify-between items-end">
                   <span className="text-xs uppercase font-black text-zinc-400 tracking-widest">A pagar en local</span>
                   <span className="text-4xl font-black text-white tracking-tighter drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]">
-                    {booking.service ? booking.service.price : "$0"}
+                    {booking.service ? (typeof booking.service.price === 'number' ? `$${booking.service.price.toLocaleString('es-CL')}` : booking.service.price) : "$0"}
                   </span>
                 </div>
               </div>
@@ -303,7 +347,7 @@ function BookingEngineContent() {
 
             <div className="p-6 bg-zinc-900/50 border border-zinc-800 rounded-[2rem] flex items-start gap-4 text-left shadow-lg">
               <ShieldCheck size={24} className="text-amber-500 shrink-0 mt-0.5" />
-              <p className="text-xs text-zinc-400 font-medium leading-relaxed">Confirmación automática. Reserva 100% gratuita. Cancelas tu servicio directamente en el local.</p>
+              <p className="text-xs text-zinc-400 font-medium leading-relaxed">Confirmación automática. Reserva 100% gratuita. Cancelas tu servicio directamente en el local al terminar.</p>
             </div>
           </div>
         </div>
@@ -336,7 +380,7 @@ function BookingEngineContent() {
                         <Image src={b.img} alt={b.name} fill className={`object-cover transition-all duration-700 ${booking.barber?.id === b.id ? 'grayscale-0' : 'grayscale contrast-125 group-hover:grayscale-0 group-hover:scale-110'}`} unoptimized />
                       </div>
                       <div className="relative z-10">
-                        <span className="px-3 py-1 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-lg text-[10px] font-black uppercase tracking-widest mb-2 inline-block">{b.tag || "Top Rated"}</span>
+                        <span className="px-3 py-1 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-lg text-[10px] font-black uppercase tracking-widest mb-2 inline-block">{b.tag || "Top Barber"}</span>
                         <h4 className="font-black text-2xl md:text-3xl text-white uppercase tracking-tighter">{b.name}</h4>
                         <p className={`text-xs font-bold uppercase tracking-[0.2em] mt-1 transition-colors ${booking.barber?.id === b.id ? 'text-amber-400' : 'text-zinc-500 group-hover:text-amber-500'}`}>{b.role}</p>
                       </div>
@@ -371,15 +415,18 @@ function BookingEngineContent() {
                           <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-colors shadow-inner ${booking.service?.id === srv.id ? 'bg-black text-amber-500' : 'bg-black border border-zinc-800 text-amber-500 group-hover:bg-amber-500 group-hover:text-black'}`}>
                             <DynamicIcon name={srv.iconName || "Scissors"} />
                           </div>
-                          <span className={`text-2xl font-black tracking-tighter ${booking.service?.id === srv.id ? 'text-black' : 'text-white'}`}>{srv.price}</span>
+                          <span className={`text-2xl font-black tracking-tighter ${booking.service?.id === srv.id ? 'text-black' : 'text-white'}`}>
+                            {typeof srv.price === 'number' ? `$${srv.price.toLocaleString('es-CL')}` : srv.price}
+                          </span>
                         </div>
                         <h3 className="text-xl md:text-2xl font-black uppercase tracking-tight mb-3 leading-tight">{srv.name}</h3>
-                        <p className={`text-sm font-medium leading-relaxed ${booking.service?.id === srv.id ? 'text-black/70' : 'text-zinc-500'}`}>{srv.desc}</p>
+                        <p className={`text-sm font-medium leading-relaxed line-clamp-2 ${booking.service?.id === srv.id ? 'text-black/70' : 'text-zinc-500'}`}>{srv.desc}</p>
                       </div>
                       
                       <div className="relative z-10 mt-8 flex justify-between items-end">
-                         <div className={`flex items-center gap-2 text-[11px] font-black uppercase tracking-widest ${booking.service?.id === srv.id ? 'text-black/50' : 'text-zinc-600'}`}>
-                           <Clock size={16} /> {srv.time}
+                         <div className={`flex flex-col gap-1 ${booking.service?.id === srv.id ? 'text-black/60' : 'text-zinc-500'}`}>
+                           <span className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest"><Clock size={16} /> {srv.time}</span>
+                           <span className="text-[9px] font-black uppercase ml-6">({srv.duration} min exactos)</span>
                          </div>
                          <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${booking.service?.id === srv.id ? 'bg-black text-amber-500 scale-110' : 'bg-zinc-800 text-white opacity-0 group-hover:opacity-100 group-hover:bg-amber-500 group-hover:text-black'}`}>
                            <ChevronRight size={18} />
@@ -397,8 +444,9 @@ function BookingEngineContent() {
                 <div>
                   <motion.div initial={{ width: 0 }} animate={{ width: "120px" }} transition={{ duration: 0.8 }} className="h-1 bg-amber-500 mb-6 rounded-full"></motion.div>
                   <h2 className="text-5xl md:text-7xl font-serif font-black text-white uppercase tracking-tighter text-left leading-[0.9]">Elige el <br/><span className="text-amber-500">Momento.</span></h2>
-                  <p className="text-zinc-400 mt-6 font-medium text-lg flex items-center gap-2">
-                    Las reservas deben hacerse con <strong className="text-amber-500">al menos 2 horas</strong> de anticipación.
+                  <p className="text-zinc-400 mt-6 font-medium text-lg flex flex-col gap-1">
+                    <span>Asegura al menos <strong className="text-amber-500">2 horas de anticipación</strong>.</span>
+                    <span className="text-sm">El sistema analizará el traslape según tu servicio de {booking.service?.duration || 45} mins.</span>
                   </p>
                 </div>
                 
@@ -535,7 +583,7 @@ function BookingEngineContent() {
                   </p>
                 </div>
 
-                <div className="p-10 bg-zinc-950/80 rounded-[3rem] border border-zinc-800 inline-block text-left shadow-2xl backdrop-blur-xl relative z-10">
+                <div className="p-10 bg-zinc-950/80 rounded-[3rem] border border-zinc-800 inline-block text-left shadow-2xl backdrop-blur-xl relative z-10 min-w-[320px]">
                    <p className="text-zinc-500 font-black uppercase tracking-[0.3em] text-xs mb-4">Detalles Oficiales</p>
                    <p className="text-white text-3xl font-black uppercase tracking-tighter mb-2">{booking.date?.day} {booking.date?.date} {booking.date?.month} • <span className="text-amber-500">{booking.time} hrs</span></p>
                    <p className="text-zinc-300 font-medium text-lg flex items-center gap-3 mt-6"><UserCircle size={24} className="text-amber-500"/> {booking.barber?.name}</p>
