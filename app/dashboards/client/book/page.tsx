@@ -5,6 +5,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+
+// Importamos la Server Action segura que creamos en el Paso 3
+import { createAppointment } from "@/app/actions/appointment";
+
 import { 
   CalendarDays, Clock, Scissors, Star, ChevronRight, 
   ArrowLeft, CheckCircle2, Crown, Zap, History, Gift,
@@ -20,10 +24,11 @@ type BookingStep = 1 | 2 | 3 | 4;
 
 interface ClientProfile { id: string; name: string; phone: string; email: string; points: number; tier?: string; }
 interface Barber { id: string; name: string; role: string; img: string; tag: string; }
-interface Service { id: string; name: string; price: number; time: string; desc: string; }
+interface Service { id: string; name: string; price: number; time: string; duration?: number; desc: string; }
 interface Appointment { id: string; date: string; time: string; status: string; barber: Barber; service: Service; }
 
-const TIME_SLOTS = ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00"];
+// Intervalos exactos de 1 Hora
+const TIME_SLOTS = ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"];
 
 // Corrector de Zona Horaria (Para evitar bugs de UTC a medianoche)
 const getLocalTodayDate = () => {
@@ -33,7 +38,10 @@ const getLocalTodayDate = () => {
 };
 
 const TODAY_DATE = getLocalTodayDate();
-const formatMoney = (amount: number) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
+const formatMoney = (amount: number | string) => {
+  const numericAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+  return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(numericAmount || 0);
+};
 
 // ============================================================================
 // ANIMACIONES
@@ -95,6 +103,7 @@ function ClientDashboardContent() {
       let { data: profile } = await supabase.from('clients').select('*').eq('id', user.id).single();
       
       if (!profile) {
+        // Si no existe, lo registramos automáticamente usando sus datos de Auth
         const { data: newProfile } = await supabase.from('clients').insert({
           id: user.id,
           name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Cliente Emperador',
@@ -112,15 +121,15 @@ function ClientDashboardContent() {
       if (profile.points >= 2000) tier = "Emperador";
       setClientProfile({ ...profile, tier });
 
-      // 2. Cargar Barberos
+      // 2. Cargar Barberos (Activos)
       const { data: dbBarbers } = await supabase.from('Barbers').select('*').eq('status', 'ACTIVE');
       if (dbBarbers) {
         setBarbers(dbBarbers as Barber[]);
         
-        // Auto-selección por Link de Instagram
+        // Auto-selección por Link de Instagram/Referido
         const barberIdFromUrl = searchParams.get("barber");
         if (barberIdFromUrl) {
-          const preSelected = dbBarbers.find(b => b.id === barberIdFromUrl);
+          const preSelected = dbBarbers.find(b => b.id === barberIdFromUrl || b.name.toLowerCase().replace(/\s+/g, '-') === barberIdFromUrl);
           if (preSelected) {
             setSelectedBarber(preSelected as Barber);
             setStep(2); 
@@ -132,9 +141,9 @@ function ClientDashboardContent() {
       const { data: dbServices } = await supabase.from('Services').select('*').order('price', { ascending: true });
       if (dbServices) setServices(dbServices);
 
-      // 4. Historial
+      // 4. Historial (Usando Appointments con mayúscula)
       const { data: dbAppointments } = await supabase
-        .from('appointments')
+        .from('Appointments')
         .select(`
           id, date, time, status, notes,
           barber:barber_id (id, name, img),
@@ -158,13 +167,14 @@ function ClientDashboardContent() {
   }, [loadClientData]);
 
   // ============================================================================
-  // LÓGICA DE HORAS DISPONIBLES
+  // LÓGICA DE HORAS DISPONIBLES Y BLOQUEOS
   // ============================================================================
   useEffect(() => {
     const fetchBookedSlots = async () => {
       if (selectedDate && selectedBarber) {
+        // Consultar Appointments con mayúscula
         const { data } = await supabase
-          .from('appointments')
+          .from('Appointments')
           .select('time')
           .eq('barber_id', selectedBarber.id)
           .eq('date', selectedDate)
@@ -189,22 +199,29 @@ function ClientDashboardContent() {
     setIsConfirming(true);
     
     try {
-      const { error } = await supabase.from('appointments').insert({
-        client_id: clientProfile.id,
+      // Usamos la Server Action (que maneja seguridad y vinculación)
+      const appointmentData = {
         barber_id: selectedBarber.id,
+        barber_name: selectedBarber.name,
         service_id: selectedService.id,
+        service_name: selectedService.name,
         date: selectedDate,
         time: selectedTime,
-        status: 'PENDING',
-        notes: clientNotes
-      });
+        client_name: clientProfile.name,
+        client_phone: clientProfile.phone,
+        notes: clientNotes ? `Nota del cliente: ${clientNotes}` : `Reserva desde Panel Cliente. Duración: ${selectedService.duration || 60} min`
+      };
 
-      if (error) throw error;
+      const result = await createAppointment(appointmentData);
+      
+      if (!result.success) {
+        throw new Error(result.error);
+      }
 
-      await loadClientData(); 
+      await loadClientData(); // Refrescar historial
       setIsSuccess(true);
     } catch (error: any) {
-      alert("Error al procesar reserva. Es posible que el horario ya no esté disponible.");
+      alert(error.message || "Error al procesar reserva. Es posible que el horario ya no esté disponible.");
     } finally {
       setIsConfirming(false);
     }
@@ -223,7 +240,8 @@ function ClientDashboardContent() {
   const handleCancelAppointment = async (id: string) => {
     if(!window.confirm("¿Seguro que deseas cancelar esta reserva? El barbero será notificado.")) return;
     try {
-      const { error } = await supabase.from('appointments').update({ status: 'CANCELLED' }).eq('id', id);
+      // Actualizamos en Appointments con mayúscula
+      const { error } = await supabase.from('Appointments').update({ status: 'CANCELLED' }).eq('id', id);
       if (error) throw error;
       loadClientData();
       alert("Reserva cancelada correctamente.");
@@ -457,7 +475,7 @@ function ClientDashboardContent() {
                                   {TIME_SLOTS.map(time => {
                                     const now = new Date();
                                     const currentHourStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-                                    // Comprobamos si la hora ya pasó EN EL DÍA DE HOY (Para Chile/Local)
+                                    // Comprobamos si la hora ya pasó EN EL DÍA DE HOY
                                     const isPast = selectedDate === TODAY_DATE && time < currentHourStr;
                                     const isBooked = bookedSlots.includes(time.substring(0, 5)) || isPast;
                                     
@@ -675,7 +693,7 @@ function ClientDashboardContent() {
   );
 }
 
-// Exportación envuelta en Suspense (requerido al usar useSearchParams)
+// Exportación envuelta en Suspense
 export default function ClientDashboard() {
   return (
     <Suspense fallback={

@@ -1,4 +1,3 @@
-// app/api/admin/delete-barber/route.ts
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
@@ -16,8 +15,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Falta el ID del usuario.' }, { status: 400 });
     }
 
-    // Elimina al usuario de Auth. Esto desencadenará un "cascade delete" si tienes las llaves foráneas bien configuradas,
-    // o al menos le quitará el acceso.
+    // 1. Por seguridad, borramos manualmente de las tablas públicas primero
+    await supabaseAdmin.from('Barbers').delete().eq('id', id);
+    await supabaseAdmin.from('User').delete().eq('id', id);
+
+    // 2. Eliminamos la cuenta real del sistema de Autenticación
     const { error } = await supabaseAdmin.auth.admin.deleteUser(id);
 
     if (error) {

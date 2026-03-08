@@ -69,7 +69,6 @@ function LoginContent() {
       const dbRole = userProfile?.role || "CLIENT";
 
       // 3. 🔒 VALIDACIÓN DE SEGURIDAD Y REDIRECCIÓN CRÍTICA
-      // Evaluamos el rol obtenido contra el portal al que se quiere entrar
       
       if (portal === "ADMIN") {
         if (dbRole === "ADMIN") {
@@ -89,7 +88,16 @@ function LoginContent() {
         }
       }
 
-      // Por defecto para CLIENTE
+      if (portal === "CLIENTE") {
+        if (dbRole === "CLIENT" || dbRole === "ADMIN") {
+          return router.push("/dashboards/client/book");
+        } else {
+          await supabase.auth.signOut();
+          throw new Error("Acceso denegado. Tu cuenta es exclusiva de Staff (Barbero).");
+        }
+      }
+
+      // Fallback de seguridad (por si falla el estado del portal)
       if (dbRole === "CLIENT") {
         router.push("/dashboards/client/book");
       } else if (dbRole === "BARBER") {

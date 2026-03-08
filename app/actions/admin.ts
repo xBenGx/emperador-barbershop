@@ -10,11 +10,9 @@ const supabaseAdmin = createClient(
 
 export async function createBarberAccount(data: any) {
   try {
-    console.log("Iniciando creación/actualización de cuenta para:", data.email);
-
     const authPayload: any = {
       email: data.email,
-      password: data.password, // Obligatorio para crear cuentas nuevas
+      password: data.password,
       email_confirm: true, 
       user_metadata: { 
         full_name: data.name, 
@@ -22,17 +20,16 @@ export async function createBarberAccount(data: any) {
         phone: data.phone,
         specialty: data.role, 
         tag: data.tag,        
-        app_role: 'BARBER' // Etiqueta clave para el Middleware y Triggers    
+        app_role: 'BARBER'
       }
     };
 
     if (data.id) authPayload.id = data.id; 
 
-    // 1. Crear usuario en Auth (Esto dispara tu Trigger SQL)
+    // 1. Crear usuario en Auth
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser(authPayload);
 
     if (authError) {
-      console.error("Error en auth.admin.createUser:", authError);
       throw new Error(`Auth Error: ${authError.message}`);
     }
 
@@ -50,7 +47,7 @@ export async function createBarberAccount(data: any) {
       id: userId,
       name: data.name,
       email: data.email,
-      phone: data.phone || '', // Respaldo por si viene vacío
+      phone: data.phone || '',
       role: data.role,
       tag: data.tag,
       status: data.status || 'ACTIVE',
@@ -64,7 +61,38 @@ export async function createBarberAccount(data: any) {
     return { success: true };
 
   } catch (error: any) {
-    console.error("Error Crítico en action createBarberAccount:", error.message);
+    return { error: error.message };
+  }
+}
+
+// NUEVA FUNCIÓN: Para actualizar datos existentes de forma segura
+export async function updateBarberAccount(data: any) {
+  try {
+    // 1. Actualizar tabla pública Barbers
+    const { error: barberError } = await supabaseAdmin.from('Barbers').update({
+      name: data.name,
+      phone: data.phone,
+      role: data.role,
+      tag: data.tag,
+      status: data.status,
+      img: data.img
+    }).eq('id', data.id);
+
+    if (barberError) throw new Error(`Error actualizando DB: ${barberError.message}`);
+
+    // 2. Sincronizar metadata en Auth por precaución
+    await supabaseAdmin.auth.admin.updateUserById(data.id, {
+      user_metadata: { 
+        full_name: data.name, 
+        name: data.name,      
+        phone: data.phone,
+        specialty: data.role, 
+        tag: data.tag 
+      }
+    });
+
+    return { success: true };
+  } catch (error: any) {
     return { error: error.message };
   }
 }

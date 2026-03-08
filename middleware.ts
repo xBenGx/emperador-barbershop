@@ -29,10 +29,10 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   const path = request.nextUrl.pathname
 
-  // 1. Identificamos qué tipo de ruta está intentando visitar
+  // 1. Identificamos qué tipo de ruta está intentando visitar (Corregido a la estructura real)
   const isAdminRoute = path.startsWith('/dashboards/admin')
   const isBarberRoute = path.startsWith('/dashboards/barber')
-  const isClientRoute = path.startsWith('/client')
+  const isClientRoute = path.startsWith('/dashboards/client')
 
   // 2. Si es una ruta protegida y NO hay usuario, a login de inmediato
   if (!user && (isAdminRoute || isBarberRoute || isClientRoute)) {
@@ -40,31 +40,30 @@ export async function middleware(request: NextRequest) {
   }
 
   // 3. Lógica estricta de redirección según roles
-  if (user) {
+  if (user && (isAdminRoute || isBarberRoute || isClientRoute)) {
     // Leemos el rol. Priorizamos el JWT (user_metadata) por rendimiento.
-    // Si no está ahí (usuarios antiguos), consultamos la tabla 'User'.
     let userRole = user.user_metadata?.app_role
 
+    // Si no está en metadata, consultamos la base de datos
     if (!userRole) {
       const { data: userProfile } = await supabase.from('User').select('role').eq('id', user.id).single()
       userRole = userProfile?.role || 'CLIENT' // Asumimos cliente por defecto
     }
 
-    // Regla 1: Zona Admin
+    // REGLA 1: Zona Admin (Solo Administradores)
     if (isAdminRoute && userRole !== 'ADMIN') {
-      const fallbackUrl = userRole === 'BARBER' ? '/dashboards/barber' : '/client/book'
+      const fallbackUrl = userRole === 'BARBER' ? '/dashboards/barber' : '/dashboards/client/book'
       return NextResponse.redirect(new URL(fallbackUrl, request.url))
     }
 
-    // Regla 2: Zona Barbero (Permitimos al ADMIN entrar a ver si es necesario)
+    // REGLA 2: Zona Barbero (Administradores y Barberos)
     if (isBarberRoute && userRole !== 'BARBER' && userRole !== 'ADMIN') {
-      return NextResponse.redirect(new URL('/client/book', request.url))
+      return NextResponse.redirect(new URL('/dashboards/client/book', request.url))
     }
 
-    // Regla Opcional: Impedir que staff entre a rutas de cliente (puedes comentarlo si quieres que agenden)
-    if (isClientRoute && (userRole === 'ADMIN' || userRole === 'BARBER')) {
-      const correctUrl = userRole === 'ADMIN' ? '/dashboards/admin' : '/dashboards/barber'
-      return NextResponse.redirect(new URL(correctUrl, request.url))
+    // REGLA 3: Zona Cliente (Administradores y Clientes. Barberos NO entran aquí)
+    if (isClientRoute && userRole === 'BARBER') {
+      return NextResponse.redirect(new URL('/dashboards/barber', request.url))
     }
   }
 

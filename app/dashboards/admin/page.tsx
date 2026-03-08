@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { createClient } from "@/utils/supabase/client";
 
-// IMPORTACIONES CORREGIDAS Y VERIFICADAS
+// IMPORTACIONES
 import { 
   LayoutDashboard, Users, Scissors, Tag, 
   DollarSign, TrendingUp, UserPlus, Edit3, Trash2, 
@@ -27,13 +27,11 @@ type TabType = "RESUMEN" | "CITAS" | "SILLONES" | "USUARIOS" | "CLIENTES" | "SER
 type ModalType = "SERVICE" | "BARBER" | "PRODUCT" | "CLIENT" | "CHAIR" | "HERO_SLIDE" | "STORE_PROMO" | "REEL" | "REVIEW" | "FAQ" | null;
 
 interface Barber { id: string; name: string; email?: string; phone?: string; status: "ACTIVE" | "INACTIVE"; cutsToday: number; role: string; tag: string; img: string; }
-// FIX SERVICIOS: Agregado 'duration' para la lógica matemática de la agenda
 interface Service { id: string; name: string; desc: string; price: string | number; time: string; duration?: number; iconName: string; }
 interface Client { id: string; name: string; phone: string; email?: string; visits: number; last_visit: string; total_spent: number; points: number; }
 interface Chair { id: string; name: string; status: "OCCUPIED" | "FREE"; current_barber_id?: string; payment_due_date?: string; }
 interface Product { id: string; name: string; subtitle: string; description: string; price: number; old_price?: number; discount_code?: string; stock: number; tag: string; image_url: string; category: string; sku: string; status: "ACTIVE" | "HIDDEN"; }
 
-// Sincronizado para aceptar formato plano (Booking Engine) y relacional
 interface Appointment { 
   id: string; 
   date: string; 
@@ -49,7 +47,6 @@ interface Appointment {
   service_name?: string; 
 }
 
-// Tipos para la Landing Page Autoadministrable
 interface HeroSlide { id: string; media_type: string; media_url: string; order_index: number; }
 interface StorePromo { id: string; tag: string; title_left: string; subtitle_left: string; price_left: string; old_price_left: string; title_right: string; subtitle_right: string; price_right: string; old_price_right: string; media_type: string; media_url: string; promo_text: string; promo_highlight: string; promo_end: string; }
 interface Reel { id: string; type: string; media_type: string; media_url: string; likes: string; comments: string; link: string; }
@@ -57,14 +54,20 @@ interface Review { id: string; name: string; text: string; rating: number; }
 interface Faq { id: string; q: string; a: string; }
 
 // ============================================================================
-// FUNCIONES DE APOYO
+// FUNCIONES DE APOYO Y FORMATEO
 // ============================================================================
 const DynamicIcon = ({ name, size = 24, className = "" }: { name: string, size?: number, className?: string }) => {
   const IconComponent = (LucideIcons as any)[name] || LucideIcons.Scissors;
   return <IconComponent size={size} className={className} />;
 };
 
-const formatMoney = (amount: number) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount || 0);
+// Función global de formateo de moneda a Peso Chileno
+const formatMoney = (amount: number | string) => {
+  const numericAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+  if (isNaN(numericAmount)) return '$0';
+  return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(numericAmount);
+};
+
 const isValidUUID = (uuid: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid);
 
 // ============================================================================
@@ -178,6 +181,7 @@ function AdminDashboardContent() {
         const todayStr = new Date().toISOString().split('T')[0];
         const todayAppts = dbAppts.data.filter(a => a.date === todayStr && a.status === 'COMPLETED');
         
+        // Sumamos los ingresos (ahora es el 100% de lo cobrado o arrendado)
         const ingresosHoy = todayAppts.reduce((acc, curr) => acc + Number((curr.service as any)?.price || 0), 0);
         
         setKpis(prev => ({ ...prev, cortesHoy: todayAppts.length, totalIngresos: ingresosHoy }));
@@ -191,7 +195,7 @@ function AdminDashboardContent() {
     }
   }, [supabase, router]);
 
-  // Sincronización en tiempo real OMNIPRESENTE
+  // Sincronización en tiempo real
   useEffect(() => {
     verifyAdminAndFetchData();
     const channel = supabase.channel('admin-sync-master')
@@ -224,7 +228,6 @@ function AdminDashboardContent() {
   };
 
   const handleTabClick = (tab: TabType) => {
-    // FIX ENLACE CITAS: Redirige directamente a la página maestra de citas
     if (tab === "CITAS") {
       router.push('/dashboards/admin/todaslascitas');
       return;
@@ -236,7 +239,7 @@ function AdminDashboardContent() {
 
   const handleResetSection = () => {
     setSearchQuery("");
-    verifyAdminAndFetchData(); // Fuerza actualización completa
+    verifyAdminAndFetchData(); 
   };
 
   const handleCopyLink = (id: string, name: string) => {
@@ -319,7 +322,7 @@ function AdminDashboardContent() {
   };
 
   // ============================================================================
-  // MOTOR CRUD UNIVERSAL (Guarda TODO)
+  // MOTOR CRUD UNIVERSAL
   // ============================================================================
   const handleSaveAction = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -374,7 +377,7 @@ function AdminDashboardContent() {
            name: formData.get("name") as string, 
            price: parseFloat(formData.get("price") as string), 
            time: formData.get("time") as string, 
-           duration: parseInt(formData.get("duration") as string) || 45, // Guardamos el valor numérico para la reserva
+           duration: parseInt(formData.get("duration") as string) || 60, // Sincronizado
            desc: formData.get("desc") as string, 
            iconName: (formData.get("iconName") as string) || "Scissors" 
          };
@@ -458,11 +461,7 @@ function AdminDashboardContent() {
   return (
     <main className="min-h-screen bg-[#050505] pt-[140px] md:pt-[180px] pb-24 text-white relative">
       
-      {/* ========================================================================================= */}
-      {/* FIX MÁGICO: Estilos inyectados que obligan al Sidebar (en el layout) a alinearse perfecto  */}
-      {/* ========================================================================================= */}
       <style dangerouslySetInnerHTML={{__html: `
-        /* Selecciona el elemento lateral y lo empuja hacia abajo la misma distancia */
         aside, [class*="sidebar" i], [class*="SideBar" i] {
           padding-top: 140px !important;
           z-index: 50 !important;
@@ -474,7 +473,7 @@ function AdminDashboardContent() {
         }
       `}} />
 
-      {/* Fondo de patrón para el dashboard */}
+      {/* Fondo de patrón */}
       <div className="fixed inset-0 z-0 pointer-events-none opacity-[0.03]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}></div>
       <div className="fixed inset-0 z-0 pointer-events-none bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:32px_32px]"></div>
 
@@ -554,8 +553,6 @@ function AdminDashboardContent() {
               </div>
             </motion.div>
           )}
-
-          {/* LA SECCIÓN CITAS FUE REDIRIGIDA EN LA LÓGICA DE PESTAÑAS (handleTabClick) */}
 
           {/* --- TAB: USUARIOS / STAFF --- */}
           {activeTab === "USUARIOS" && (
@@ -719,8 +716,8 @@ function AdminDashboardContent() {
                     <p className="text-sm text-zinc-400 mb-8 line-clamp-2">{s.desc}</p>
                     <div className="flex justify-between items-end pt-6 border-t border-zinc-800/80">
                       <div>
-                        <span className="block text-[10px] text-zinc-600 font-black uppercase tracking-widest mb-1 flex items-center gap-1"><Clock size={12}/> {s.time} ({s.duration} MIN REA)</span>
-                        <span className="text-3xl font-black text-amber-500 tracking-tighter">{typeof s.price === 'number' ? formatMoney(s.price as number) : s.price}</span>
+                        <span className="block text-[10px] text-zinc-600 font-black uppercase tracking-widest mb-1 flex items-center gap-1"><Clock size={12}/> {s.time} ({s.duration || 60} MIN REA)</span>
+                        <span className="text-3xl font-black text-amber-500 tracking-tighter">{formatMoney(s.price)}</span>
                       </div>
                     </div>
                   </div>
@@ -940,7 +937,7 @@ function AdminDashboardContent() {
                   </div>
                 )}
 
-                {/* --- FORMULARIO: SERVICIO (Sincronizado Numéricamente) --- */}
+                {/* --- FORMULARIO: SERVICIO --- */}
                 {modalType === "SERVICE" && (
                   <>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -949,9 +946,8 @@ function AdminDashboardContent() {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                       <InputField label="Precio" name="price" type="number" defaultValue={editingItem?.price || ""} required />
-                      <InputField label="Etiqueta Visual (Ej: 45 Min)" name="time" defaultValue={editingItem?.time || ""} required />
-                      {/* FIX: CAMPO NUMÉRICO PARA LA AGENDA */}
-                      <InputField label="Minutos Reales (Agenda)" name="duration" type="number" defaultValue={editingItem?.duration || 45} required />
+                      <InputField label="Etiqueta Visual (Ej: 60 Min)" name="time" defaultValue={editingItem?.time || ""} required />
+                      <InputField label="Minutos Reales (Agenda)" name="duration" type="number" defaultValue={editingItem?.duration || 60} required />
                     </div>
                     <div className="space-y-2">
                       <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest pl-2">Descripción</label>

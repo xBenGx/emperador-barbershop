@@ -9,11 +9,8 @@ import {
   Users, Plus, Edit3, Trash2, X, Save, UploadCloud, 
   ShieldAlert, Clock, ArrowLeft, UserCircle2, KeyRound, Lock
 } from "lucide-react";
-import { createBarberAccount } from "@/app/actions/admin";
+import { createBarberAccount, updateBarberAccount } from "@/app/actions/admin"; // ¡Importante!
 
-// ============================================================================
-// TIPADOS ESTRICTOS
-// ============================================================================
 export interface Barber {
   id: string;
   name: string;
@@ -29,26 +26,18 @@ export default function AdminUsersPage() {
   const supabase = createClient();
   const router = useRouter();
 
-  // Estados de Base de Datos
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
   const [authError, setAuthError] = useState(false);
 
-  // Estados del Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
-  
-  // FIX DEFINITIVO: Forzamos a TypeScript a reconocer que es un objeto Barber o nulo
   const [editingItem, setEditingItem] = useState<Barber | null>(null);
   
-  // Estados de Imágenes
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
-  // ============================================================================
-  // SEGURIDAD DEL ADMIN Y CARGA DE DATOS
-  // ============================================================================
   const verifyAdminAndFetchData = useCallback(async () => {
     setIsFetching(true);
     try {
@@ -81,9 +70,6 @@ export default function AdminUsersPage() {
     return () => { supabase.removeChannel(channel); };
   }, [verifyAdminAndFetchData, supabase]);
 
-  // ============================================================================
-  // MANEJADORES DE ACCIONES Y MODALES
-  // ============================================================================
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setSelectedImage(e.target.files[0]);
@@ -98,12 +84,20 @@ export default function AdminUsersPage() {
     setIsModalOpen(true);
   };
 
+  // FIX: Eliminar usando la ruta de API segura
   const handleDelete = async (id: string) => {
     if (!window.confirm("¿Eliminar este barbero permanentemente? Perderá el acceso al sistema.")) return;
     setIsLoading(true);
     try {
-      const { error } = await supabase.from('Barbers').delete().eq('id', id);
-      if (error) throw error;
+      const response = await fetch('/api/admin/delete-barber', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      });
+      
+      const result = await response.json();
+      if (!response.ok || result.error) throw new Error(result.error || 'Error desconocido');
+      
       verifyAdminAndFetchData();
     } catch (error: any) {
       alert(`Error al eliminar: ${error.message}`);
@@ -131,9 +125,10 @@ export default function AdminUsersPage() {
         }
       }
 
-      // MODO EDICIÓN
+      // MODO EDICIÓN (Usando la nueva Server Action segura)
       if (editingItem && editingItem.id) {
         const updateData = {
+          id: editingItem.id, // Pasamos el ID crítico
           name: formData.get("name") as string,
           phone: formData.get("phone") as string,
           role: formData.get("role") as string,
@@ -141,8 +136,9 @@ export default function AdminUsersPage() {
           status: formData.get("status") as string || "ACTIVE",
           img: imageUrl
         };
-        const { error } = await supabase.from('Barbers').update(updateData).eq('id', editingItem.id);
-        if (error) throw error;
+        
+        const result = await updateBarberAccount(updateData);
+        if (result.error) throw new Error(result.error);
         alert("¡Perfil actualizado con éxito!");
       } 
       // MODO CREACIÓN
@@ -174,9 +170,6 @@ export default function AdminUsersPage() {
     }
   };
 
-  // ============================================================================
-  // PANTALLA DE RESTRICCIÓN
-  // ============================================================================
   if (authError) {
     return (
       <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center text-red-500 gap-4">
@@ -209,9 +202,6 @@ export default function AdminUsersPage() {
         </div>
       </div>
 
-      {/* =================================================================== */}
-      {/* TABLA MAESTRA DE BARBEROS */}
-      {/* =================================================================== */}
       <div className="bg-zinc-900/40 border border-zinc-800 rounded-[2.5rem] overflow-hidden shadow-2xl">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm text-zinc-400">
@@ -259,9 +249,6 @@ export default function AdminUsersPage() {
         </div>
       </div>
 
-      {/* =================================================================== */}
-      {/* MODAL CREAR / EDITAR */}
-      {/* =================================================================== */}
       <AnimatePresence>
         {isModalOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
@@ -276,7 +263,6 @@ export default function AdminUsersPage() {
               
               <form onSubmit={handleSaveAction} className="space-y-6">
                 
-                {/* 1. Foto */}
                 <div className="flex justify-center mb-8">
                   <div className="relative w-36 h-36 rounded-[2.5rem] border-2 border-dashed border-zinc-700 bg-zinc-900/50 flex flex-col items-center justify-center overflow-hidden cursor-pointer hover:border-amber-500 group transition-colors shadow-inner" onClick={() => fileInputRef.current?.click()}>
                     {imagePreview ? (
@@ -296,7 +282,6 @@ export default function AdminUsersPage() {
                   <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageChange} />
                 </div>
 
-                {/* 2. Datos Básicos */}
                 <div className="space-y-2">
                   <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest pl-2">Nombre Público</label>
                   <input name="name" defaultValue={editingItem?.name || ""} required placeholder="Ej. Cesar Luna" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white focus:border-amber-500 outline-none transition-colors shadow-inner" />
@@ -313,7 +298,6 @@ export default function AdminUsersPage() {
                   </div>
                 </div>
 
-                {/* 3. Datos de Acceso y Contacto */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div className="space-y-2">
                     <label className="block text-[10px] font-black text-amber-500 uppercase tracking-widest pl-2">Email de Login</label>
@@ -326,7 +310,6 @@ export default function AdminUsersPage() {
                   </div>
                 </div>
 
-                {/* Input de contraseña solo visible al crear */}
                 {!editingItem && (
                   <div className="space-y-2">
                     <label className="block text-[10px] font-black text-amber-500 uppercase tracking-widest pl-2">Contraseña Temporal</label>
@@ -337,7 +320,6 @@ export default function AdminUsersPage() {
                   </div>
                 )}
 
-                {/* 4. Estado */}
                 <div className="space-y-2">
                   <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest pl-2">Estado en la Plataforma</label>
                   <select name="status" defaultValue={editingItem?.status || "ACTIVE"} className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white focus:border-amber-500 outline-none appearance-none font-bold shadow-inner cursor-pointer">

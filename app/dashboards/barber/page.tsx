@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import Image from "next/image";
 
-// IMPORTACIONES CORREGIDAS: Se agregaron explícitamente Lock, NO_SHOW, etc.
+// IMPORTACIONES
 import * as LucideIcons from "lucide-react";
 import { 
   CalendarDays, Clock, DollarSign, Users, TrendingUp, 
@@ -20,9 +20,8 @@ import {
 } from "lucide-react";
 
 // ============================================================================
-// TIPADOS (Alineados con la Base de Datos)
+// TIPADOS
 // ============================================================================
-// FIX: Se agregó "NO_SHOW" a los estados permitidos
 type AppointmentStatus = "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED" | "NO_SHOW" | "BLOCKED";
 type TabType = "RESUMEN" | "RESERVAS" | "CLIENTES" | "FINANZAS" | "HORARIO" | "MI_ESTACION";
 type ModalType = "EDIT_APPT" | null;
@@ -35,7 +34,7 @@ interface Chair { id: string; name: string; status: string; payment_due_date?: s
 interface Schedule { id: string; day_of_week: string; is_active: boolean; start_time: string; end_time: string; break_start: string; break_end: string; }
 
 // ============================================================================
-// UTILIDADES (Fechas y Moneda)
+// UTILIDADES
 // ============================================================================
 const formatMoney = (amount: number) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount || 0);
 
@@ -60,11 +59,12 @@ const generateDates = () => {
 
 const DATES = generateDates();
 const TODAY_DATE = DATES[0].fullDate;
-const TIMELINE_SLOTS = ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00"];
+// Intervalos de 1 Hora estrictos
+const TIMELINE_SLOTS = ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"];
 const DAYS_OF_WEEK = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
 
 // ============================================================================
-// COMPONENTE PRINCIPAL DEL BARBERO
+// COMPONENTE PRINCIPAL
 // ============================================================================
 export default function BarberDashboard() {
   const supabase = createClient();
@@ -78,7 +78,7 @@ export default function BarberDashboard() {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [kpis, setKpis] = useState({ todayEarnings: 0, monthEarnings: 0, todayAppointments: 0, totalClients: 0 });
   
-  // Estados de Control de Interfaz
+  // Estados de Control
   const [activeTab, setActiveTab] = useState<TabType>("RESUMEN");
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -87,25 +87,25 @@ export default function BarberDashboard() {
   const [authError, setAuthError] = useState(false);
   const [selectedDateFilter, setSelectedDateFilter] = useState<string>(TODAY_DATE);
   
-  // Modales y Utilidades
+  // Modales
   const [modalType, setModalType] = useState<ModalType>(null);
   const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null);
   const [copySuccess, setCopySuccess] = useState(false);
   const [currentHour, setCurrentHour] = useState("");
 
-  // Reloj en tiempo real para el bloqueo automático de horas pasadas
+  // Reloj en tiempo real
   useEffect(() => {
     const updateHour = () => {
       const now = new Date();
       setCurrentHour(`${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`);
     };
     updateHour();
-    const interval = setInterval(updateHour, 60000); // Actualiza cada minuto
+    const interval = setInterval(updateHour, 60000); 
     return () => clearInterval(interval);
   }, []);
 
   // ============================================================================
-  // CARGA DE DATOS MAESTRA Y SEGURIDAD
+  // CARGA MAESTRA
   // ============================================================================
   const loadDashboardData = useCallback(async () => {
     setIsFetching(true);
@@ -113,27 +113,26 @@ export default function BarberDashboard() {
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       if (!user || authError) throw new Error("No auth");
 
-      // Verificar si tiene rol de BARBER o ADMIN
       const { data: userProfile } = await supabase.from('User').select('role').eq('id', user.id).single();
       if (userProfile?.role !== 'BARBER' && userProfile?.role !== 'ADMIN') {
         setAuthError(true);
         await supabase.auth.signOut();
-        router.push('/login?error=Acceso Denegado. Solo Staff autorizado.');
+        router.push('/login?error=Acceso Denegado.');
         return;
       }
 
-      // 1. Obtener datos del barbero
+      // 1. Datos del barbero
       const { data: barberData } = await supabase.from('Barbers').select('*').eq('id', user.id).single();
       if (barberData) setBarber(barberData);
       else setBarber({ id: user.id, name: userProfile?.role || "Barbero" });
 
-      // 2. Obtener su Sillón asignado (si lo tiene)
+      // 2. Sillón
       const { data: chairData } = await supabase.from('chairs').select('*').eq('current_barber_id', user.id).single();
       if (chairData) setMyChair(chairData);
 
-      // 3. Obtener Citas de ESTE barbero
+      // 3. Citas de ESTE barbero (Usando Appointments con mayúscula)
       const { data: apptsData } = await supabase
-        .from('appointments')
+        .from('Appointments')
         .select(`
           id, date, time, status, notes,
           client:client_id (id, name, phone, email, points),
@@ -147,7 +146,6 @@ export default function BarberDashboard() {
         const typedAppts = apptsData as unknown as Appointment[];
         setAppointments(typedAppts);
         
-        // Extracción de clientes únicos
         const uniqueClientsMap = new Map();
         typedAppts.forEach(a => {
           if (a.client && !uniqueClientsMap.has(a.client.id)) {
@@ -156,20 +154,19 @@ export default function BarberDashboard() {
         });
         setClients(Array.from(uniqueClientsMap.values()));
 
-        // Matemáticas de Rendimiento
         const todayAppts = typedAppts.filter(a => a.date === TODAY_DATE);
         const todayCompleted = todayAppts.filter(a => a.status === 'COMPLETED');
         const todayEarnings = todayCompleted.reduce((acc, curr) => acc + Number(curr.service?.price || 0), 0);
         
         setKpis({
           todayEarnings,
-          monthEarnings: todayEarnings * 24, // Simulación proyectada
+          monthEarnings: todayEarnings * 24, 
           todayAppointments: todayAppts.length,
           totalClients: uniqueClientsMap.size
         });
       }
 
-      // 4. Obtener sus horarios configurados
+      // 4. Horarios
       const { data: schedData } = await supabase.from('barber_schedules').select('*').eq('barber_id', user.id);
       if (schedData) setSchedules(schedData);
 
@@ -184,13 +181,12 @@ export default function BarberDashboard() {
   useEffect(() => {
     loadDashboardData();
 
-    // Sincronización en tiempo real exclusiva para la agenda del barbero actual
     let channel: any;
     const setupRealtime = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       channel = supabase.channel('barber-sync-station')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments', filter: `barber_id=eq.${user.id}` }, 
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'Appointments', filter: `barber_id=eq.${user.id}` }, 
         () => loadDashboardData()).subscribe();
     };
     setupRealtime();
@@ -205,11 +201,11 @@ export default function BarberDashboard() {
   };
 
   // ============================================================================
-  // ACCIONES CRUD DE AGENDA Y BLOQUEOS
+  // ACCIONES CRUD
   // ============================================================================
   const handleUpdateStatus = async (id: string, newStatus: AppointmentStatus) => {
     setIsLoading(true);
-    const { error } = await supabase.from('appointments').update({ status: newStatus }).eq('id', id);
+    const { error } = await supabase.from('Appointments').update({ status: newStatus }).eq('id', id);
     if (!error) loadDashboardData(); 
     setIsLoading(false);
   };
@@ -218,11 +214,9 @@ export default function BarberDashboard() {
     setIsLoading(true);
     try {
       if (isBlocked && existingId) {
-        // Desbloquear (Elimina la cita fantasma "BLOCKED")
-        await supabase.from('appointments').delete().eq('id', existingId);
+        await supabase.from('Appointments').delete().eq('id', existingId);
       } else {
-        // Bloquear (Inserta cita fantasma "BLOCKED" sin cliente)
-        await supabase.from('appointments').insert({
+        await supabase.from('Appointments').insert({
           date: selectedDateFilter,
           time: time,
           status: 'BLOCKED',
@@ -245,7 +239,7 @@ export default function BarberDashboard() {
     const newDate = (form.elements.namedItem('date') as HTMLInputElement).value;
     const newTime = (form.elements.namedItem('time') as HTMLInputElement).value;
 
-    const { error } = await supabase.from('appointments').update({ date: newDate, time: newTime }).eq('id', selectedAppt.id);
+    const { error } = await supabase.from('Appointments').update({ date: newDate, time: newTime }).eq('id', selectedAppt.id);
     if (!error) {
       loadDashboardData();
       setModalType(null);
@@ -256,15 +250,47 @@ export default function BarberDashboard() {
 
   const handleSaveSchedule = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!barber) return;
     setIsLoading(true);
-    // Simulación de guardado de horarios (requiere mapeo de inputs)
-    setTimeout(() => { setIsLoading(false); alert("Horarios de trabajo actualizados en el sistema."); }, 1000);
+    
+    try {
+      const form = e.target as HTMLFormElement;
+      
+      const upsertData = DAYS_OF_WEEK.map(day => {
+        const isActive = (form.elements.namedItem(`active_${day}`) as HTMLInputElement).checked;
+        const start = (form.elements.namedItem(`start_${day}`) as HTMLInputElement).value;
+        const end = (form.elements.namedItem(`end_${day}`) as HTMLInputElement).value;
+        const bStart = (form.elements.namedItem(`bstart_${day}`) as HTMLInputElement).value;
+        const bEnd = (form.elements.namedItem(`bend_${day}`) as HTMLInputElement).value;
+
+        return {
+          barber_id: barber.id,
+          day_of_week: day,
+          is_active: isActive,
+          start_time: start,
+          end_time: end,
+          break_start: bStart,
+          break_end: bEnd
+        };
+      });
+
+      const { error } = await supabase.from('barber_schedules').upsert(upsertData, { onConflict: 'barber_id, day_of_week' });
+      
+      if (error) throw error;
+      
+      loadDashboardData();
+      alert("Horarios de trabajo actualizados en el sistema. Los clientes ya no podrán agendar fuera de este rango.");
+    } catch (error: any) {
+      console.error(error);
+      alert("Error al guardar los horarios: " + error.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const copyUniqueLink = () => {
     if (!barber) return;
-    // URL ÚNICA DE RESERVA PARA INSTAGRAM
-    const link = `${window.location.origin}/dashboards/client/book?barber=${barber.id}`;
+    const link = `${window.location.origin}/reservar?barber=${barber.id}`;
     navigator.clipboard.writeText(link);
     setCopySuccess(true);
     setTimeout(() => setCopySuccess(false), 3000);
@@ -293,7 +319,7 @@ export default function BarberDashboard() {
   const filteredAppointments = appointments.filter(a => a.date === selectedDateFilter && (a.client?.name || "").toLowerCase().includes(searchQuery.toLowerCase()));
 
   // ----------------------------------------------------------------------------
-  // PANTALLAS DE CARGA Y SEGURIDAD
+  // PANTALLAS DE CARGA
   // ----------------------------------------------------------------------------
   if (isAppLoading) {
     return (
@@ -314,7 +340,7 @@ export default function BarberDashboard() {
   }
 
   // ----------------------------------------------------------------------------
-  // RENDER PRINCIPAL DEL BARBERO
+  // RENDER
   // ----------------------------------------------------------------------------
   return (
     <div className="max-w-[1600px] mx-auto pb-20 pt-8 px-6 md:px-10">
@@ -438,7 +464,7 @@ export default function BarberDashboard() {
         )}
 
         {/* =================================================================== */}
-        {/* TAB 2: RESERVAS (Control y Bloqueo Dinámico) */}
+        {/* TAB 2: RESERVAS */}
         {/* =================================================================== */}
         {activeTab === "RESERVAS" && (
           <motion.div key="reservas" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-8">
@@ -462,7 +488,6 @@ export default function BarberDashboard() {
                 {TIMELINE_SLOTS.map(time => {
                   const appAtThisTime = filteredAppointments.find(a => a.time.startsWith(time.split(':')[0]));
                   
-                  // Lógica de Bloqueo del Tiempo
                   const isPast = selectedDateFilter === TODAY_DATE && time < currentHour;
                   const isBlocked = appAtThisTime?.status === 'BLOCKED' || (!appAtThisTime && isPast);
 
@@ -512,7 +537,7 @@ export default function BarberDashboard() {
                       </div>
                     );
                   } else {
-                    // SLOT LIBRE O BLOQUEADO (Permite al barbero gestionar su tiempo libre)
+                    // SLOT LIBRE O BLOQUEADO
                     return (
                       <div key={time} className={`flex gap-6 items-stretch group transition-opacity ${isBlocked ? 'opacity-30' : 'opacity-60 hover:opacity-100'}`}>
                         <div className="w-16 flex flex-col items-center">
@@ -586,8 +611,8 @@ export default function BarberDashboard() {
               
               <div className="bg-amber-500 rounded-[2.5rem] p-8 md:p-10 relative overflow-hidden shadow-[0_20px_50px_rgba(217,119,6,0.3)]">
                 <PieChart className="absolute -bottom-4 -right-4 text-amber-600/50" size={140} />
-                <h4 className="text-amber-900 font-black uppercase tracking-widest text-sm mb-2 relative z-10">Tu Comisión (60%)</h4>
-                <p className="text-5xl font-black text-black relative z-10">{formatMoney(kpis.todayEarnings * 0.6)}</p>
+                <h4 className="text-amber-900 font-black uppercase tracking-widest text-sm mb-2 relative z-10">Ingreso Íntegro (100%)</h4>
+                <p className="text-5xl font-black text-black relative z-10">{formatMoney(kpis.todayEarnings)}</p>
               </div>
 
               <div className="bg-zinc-900/80 border border-zinc-800 rounded-[2.5rem] p-8 md:p-10 relative overflow-hidden">
@@ -607,8 +632,7 @@ export default function BarberDashboard() {
                     <th className="px-6 py-5">Hora</th>
                     <th className="px-6 py-5">Cliente</th>
                     <th className="px-6 py-5">Servicio</th>
-                    <th className="px-6 py-5">Total Cobrado</th>
-                    <th className="px-6 py-5 text-amber-500 text-right">Tu Ganancia Neta</th>
+                    <th className="px-6 py-5 text-amber-500 text-right">Ingreso (100%)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-800/50">
@@ -617,8 +641,7 @@ export default function BarberDashboard() {
                       <td className="px-6 py-5 font-bold text-white text-base">{app.time}</td>
                       <td className="px-6 py-5 uppercase font-bold text-zinc-300">{app.client?.name}</td>
                       <td className="px-6 py-5">{app.service?.name}</td>
-                      <td className="px-6 py-5 font-bold">{formatMoney(Number(app.service?.price))}</td>
-                      <td className="px-6 py-5 font-black text-amber-500 text-right text-lg">{formatMoney(Number(app.service?.price) * 0.6)}</td>
+                      <td className="px-6 py-5 font-black text-amber-500 text-right text-lg">{formatMoney(Number(app.service?.price))}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -647,25 +670,25 @@ export default function BarberDashboard() {
                 return (
                   <div key={day} className="flex flex-col md:flex-row items-center gap-6 p-6 bg-zinc-950 border border-zinc-800 rounded-2xl">
                     <div className="w-full md:w-32 flex items-center gap-3">
-                      <input type="checkbox" defaultChecked={sched?.is_active ?? true} className="w-5 h-5 accent-amber-500" />
+                      <input type="checkbox" name={`active_${day}`} defaultChecked={sched?.is_active ?? true} className="w-5 h-5 accent-amber-500" />
                       <span className="text-white font-bold uppercase tracking-widest text-xs">{day}</span>
                     </div>
                     <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-4 w-full">
                       <div>
                         <label className="text-[9px] text-zinc-500 uppercase font-black tracking-widest block mb-1">Inicio Turno</label>
-                        <input type="time" defaultValue={sched?.start_time || "10:00"} className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none" />
+                        <input type="time" name={`start_${day}`} defaultValue={sched?.start_time || "10:00"} className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none" />
                       </div>
                       <div>
                         <label className="text-[9px] text-zinc-500 uppercase font-black tracking-widest block mb-1">Fin Turno</label>
-                        <input type="time" defaultValue={sched?.end_time || "20:00"} className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none" />
+                        <input type="time" name={`end_${day}`} defaultValue={sched?.end_time || "20:00"} className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none" />
                       </div>
                       <div>
                         <label className="text-[9px] text-zinc-500 uppercase font-black tracking-widest block mb-1">Inicio Colación</label>
-                        <input type="time" defaultValue={sched?.break_start || "14:00"} className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none" />
+                        <input type="time" name={`bstart_${day}`} defaultValue={sched?.break_start || "14:00"} className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none" />
                       </div>
                       <div>
                         <label className="text-[9px] text-zinc-500 uppercase font-black tracking-widest block mb-1">Fin Colación</label>
-                        <input type="time" defaultValue={sched?.break_end || "15:00"} className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none" />
+                        <input type="time" name={`bend_${day}`} defaultValue={sched?.break_end || "15:00"} className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-amber-500 outline-none" />
                       </div>
                     </div>
                   </div>
@@ -713,7 +736,7 @@ export default function BarberDashboard() {
       </AnimatePresence>
 
       {/* =================================================================== */}
-      {/* MODAL DE REPROGRAMACIÓN (EDITAR CITA) */}
+      {/* MODAL DE REPROGRAMACIÓN */}
       {/* =================================================================== */}
       <AnimatePresence>
         {modalType === "EDIT_APPT" && selectedAppt && (

@@ -13,8 +13,9 @@ import {
   Droplets, Wand2, ShieldCheck, Lock
 } from "lucide-react";
 
-// Importamos el cliente de Supabase
+// Importamos el cliente de Supabase y nuestra nueva Server Action
 import { createClient } from "@/utils/supabase/client";
+import { createAppointment } from "@/app/actions/appointment";
 
 // ============================================================================
 // DATA DE RESPALDO (Fallbacks) 
@@ -25,8 +26,8 @@ const FALLBACK_BARBERS = [
 ];
 
 const FALLBACK_SERVICES = [
-  { id: "s1", name: "Corte Clásico / Degradado", time: "45 min", duration: 45, price: "$12.000", desc: "Clean, fresh, de líneas perfectas.", iconName: "Scissors" },
-  { id: "s2", name: "Barba + Vapor Caliente", time: "30 min", duration: 30, price: "$7.000", desc: "Afeitado VIP. Poros abiertos, cero irritación.", iconName: "Flame" },
+  { id: "s1", name: "Corte Clásico / Degradado", time: "60 min", duration: 60, price: 12000, desc: "Clean, fresh, de líneas perfectas.", iconName: "Scissors" },
+  { id: "s2", name: "Barba + Vapor Caliente", time: "60 min", duration: 60, price: 7000, desc: "Afeitado VIP. Poros abiertos, cero irritación.", iconName: "Flame" },
 ];
 
 // ============================================================================
@@ -43,16 +44,15 @@ const generateDates = () => {
   const days = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
   const months = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
   
-  for(let i = 0; i < 14; i++) { // Extendemos a 14 días para dar más opciones
+  for(let i = 0; i < 14; i++) { 
     const d = new Date(today);
     d.setDate(today.getDate() + i);
-    // Saltamos el domingo si no trabajan (Ajustable)
     if(d.getDay() !== 0) { 
       dates.push({ 
         day: days[d.getDay()], 
         date: d.getDate().toString(), 
         month: months[d.getMonth()],
-        fullDate: d.toISOString().split('T')[0] // YYYY-MM-DD
+        fullDate: d.toISOString().split('T')[0] 
       });
     }
   }
@@ -60,14 +60,13 @@ const generateDates = () => {
 };
 const DATES = generateDates();
 
-// Intervalos de 30 minutos para máxima flexibilidad en la agenda
+// FIX: Intervalos exactos de 1 HORA.
 const TIME_SLOTS = {
-  manana: ["10:00", "10:30", "11:00", "11:30", "12:00", "12:30", "13:00", "13:30", "14:00"],
-  tarde: ["15:00", "15:30", "16:00", "16:30", "17:00", "17:30"],
-  noche: ["18:00", "18:30", "19:00", "19:30", "20:00"]
+  manana: ["10:00", "11:00", "12:00", "13:00", "14:00"],
+  tarde: ["15:00", "16:00", "17:00"],
+  noche: ["18:00", "19:00", "20:00"]
 };
 
-// Convierte "10:30" a minutos (630) para calcular cruces de horario fácilmente
 const timeToMinutes = (timeStr: string) => {
   if (!timeStr) return 0;
   const [h, m] = timeStr.split(':').map(Number);
@@ -105,14 +104,25 @@ function BookingEngineContent() {
   // Estados de BD
   const [dbBarbers, setDbBarbers] = useState<any[]>(FALLBACK_BARBERS);
   const [dbServices, setDbServices] = useState<any[]>(FALLBACK_SERVICES);
-  
-  // Guardamos las horas reservadas JUNTO con la duración de ese servicio
   const [bookedSlots, setBookedSlots] = useState<{time: string, duration: number}[]>([]);
 
-  // 1. Cargar Barberos, Servicios y Pre-seleccionar Barbero por URL
+  // 1. Cargar Datos y Pre-llenar Cuenta de Cliente
   useEffect(() => {
     const loadInitialData = async () => {
       try {
+        // Pre-llenar datos del usuario autenticado si existe
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          setBooking(prev => ({
+            ...prev,
+            guest: {
+              name: user.user_metadata?.full_name || user.user_metadata?.name || "",
+              phone: user.user_metadata?.phone || "",
+              email: user.email || ""
+            }
+          }));
+        }
+
         const { data: barbersData } = await supabase.from('Barbers').select('*').eq('status', 'ACTIVE');
         if (barbersData && barbersData.length > 0) {
           setDbBarbers(barbersData);
@@ -139,28 +149,22 @@ function BookingEngineContent() {
     loadInitialData();
   }, [supabase, barberParam]);
 
-  // 2. Cargar horas ocupadas inteligentemente (Hora + Duración)
+  // 2. Cargar horas ocupadas inteligentemente
   useEffect(() => {
     const fetchBookedSlots = async () => {
       if (booking.barber && booking.date) {
         try {
-          // Consultamos la hora y hacemos un JOIN con el servicio para saber cuánto dura esa cita
           const { data, error } = await supabase
             .from('Appointments')
-            .select(`
-              time,
-              service_id,
-              service:service_id ( duration )
-            `)
+            .select(`time, service_id, service:service_id ( duration )`)
             .eq('barber_id', booking.barber.id)
             .eq('date', booking.date.fullDate)
             .neq('status', 'CANCELLED');
             
           if (data) {
-            // Mapeamos asegurando que si no hay duración, asumimos 45 min por defecto
             const mappedSlots = data.map((d: any) => ({
               time: d.time,
-              duration: d.service?.duration || 45
+              duration: d.service?.duration || 60 // Por defecto 1 hora si falla la relación
             }));
             setBookedSlots(mappedSlots);
           }
@@ -179,63 +183,61 @@ function BookingEngineContent() {
   const nextStep = () => setStep((p) => Math.min(p + 1, 5));
   const prevStep = () => setStep((p) => Math.max(p - 1, 1));
 
-  // 3. MOTOR DE COLISIONES: Regla de 2 horas + Traslape de Servicios
+  // 3. MOTOR DE COLISIONES
   const isSlotUnavailable = useCallback((timeStr: string) => {
     if (!booking.date || !booking.service) return true;
 
-    // A) REGLA DE 2 HORAS DE ANTICIPACIÓN
     const now = new Date();
     const [year, month, day] = booking.date.fullDate.split('-').map(Number);
     const [hours, minutes] = timeStr.split(':').map(Number);
     const slotDate = new Date(year, month - 1, day, hours, minutes);
     const diffHours = (slotDate.getTime() - now.getTime()) / (1000 * 60 * 60);
 
-    // Si es hoy y falta menos de 2 horas, se bloquea (o si ya pasó)
     if (diffHours < 2) return true;
 
-    // B) LÓGICA DE COLISIÓN MATEMÁTICA (El Servicio cruza con otro?)
     const slotStart = timeToMinutes(timeStr);
-    const slotEnd = slotStart + (booking.service.duration || 45);
+    const slotEnd = slotStart + (booking.service.duration || 60);
 
     for (const booked of bookedSlots) {
        const bStart = timeToMinutes(booked.time);
        const bEnd = bStart + booked.duration;
 
-       // Condición de solapamiento: [InicioA, FinA] cruza con [InicioB, FinB]
-       // Un slot comienza antes de que el otro termine Y termina después de que el otro comience
        if (slotStart < bEnd && slotEnd > bStart) {
-          return true; // Hay colisión, bloqueamos el botón
+          return true; 
        }
     }
 
-    return false; // Libre
+    return false; 
   }, [booking.date, booking.service, bookedSlots]);
 
 
-  // 4. CONFIRMACIÓN FINAL A LA BASE DE DATOS
+  // 4. CONFIRMACIÓN FINAL A LA BASE DE DATOS USANDO SERVER ACTION
   const handleFinalConfirm = async () => {
     setIsConfirming(true);
     try {
       const appointmentData = {
         barber_id: booking.barber.id,
         barber_name: booking.barber.name,
-        service_id: booking.service.id, // CRÍTICO PARA EL ADMIN PANEL
+        service_id: booking.service.id,
         service_name: booking.service.name,
         date: booking.date.fullDate,
         time: booking.time,
         client_name: booking.guest.name,
         client_phone: booking.guest.phone,
-        status: 'PENDING',
-        notes: `Reserva online via web - Duración estimada: ${booking.service.duration || 45} min`
+        notes: `Reserva online via web - Duración estimada: ${booking.service.duration || 60} min`
       };
 
-      const { error } = await supabase.from('Appointments').insert([appointmentData]);
-      if (error) throw error;
+      // Ejecutamos la Server Action
+      const result = await createAppointment(appointmentData);
+      
+      if (!result.success) {
+        throw new Error(result.error);
+      }
       
       nextStep(); 
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      alert("Hubo un error al procesar tu reserva. Por favor intenta de nuevo.");
+      alert(error.message || "Hubo un error al procesar tu reserva. Asegúrate de tener iniciada tu sesión de Cliente.");
     } finally {
       setIsConfirming(false);
     }
@@ -252,7 +254,6 @@ function BookingEngineContent() {
       <header className="relative w-full z-40 mb-12 md:mb-16">
         <div className="max-w-[1400px] mx-auto px-6 relative flex items-center justify-center h-16">
           
-          {/* Botón Volver (Izquierda Absoluta) */}
           <div className="absolute left-6 z-10">
             {step > 1 && step < 5 && (
               <button onClick={prevStep} className="px-5 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-[10px] md:text-xs font-black uppercase tracking-widest text-zinc-400 hover:text-white hover:border-amber-500/50 hover:bg-zinc-800 transition-all flex items-center gap-2 group shadow-lg">
@@ -261,7 +262,6 @@ function BookingEngineContent() {
             )}
           </div>
 
-          {/* Título Monumental Centrado */}
           <div className="flex flex-col items-center text-center group cursor-default relative">
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[150%] h-[150%] bg-amber-500/10 blur-[40px] rounded-full pointer-events-none transition-opacity duration-500 opacity-50 group-hover:opacity-100"></div>
             <span className="font-serif font-black text-3xl md:text-4xl lg:text-5xl leading-none tracking-tighter text-white uppercase drop-shadow-[0_0_15px_rgba(255,255,255,0.1)] relative z-10">
@@ -274,7 +274,6 @@ function BookingEngineContent() {
             </span>
           </div>
           
-          {/* Indicador de Progreso Desktop (Derecha Absoluta) */}
           <div className="absolute right-6 hidden md:flex items-center gap-2 z-10">
              {[1,2,3,4].map(i => (
                <div key={i} className={`h-2 rounded-full transition-all duration-500 ${step >= i ? 'w-8 bg-amber-500 shadow-[0_0_15px_rgba(217,119,6,0.6)]' : 'w-2 bg-zinc-800'}`} />
@@ -297,7 +296,6 @@ function BookingEngineContent() {
               
               <h3 className="text-amber-500 font-black uppercase text-xs tracking-[0.4em] mb-10 border-b border-zinc-800 pb-4 inline-block relative z-10">Tu Trono</h3>
               
-              {/* ORDEN CORREGIDO: Maestro -> Servicio -> Horario */}
               <ul className="space-y-10 relative z-10 text-left">
                 
                 <li className={`flex gap-6 items-center transition-opacity duration-500 ${!booking.barber ? 'opacity-30' : 'opacity-100'}`}>
@@ -317,7 +315,7 @@ function BookingEngineContent() {
                   <div className="text-left flex-1">
                     <p className="text-[10px] uppercase font-black text-zinc-500 tracking-widest mb-1">Servicio</p>
                     <p className="text-base font-bold text-white leading-tight line-clamp-2">{booking.service?.name || "Pendiente..."}</p>
-                    {booking.service && <p className="text-[10px] text-amber-500 font-bold mt-1">🕒 {booking.service.duration || 45} Minutos</p>}
+                    {booking.service && <p className="text-[10px] text-amber-500 font-bold mt-1">🕒 {booking.service.duration || 60} Minutos</p>}
                   </div>
                 </li>
                 
@@ -347,7 +345,7 @@ function BookingEngineContent() {
 
             <div className="p-6 bg-zinc-900/50 border border-zinc-800 rounded-[2rem] flex items-start gap-4 text-left shadow-lg">
               <ShieldCheck size={24} className="text-amber-500 shrink-0 mt-0.5" />
-              <p className="text-xs text-zinc-400 font-medium leading-relaxed">Confirmación automática. Reserva 100% gratuita. Cancelas tu servicio directamente en el local al terminar.</p>
+              <p className="text-xs text-zinc-400 font-medium leading-relaxed">Confirmación automática conectada a tu cuenta. Reservas directamente y cancelas en el local.</p>
             </div>
           </div>
         </div>
@@ -446,7 +444,7 @@ function BookingEngineContent() {
                   <h2 className="text-5xl md:text-7xl font-serif font-black text-white uppercase tracking-tighter text-left leading-[0.9]">Elige el <br/><span className="text-amber-500">Momento.</span></h2>
                   <p className="text-zinc-400 mt-6 font-medium text-lg flex flex-col gap-1">
                     <span>Asegura al menos <strong className="text-amber-500">2 horas de anticipación</strong>.</span>
-                    <span className="text-sm">El sistema analizará el traslape según tu servicio de {booking.service?.duration || 45} mins.</span>
+                    <span className="text-sm">El sistema analizará el traslape según tu servicio de {booking.service?.duration || 60} mins.</span>
                   </p>
                 </div>
                 
@@ -519,13 +517,13 @@ function BookingEngineContent() {
               </motion.div>
             )}
 
-            {/* PASO 4: FORMULARIO GUEST */}
+            {/* PASO 4: FORMULARIO GUEST CON AUTO-COMPLETADO */}
             {step === 4 && (
               <motion.div key="s4" variants={slideIn} initial="hidden" animate="visible" exit="exit" className="space-y-10 text-left">
                 <div>
                   <motion.div initial={{ width: 0 }} animate={{ width: "160px" }} transition={{ duration: 0.8 }} className="h-1 bg-amber-500 mb-6 rounded-full"></motion.div>
                   <h2 className="text-5xl md:text-7xl font-serif font-black text-white uppercase tracking-tighter text-left leading-[0.9]">Casi <br/><span className="text-amber-500">Listos.</span></h2>
-                  <p className="text-zinc-400 mt-6 font-medium text-lg">Ingresa tus datos de contacto. <strong className="text-white">Sin registros tediosos.</strong></p>
+                  <p className="text-zinc-400 mt-6 font-medium text-lg">Revisa tus datos de contacto antes de confirmar.</p>
                 </div>
                 
                 <form onSubmit={(e) => { e.preventDefault(); handleFinalConfirm(); }} className="bg-zinc-900/40 border border-zinc-800 p-8 md:p-12 rounded-[3rem] space-y-6 text-left shadow-2xl relative overflow-hidden backdrop-blur-xl">
@@ -591,8 +589,8 @@ function BookingEngineContent() {
                 </div>
                 
                 <div className="pt-12 flex flex-col gap-8 items-center border-t border-zinc-800 mt-12 relative z-10">
-                  <Link href="/" className="px-16 py-6 bg-zinc-900 text-white font-black uppercase tracking-[0.2em] rounded-2xl border border-zinc-800 hover:bg-white hover:text-black transition-all shadow-xl hover:scale-105 active:scale-95">
-                    Volver al Inicio
+                  <Link href="/dashboards/client/book" className="px-16 py-6 bg-zinc-900 text-white font-black uppercase tracking-[0.2em] rounded-2xl border border-zinc-800 hover:bg-white hover:text-black transition-all shadow-xl hover:scale-105 active:scale-95">
+                    Volver a mi Panel
                   </Link>
                 </div>
               </motion.div>
@@ -606,7 +604,7 @@ function BookingEngineContent() {
 }
 
 // ============================================================================
-// COMPONENTE EXPORTADO (Envuelto en Suspense por seguridad de Build en Vercel)
+// COMPONENTE EXPORTADO
 // ============================================================================
 export default function BookingEngine() {
   return (
