@@ -67,8 +67,6 @@ const formatMoney = (amount: number | string) => {
   return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(numericAmount);
 };
 
-const isValidUUID = (uuid: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid);
-
 // ============================================================================
 // COMPONENTE PRINCIPAL DEL DASHBOARD
 // ============================================================================
@@ -295,28 +293,45 @@ function AdminDashboardContent() {
     setModalType(type);
   };
 
-  // FIX: Borrado Forzado para todos los casos (Incluso usuarios fantasmas)
+  // ============================================================================
+  // BORRADO FORZADO (MATA USUARIOS FANTASMAS)
+  // ============================================================================
   const handleDelete = async (table: string, id: string) => {
     if (!window.confirm("¿Confirmas la eliminación permanente de este registro?")) return;
+    setIsLoading(true);
     try {
+      const cleanId = id.trim();
+
       if (table === 'Barbers') {
+        // 1. Intentamos borrar mediante la API (Borrado oficial en Auth)
         try {
           await fetch('/api/admin/delete-barber', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id }),
+            body: JSON.stringify({ id: cleanId }),
           });
         } catch (e) { 
-          console.warn("Fallo borrado de Auth, forzando limpieza local..."); 
+          console.warn("Auth API no respondió, forzando limpieza manual..."); 
         }
+
+        // 2. FORZADO: Limpiamos dependencias directo en la DB local por si falla el API
+        await supabase.from('barber_schedules').delete().eq('barber_id', cleanId);
+        await supabase.from('Appointments').delete().eq('barber_id', cleanId);
+        await supabase.from('User').delete().eq('id', cleanId);
       }
 
-      // Forzamos el borrado directo en la base de datos pública independientemente del Auth
-      await supabase.from(table).delete().eq('id', id);
+      // 3. Ejecución Final: Borramos la entidad de la tabla solicitada
+      const { error } = await supabase.from(table).delete().eq('id', cleanId);
+      
+      if (error) {
+        throw new Error(error.message);
+      }
       
       verifyAdminAndFetchData(); 
     } catch (error: any) {
-      alert(`No se pudo eliminar: ${error.message}`);
+      alert(`No se pudo eliminar por completo: ${error.message}. Verifica que no esté en uso.`);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -358,16 +373,38 @@ function AdminDashboardContent() {
           password: passwordInput
         };
 
-        const response = await fetch('/api/admin/create-barber', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
+        try {
+          const response = await fetch('/api/admin/create-barber', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
 
-        const result = await response.json();
-        
-        if (!response.ok) {
-           throw new Error(result.error || "Error al procesar el Barbero.");
+          if (!response.ok) {
+             const resJson = await response.json();
+             throw new Error(resJson.error || "Fallo en API.");
+          }
+        } catch (apiError) {
+          console.warn("Fallo API Auth. Activando Modo Rescate Local...");
+          
+          // MODO RESCATE: Si es un usuario fantasma y la API falla, forzamos la actualización local
+          if (editingItem && editingItem.id) {
+             const { error: fallbackErr } = await supabase.from('Barbers').update({
+               name: payload.name,
+               email: payload.email,
+               phone: payload.phone,
+               role: payload.role,
+               tag: payload.tag,
+               status: payload.status,
+               img: payload.img
+             }).eq('id', editingItem.id);
+             
+             if (fallbackErr) throw new Error("No se pudo actualizar localmente: " + fallbackErr.message);
+             await supabase.from('User').update({ email: payload.email }).eq('id', editingItem.id);
+             alert("El barbero fue actualizado en Modo Rescate (Usuario Fantasma).");
+          } else {
+             throw new Error("Error crítico al intentar crear el Barbero.");
+          }
         }
       }
 
@@ -397,13 +434,10 @@ function AdminDashboardContent() {
           email: formData.get("email"), 
           points: parseInt(formData.get("points") as string) || 0 
         };
-        // Si tiene ID y es un UUID válido (se registró vía web), lo actualizamos
-        if (editingItem && isValidUUID(editingItem.id)) {
+        // Actualiza si existe, o crea si es nuevo
+        if (editingItem && editingItem.id) {
           await supabase.from('clients').update(data).eq('id', editingItem.id);
         } else {
-          // Si lo creamos manualmente desde el panel (sin UUID de Auth), insertamos uno nuevo.
-          // NOTA: Para que funcione la creación manual, la tabla 'clients' debe permitir IDs generados (gen_random_uuid()) 
-          // O no exigir que estén amarrados a auth.users si se crean manualmente.
           await supabase.from('clients').insert([data]);
         }
       }
@@ -450,7 +484,7 @@ function AdminDashboardContent() {
 
       setModalType(null);
       verifyAdminAndFetchData(); 
-      alert("¡Base de datos actualizada correctamente!");
+      if (modalType !== "BARBER") alert("¡Base de datos actualizada correctamente!");
       
     } catch (error: any) {
       alert(`Error al procesar: ${error.message}`);
