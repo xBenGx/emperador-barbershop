@@ -58,14 +58,14 @@ const FALLBACK_FAQS = [
   { id: "f4", q: "¿Puedo comprar productos online?", a: "Sí, contamos con una tienda integrada donde puedes adquirir ceras, pomadas y máquinas profesionales." },
 ];
 
-// Reemplazando con fotos de barbería de alta calidad para el grid falso de Instagram
+// Falso Grid de Instagram que te lleva al perfil real
 const INSTA_REELS = [
-  { id: "i1", likes: "12.4k", comments: "145", type: "image", media_url: "https://images.unsplash.com/photo-1593702275687-f8b402bf1fb5?q=80&w=600&h=600&auto=format&fit=crop", link: "https://www.instagram.com/emperador_barbershop/" },
-  { id: "i2", likes: "8.2k", comments: "98", type: "image", media_url: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=600&h=600&auto=format&fit=crop", link: "https://www.instagram.com/emperador_barbershop/" },
-  { id: "i3", likes: "15.1k", comments: "230", type: "image", media_url: "https://images.unsplash.com/photo-1605497788044-5a32c7078486?q=80&w=600&h=600&auto=format&fit=crop", link: "https://www.instagram.com/emperador_barbershop/" },
-  { id: "i4", likes: "20.5k", comments: "314", type: "reel", media_url: "https://images.unsplash.com/photo-1621607512214-68297480165e?q=80&w=600&h=600&auto=format&fit=crop", link: "https://www.instagram.com/emperador_barbershop/" },
-  { id: "i5", likes: "9.8k", comments: "112", type: "image", media_url: "https://images.unsplash.com/photo-1585747860715-2ba37e788b70?q=80&w=600&h=600&auto=format&fit=crop", link: "https://www.instagram.com/emperador_barbershop/" },
-  { id: "i6", likes: "18.3k", comments: "289", type: "reel", media_url: "https://images.unsplash.com/photo-1595152772835-219674b2a8a6?q=80&w=600&h=600&auto=format&fit=crop", link: "https://www.instagram.com/emperador_barbershop/" },
+  { id: "i1", likes: "12.4k", comments: "145", type: "image", media_url: "https://images.unsplash.com/photo-1593702275687-f8b402bf1fb5?q=80&w=600&h=600&auto=format&fit=crop" },
+  { id: "i2", likes: "8.2k", comments: "98", type: "image", media_url: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=600&h=600&auto=format&fit=crop" },
+  { id: "i3", likes: "15.1k", comments: "230", type: "image", media_url: "https://images.unsplash.com/photo-1605497788044-5a32c7078486?q=80&w=600&h=600&auto=format&fit=crop" },
+  { id: "i4", likes: "20.5k", comments: "314", type: "reel", media_url: "https://images.unsplash.com/photo-1621607512214-68297480165e?q=80&w=600&h=600&auto=format&fit=crop" },
+  { id: "i5", likes: "9.8k", comments: "112", type: "image", media_url: "https://images.unsplash.com/photo-1585747860715-2ba37e788b70?q=80&w=600&h=600&auto=format&fit=crop" },
+  { id: "i6", likes: "18.3k", comments: "289", type: "reel", media_url: "https://images.unsplash.com/photo-1595152772835-219674b2a8a6?q=80&w=600&h=600&auto=format&fit=crop" },
 ];
 
 // ============================================================================
@@ -93,7 +93,7 @@ const MediaRenderer = ({ type, url, alt, className }: { type: string, url: strin
 };
 
 // ============================================================================
-// COMPONENTE INTELIGENTE PARA VIDEOS DISTRIBUIDOS (AUTOPLAY + UNMUTE)
+// COMPONENTE INTELIGENTE DE VIDEOS (Distribuidos con Autoplay + Botón Audio)
 // ============================================================================
 const DistributedVideo = ({ src, onUnmute, className }: { src: string, onUnmute: (vid: HTMLVideoElement) => void, className?: string }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -134,7 +134,6 @@ const DistributedVideo = ({ src, onUnmute, className }: { src: string, onUnmute:
     </div>
   );
 };
-
 
 // ============================================================================
 // ANIMACIONES IMPACTANTES
@@ -424,13 +423,13 @@ export default function UltimateEmperadorLanding() {
                   className="transition-all duration-[10000ms] ease-linear scale-105" 
                 />
                 {/* Gradiente súper sutil SOLO en la parte inferior para que se lea el texto */}
-                <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/40 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/40 to-transparent pointer-events-none" />
               </motion.div>
 
-              <div className="relative z-10 w-full max-w-[1400px] px-6 text-center pt-[150px] md:pt-[220px]">
+              <div className="relative z-10 w-full max-w-[1400px] px-6 text-center pt-[150px] md:pt-[220px] pointer-events-none">
                 {currentSlideData?.type !== 'promo' ? (
                   /* RENDER TIPO 1: BRANDING */
-                  <motion.div initial="hidden" animate="visible" variants={staggerContainer}>
+                  <motion.div initial="hidden" animate="visible" variants={staggerContainer} className="pointer-events-auto">
                     <motion.div variants={popUp} className="mb-6 inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/50 px-6 py-2 rounded-full text-[10px] md:text-xs font-black text-amber-500 uppercase tracking-[0.4em] shadow-[0_0_20px_rgba(217,119,6,0.2)] backdrop-blur-md">
                       <MapPin size={14} /> Peña 666, Piso 2 • Curicó
                     </motion.div>
@@ -462,7 +461,7 @@ export default function UltimateEmperadorLanding() {
                   </motion.div>
                 ) : (
                   /* RENDER TIPO 2: PROMOCIONAL */
-                  <motion.div initial="hidden" animate="visible" variants={staggerContainer} className="flex flex-col items-center">
+                  <motion.div initial="hidden" animate="visible" variants={staggerContainer} className="flex flex-col items-center pointer-events-auto">
                     <motion.div variants={popUp} className="mb-6 inline-flex items-center gap-2 bg-black/80 border border-white/20 px-6 py-2 rounded-full text-[10px] md:text-xs font-black text-white uppercase tracking-[0.4em] shadow-xl backdrop-blur-md">
                       {currentSlideData.tag || 'EMPERADOR STORE'}
                     </motion.div>
@@ -514,10 +513,14 @@ export default function UltimateEmperadorLanding() {
       </div>
 
       {/* ========================================================================= */}
-      {/* 2. LA EXPERIENCIA (VIDEO: presentacion.mp4) */}
+      {/* 2. LA EXPERIENCIA (VIDEO: presentacion.mp4 - Formato Vertical como Reel) */}
       {/* ========================================================================= */}
-      <section className="py-24 md:py-32 bg-[#050505] relative border-b border-zinc-900 overflow-hidden">
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-amber-600/10 blur-[150px] rounded-full pointer-events-none" />
+      <section className="py-24 md:py-32 relative border-b border-zinc-900 overflow-hidden">
+        {/* Fondo: El mismo video pero desenfocado y oscuro */}
+        <div className="absolute inset-0 z-0">
+          <video src="/presentacion.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover opacity-30 blur-2xl scale-110" />
+          <div className="absolute inset-0 bg-[#050505]/70" />
+        </div>
         
         <div className="max-w-[1400px] mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center relative z-10">
            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={staggerContainer}>
@@ -525,16 +528,17 @@ export default function UltimateEmperadorLanding() {
               <motion.h3 variants={fadeUp} className="text-4xl md:text-6xl font-serif font-black text-white uppercase tracking-tighter leading-[0.9] mb-6">
                 MÁS QUE UN CORTE,<br/> <span className="text-zinc-500">UN RITUAL.</span>
               </motion.h3>
-              <motion.p variants={fadeUp} className="text-zinc-400 text-lg leading-relaxed mb-8 max-w-lg">
+              <motion.p variants={fadeUp} className="text-zinc-300 text-lg leading-relaxed mb-8 max-w-lg">
                 Nuestra administradora te cuenta por qué Emperador Barbershop ha redefinido el estándar de grooming masculino en Curicó. Atención premium, instalaciones de primer nivel y un resultado impecable garantizado.
               </motion.p>
            </motion.div>
            
-           <motion.div initial={{ opacity: 0, x: 50 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 1 }} className="w-full">
+           {/* Recuadro vertical para el video de presentación */}
+           <motion.div initial={{ opacity: 0, y: 50 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 1 }} className="flex justify-center lg:justify-end">
               <DistributedVideo 
                  src="/presentacion.mp4" 
                  onUnmute={handleGlobalReelUnmute} 
-                 className="w-full h-[500px] md:h-[650px] rounded-[2rem] shadow-2xl border border-zinc-800" 
+                 className="w-[300px] md:w-[360px] h-[550px] md:h-[650px] rounded-[2rem] shadow-[0_0_50px_rgba(0,0,0,0.6)] border border-white/10" 
               />
            </motion.div>
         </div>
@@ -654,12 +658,12 @@ export default function UltimateEmperadorLanding() {
           
           <motion.div initial={{ opacity: 0, x: 50 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 1 }} className="relative h-[500px] md:h-[700px] w-full group">
             <div className="absolute inset-0 bg-amber-500 translate-x-4 translate-y-4 rounded-[3rem] opacity-20 group-hover:translate-x-6 group-hover:translate-y-6 transition-transform duration-500" />
-            <div className="relative h-full w-full rounded-[3rem] overflow-hidden border border-zinc-800 shadow-2xl bg-black">
-               {/* VIDEO AUTOMATICO DE MESA DE POOL */}
+            <div className="relative h-full w-full rounded-[3rem] overflow-hidden border border-zinc-800 shadow-2xl bg-zinc-900">
+               {/* FIX: Video automático de fondo para la sección VIP sin opacidades negras que lo oculten */}
                <DistributedVideo 
                  src="/mesadepool.mp4" 
                  onUnmute={handleGlobalReelUnmute} 
-                 className="w-full h-full grayscale group-hover:grayscale-0 transition-all duration-1000 group-hover:scale-105 opacity-90"
+                 className="w-full h-full"
                />
                <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-transparent to-transparent pointer-events-none" />
             </div>
@@ -685,62 +689,64 @@ export default function UltimateEmperadorLanding() {
       </section>
 
       {/* ========================================================================= */}
-      {/* 7. INSTAGRAM (CLON EXACTO CAPTURA BLANCA) */}
+      {/* 7. INSTAGRAM (ENLACE FORZADO AL PERFIL REAL) */}
       {/* ========================================================================= */}
       <section id="instagram" className="py-24 md:py-32 bg-zinc-950 relative overflow-hidden border-b border-zinc-900">
-         {/* Fondo estilo desenfocado de la publicación */}
-         <div className="absolute inset-0 opacity-30">
+         {/* Fondo estilo desenfocado */}
+         <div className="absolute inset-0 opacity-30 pointer-events-none">
            <Image src="https://images.unsplash.com/photo-1593702275687-f8b402bf1fb5?q=80&w=2000&auto=format&fit=crop" fill className="object-cover blur-3xl scale-110" alt="Insta Background" unoptimized />
          </div>
          
          <div className="max-w-[450px] mx-auto px-4 md:px-0 relative z-10">
             
-            {/* Cabecera oscura exterior */}
-            <div className="flex justify-between items-center mb-4 text-white font-bold text-sm px-2 drop-shadow-md">
+            {/* Cabecera oscura exterior - ENLACE DIRECTO AL PERFIL */}
+            <a href="https://www.instagram.com/emperador_barbershop/" target="_blank" rel="noopener noreferrer" className="flex justify-between items-center mb-4 text-white font-bold text-sm px-2 drop-shadow-md group">
               <div className="flex items-center gap-2">
-                <div className="bg-gradient-to-tr from-[#fdf497] via-[#fd5949] to-[#d6249f] rounded-[0.4rem] p-0.5">
+                <div className="bg-gradient-to-tr from-[#fdf497] via-[#fd5949] to-[#d6249f] rounded-[0.4rem] p-0.5 group-hover:scale-110 transition-transform">
                   <Instagram size={18} className="text-white" />
                 </div>
-                <span className="tracking-wide">@emperador_barbershop</span>
+                <span className="tracking-wide group-hover:text-amber-500 transition-colors">@emperador_barbershop</span>
               </div>
-              <a href="https://www.instagram.com/emperador_barbershop/" target="_blank" rel="noopener noreferrer" className="text-[10px] md:text-xs uppercase font-black tracking-widest text-zinc-300 hover:text-white transition-colors">
+              <span className="text-[10px] md:text-xs uppercase font-black tracking-widest text-zinc-300 group-hover:text-white transition-colors">
                 ABRIR APP ↗
-              </a>
-            </div>
+              </span>
+            </a>
 
-            {/* WHITE CARD CLON EXACTO */}
-            <div className="bg-white rounded-[1.5rem] overflow-hidden shadow-2xl">
-               <div className="p-5 md:p-6 relative">
+            {/* WHITE CARD CLON EXACTO - TODA LA TARJETA ES UN ENLACE */}
+            <div className="bg-white rounded-[1.5rem] overflow-hidden shadow-2xl hover:shadow-[0_0_40px_rgba(214,36,159,0.2)] transition-shadow duration-500">
+               
+               {/* Cabecera de la tarjeta */}
+               <a href="https://www.instagram.com/emperador_barbershop/" target="_blank" rel="noopener noreferrer" className="block p-5 md:p-6 relative group">
                   {/* Icono Insta flotante derecha */}
-                  <a href="https://www.instagram.com/emperador_barbershop/" target="_blank" rel="noopener noreferrer" className="absolute top-5 right-5 hover:scale-110 transition-transform">
+                  <div className="absolute top-5 right-5 group-hover:scale-110 transition-transform">
                      <Instagram size={28} className="text-[#d6249f]" />
-                  </a>
+                  </div>
 
                   {/* Perfil & Estadísticas */}
                   <div className="flex items-center gap-4">
-                     <a href="https://www.instagram.com/emperador_barbershop/" target="_blank" rel="noopener noreferrer" className="shrink-0 w-[70px] h-[70px] md:w-[84px] md:h-[84px] rounded-full bg-gradient-to-tr from-[#fdf497] via-[#fd5949] to-[#d6249f] p-[3px] shadow-sm">
+                     <div className="shrink-0 w-[70px] h-[70px] md:w-[84px] md:h-[84px] rounded-full bg-gradient-to-tr from-[#fdf497] via-[#fd5949] to-[#d6249f] p-[3px] shadow-sm group-hover:scale-105 transition-transform">
                         <div className="w-full h-full bg-white rounded-full p-[2px]">
                            <div className="w-full h-full relative rounded-full overflow-hidden border border-gray-100 bg-black flex items-center justify-center">
                              <Image src="/logo.png" fill className="object-cover p-1" alt="Emperador Logo Instagram" />
                            </div>
                         </div>
-                     </a>
+                     </div>
                      <div className="text-black flex flex-col justify-center">
-                        <h3 className="font-bold text-base md:text-lg leading-none mb-1">emperador_barbershop</h3>
+                        <h3 className="font-bold text-base md:text-lg leading-none mb-1 group-hover:text-[#d6249f] transition-colors">emperador_barbershop</h3>
                         <p className="text-zinc-600 text-[13px] md:text-sm mb-1">Emperador BarberShop</p>
                         <p className="text-zinc-500 text-[12px] md:text-[13px]">12,5 mil seguidores</p>
                         <p className="text-zinc-400 text-[10px] my-0.5">•</p>
                         <p className="text-zinc-500 text-[12px] md:text-[13px]">849 publicaciones</p>
                      </div>
                   </div>
-               </div>
+               </a>
 
-               {/* Grid de Fotos (Cero espacios entre fotos para replicar Instagram real) */}
+               {/* Grid de Fotos (Todos los enlaces forzados al perfil) */}
                <div className="grid grid-cols-3 gap-0.5 bg-gray-200">
                   {reels.slice(0, 6).map((post) => (
                     <a 
                       key={post.id} 
-                      href={post.link || "https://www.instagram.com/emperador_barbershop/"} 
+                      href="https://www.instagram.com/emperador_barbershop/" 
                       target="_blank" 
                       rel="noopener noreferrer"
                       className="relative aspect-square bg-white overflow-hidden group block"
