@@ -127,12 +127,12 @@ function BookingEngineContent() {
   const [dbServices, setDbServices] = useState<any[]>(FALLBACK_SERVICES);
   const [bookedSlots, setBookedSlots] = useState<{time: string, duration: number}[]>([]);
 
-  // 1. Cargar Datos y Pre-llenar Cuenta de Cliente (Permite Invitados)
+  // 1. Cargar Datos y Pre-llenar Cuenta de Cliente (Si la hay)
   useEffect(() => {
     const loadInitialData = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        // Si hay usuario, prellenamos. Si no hay, NO lo expulsamos al login.
+        // Si hay usuario, prellenamos sus datos por comodidad. Si no, seguimos como invitados.
         if (user) {
           setBooking(prev => ({
             ...prev,
@@ -170,12 +170,11 @@ function BookingEngineContent() {
     loadInitialData();
   }, [supabase, barberParam]);
 
-  // 2. Cargar horas ocupadas (Bloqueo de Calendario en Tiempo Real - FIX SQL)
+  // 2. Cargar horas ocupadas (Bloqueo de Calendario en Tiempo Real)
   useEffect(() => {
     const fetchBookedSlots = async () => {
       if (booking.barber && booking.date) {
         try {
-          // Extraemos de forma plana para evitar errores de Foreign Key en Vercel/Supabase
           const { data: rawAppts } = await supabase
             .from('Appointments') 
             .select('time, service_id')
@@ -248,6 +247,10 @@ function BookingEngineContent() {
     try {
       if (!booking.barber?.id || !booking.service?.id) {
         throw new Error("Faltan datos críticos para la reserva (Barbero o Servicio). Refresca la página.");
+      }
+
+      if (!booking.guest.name || !booking.guest.phone) {
+        throw new Error("Por favor, ingresa tu nombre y teléfono para confirmar la reserva.");
       }
 
       const appointmentData = {
@@ -379,7 +382,7 @@ function BookingEngineContent() {
 
             <div className="p-6 bg-zinc-900/50 border border-zinc-800 rounded-[2rem] flex items-start gap-4 text-left shadow-lg">
               <ShieldCheck size={24} className="text-amber-500 shrink-0 mt-0.5" />
-              <p className="text-xs text-zinc-400 font-medium leading-relaxed">Confirmación automática conectada a tu cuenta. Reservas directamente y cancelas en el local.</p>
+              <p className="text-xs text-zinc-400 font-medium leading-relaxed">Confirmación automática. Reservas directamente y cancelas en el local.</p>
             </div>
           </div>
         </div>
@@ -629,8 +632,8 @@ function BookingEngineContent() {
                 </div>
                 
                 <div className="pt-12 flex flex-col gap-8 items-center border-t border-zinc-800 mt-12 relative z-10">
-                  <Link href="/dashboards/client/book" className="px-16 py-6 bg-zinc-900 text-white font-black uppercase tracking-[0.2em] rounded-2xl border border-zinc-800 hover:bg-white hover:text-black transition-all shadow-xl hover:scale-105 active:scale-95">
-                    Volver a mi Panel
+                  <Link href="/" className="px-16 py-6 bg-zinc-900 text-white font-black uppercase tracking-[0.2em] rounded-2xl border border-zinc-800 hover:bg-white hover:text-black transition-all shadow-xl hover:scale-105 active:scale-95">
+                    Volver al Inicio
                   </Link>
                 </div>
               </motion.div>

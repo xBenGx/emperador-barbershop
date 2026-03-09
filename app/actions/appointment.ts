@@ -12,34 +12,34 @@ const supabaseAdmin = createSupabaseClient(
 );
 
 export async function createAppointment(data: any) {
-  // 1. Verificamos la sesión real del usuario en el navegador
-  const supabase = await createServerClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return { 
-      success: false, 
-      error: "Debes iniciar sesión para poder reservar tu hora." 
-    };
-  }
-
   try {
-    console.log("Iniciando reserva para cliente:", user.id, "con barbero:", data.barber_id);
+    // 1. Verificamos si hay una sesión real del usuario en el navegador
+    const supabase = await createServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
 
-    // 2. 🛡️ FIX SQL (Llave Foránea): Garantizar que el cliente existe
-    // Si el usuario no está en la tabla 'clients', el INSERT de abajo fallará.
-    await supabaseAdmin.from('clients').upsert({
-      id: user.id,
-      name: data.client_name || user.user_metadata?.full_name || user.email?.split('@')[0],
-      email: user.email,
-      phone: data.client_phone || user.user_metadata?.phone || ''
-    }, { onConflict: 'id' });
+    // Variable para almacenar el ID del cliente (si está logueado)
+    let finalClientId = null;
+
+    // 2. Si el usuario ESTÁ logueado, garantizamos que exista en la tabla 'clients'
+    // y vinculamos su ID a la cita. Si NO está logueado, finalClientId se queda como null.
+    if (user) {
+      finalClientId = user.id;
+      
+      await supabaseAdmin.from('clients').upsert({
+        id: finalClientId,
+        name: data.client_name || user.user_metadata?.full_name || user.email?.split('@')[0],
+        email: user.email,
+        phone: data.client_phone || user.user_metadata?.phone || ''
+      }, { onConflict: 'id' });
+    }
+
+    console.log("Procesando reserva. Cliente ID:", finalClientId || "Invitado", "Barbero ID:", data.barber_id);
 
     // 3. Inserción FORZADA a la tabla "Appointments" (Ignora bloqueos de RLS)
-    // FIX: Se asegura que barber_id y service_id sean UUIDs válidos.
+    // Al usar supabaseAdmin, no importa si es invitado o cliente, la cita se guardará.
     const appointmentPayload = {
-      client_id: user.id, 
-      barber_id: data.barber_id, // ¡CRÍTICO PARA QUE LO VEA EL BARBERO!
+      client_id: finalClientId, // Será NULL si es invitado, lo cual es correcto.
+      barber_id: data.barber_id, 
       barber_name: data.barber_name,
       service_id: data.service_id,
       service_name: data.service_name,
