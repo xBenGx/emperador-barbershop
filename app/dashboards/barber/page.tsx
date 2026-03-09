@@ -28,7 +28,20 @@ type ModalType = "EDIT_APPT" | null;
 
 interface Client { id: string; name: string; phone: string; email: string; points?: number; }
 interface Service { id: string; name: string; price: number; }
-interface Appointment { id: string; date: string; time: string; status: AppointmentStatus; notes?: string; client: Client; service: Service; }
+
+// FIX: Aquí faltaba declarar client_name en la interfaz, por eso TypeScript marcaba error.
+interface Appointment { 
+  id: string; 
+  date: string; 
+  time: string; 
+  status: AppointmentStatus; 
+  notes?: string; 
+  client?: Client; 
+  client_name?: string;
+  client_phone?: string;
+  service?: Service; 
+}
+
 interface BarberProfile { id: string; name: string; img?: string; role?: string; tag?: string; }
 interface Chair { id: string; name: string; status: string; payment_due_date?: string; }
 interface Schedule { id: string; day_of_week: string; is_active: boolean; start_time: string; end_time: string; break_start: string; break_end: string; }
@@ -141,15 +154,15 @@ export default function BarberDashboard() {
       const { data: chairData } = await supabase.from('chairs').select('*').eq('current_barber_id', user.id).single();
       if (chairData) setMyChair(chairData);
 
-      // 3. Citas
+      // 3. Citas (Sincronización robusta con Appointments mayúscula)
       const { data: apptsData } = await supabase
         .from('Appointments')
         .select(`
-          id, date, time, status, notes,
+          id, date, time, status, notes, client_name, client_phone,
           client:client_id (id, name, phone, email, points),
           service:service_id (id, name, price)
         `)
-        .eq('barber_id', user.id)
+        .eq('barber_id', user.id) // FILTRO CRÍTICO: SOLO LAS CITAS DE ESTE BARBERO
         .gte('date', TODAY_DATE)
         .order('time', { ascending: true });
 
@@ -291,7 +304,7 @@ export default function BarberDashboard() {
       if (error) throw error;
       
       loadDashboardData();
-      alert("Horarios de trabajo actualizados en el sistema.");
+      alert("Horarios de trabajo actualizados en el sistema. Los clientes ya no podrán agendar fuera de este rango.");
     } catch (error: any) {
       console.error(error);
       alert("Error al guardar los horarios: " + error.message);
@@ -313,6 +326,9 @@ export default function BarberDashboard() {
     if (type === "EDIT_APPT") setSelectedAppt(item);
   };
 
+  // ============================================================================
+  // HELPERS VISUALES
+  // ============================================================================
   const getStatusBadge = (status: AppointmentStatus) => {
     const badges = {
       PENDING: <span className="px-3 py-1 bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1"><Clock size={12}/> Pendiente</span>,
@@ -325,8 +341,11 @@ export default function BarberDashboard() {
     return badges[status] || badges.PENDING;
   };
 
-  const filteredAppointments = appointments.filter(a => a.date === selectedDateFilter && (a.client?.name || "").toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredAppointments = appointments.filter(a => a.date === selectedDateFilter && (a.client?.name || a.client_name || "").toLowerCase().includes(searchQuery.toLowerCase()));
 
+  // ----------------------------------------------------------------------------
+  // PANTALLAS DE CARGA
+  // ----------------------------------------------------------------------------
   if (isAppLoading) {
     return (
       <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center text-amber-500 gap-4">
@@ -345,6 +364,9 @@ export default function BarberDashboard() {
     );
   }
 
+  // ----------------------------------------------------------------------------
+  // RENDER PRINCIPAL DEL BARBERO
+  // ----------------------------------------------------------------------------
   return (
     <div className="max-w-[1600px] mx-auto pb-20 pt-8 px-6 md:px-10">
       
@@ -415,6 +437,7 @@ export default function BarberDashboard() {
         {activeTab === "RESUMEN" && (
           <motion.div key="resumen" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-8">
             
+            {/* PRÓXIMO CLIENTE WIDGET */}
             <div className="bg-amber-500/10 border border-amber-500/30 rounded-[2.5rem] p-8 md:p-10 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/20 blur-[100px] rounded-full pointer-events-none"></div>
               <h3 className="text-xl font-black text-white uppercase tracking-tight mb-8 flex items-center gap-3 relative z-10">
@@ -436,7 +459,7 @@ export default function BarberDashboard() {
                           <span className="text-sm">{nextAppt.time.split(':')[1]}</span>
                         </div>
                         <div>
-                          <h4 className="text-3xl font-black text-white uppercase tracking-tighter mb-1">{nextAppt.client?.name}</h4>
+                          <h4 className="text-3xl font-black text-white uppercase tracking-tighter mb-1">{nextAppt.client?.name || nextAppt.client_name || 'Anónimo'}</h4>
                           <p className="text-zinc-400 font-bold flex items-center gap-2"><Scissors size={16} className="text-amber-500"/> {nextAppt.service?.name}</p>
                           {nextAppt.notes && <p className="text-amber-500 text-xs font-bold mt-2 bg-amber-500/10 inline-block px-3 py-1 rounded-md">Nota: {nextAppt.notes}</p>}
                         </div>
@@ -455,6 +478,7 @@ export default function BarberDashboard() {
               })()}
             </div>
 
+            {/* KPIs */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <KpiCard icon={<DollarSign size={24} />} title="Generado Hoy" value={formatMoney(kpis.todayEarnings)} statusColor="text-green-500" />
               <KpiCard icon={<TrendingUp size={24} />} title="Proyección Mes" value={formatMoney(kpis.monthEarnings)} />
@@ -488,10 +512,13 @@ export default function BarberDashboard() {
               <div className="space-y-2">
                 {TIMELINE_SLOTS.map(time => {
                   const appAtThisTime = filteredAppointments.find(a => a.time.startsWith(time.split(':')[0]));
+                  
+                  // Lógica de Bloqueo del Tiempo
                   const isPast = selectedDateFilter === TODAY_DATE && time < currentHour;
                   const isBlocked = appAtThisTime?.status === 'BLOCKED' || (!appAtThisTime && isPast);
 
                   if (appAtThisTime && appAtThisTime.status !== 'BLOCKED') {
+                    // SLOT OCUPADO POR UN CLIENTE
                     return (
                       <div key={time} className="flex gap-6 items-stretch group">
                         <div className="w-16 flex flex-col items-center">
@@ -503,7 +530,7 @@ export default function BarberDashboard() {
                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
                              <div>
                                <div className="flex items-center gap-3 mb-2">
-                                 <h4 className="text-xl font-black text-white uppercase">{appAtThisTime.client?.name || 'Anónimo'}</h4>
+                                 <h4 className="text-xl font-black text-white uppercase">{appAtThisTime.client?.name || appAtThisTime.client_name || 'Anónimo'}</h4>
                                  {getStatusBadge(appAtThisTime.status)}
                                </div>
                                <p className="text-sm font-bold text-zinc-400 flex items-center gap-2">
@@ -536,6 +563,7 @@ export default function BarberDashboard() {
                       </div>
                     );
                   } else {
+                    // SLOT LIBRE O BLOQUEADO
                     return (
                       <div key={time} className={`flex gap-6 items-stretch group transition-opacity ${isBlocked ? 'opacity-30' : 'opacity-60 hover:opacity-100'}`}>
                         <div className="w-16 flex flex-col items-center">
@@ -637,7 +665,7 @@ export default function BarberDashboard() {
                   {appointments.filter(a => a.status === "COMPLETED" && a.date === TODAY_DATE).map((app, i) => (
                     <tr key={i} className="hover:bg-zinc-800/20 transition-colors">
                       <td className="px-6 py-5 font-bold text-white text-base">{app.time}</td>
-                      <td className="px-6 py-5 uppercase font-bold text-zinc-300">{app.client?.name}</td>
+                      <td className="px-6 py-5 uppercase font-bold text-zinc-300">{app.client?.name || app.client_name || 'Anónimo'}</td>
                       <td className="px-6 py-5">{app.service?.name}</td>
                       <td className="px-6 py-5 font-black text-amber-500 text-right text-lg">{formatMoney(Number(app.service?.price))}</td>
                     </tr>
@@ -747,7 +775,7 @@ export default function BarberDashboard() {
               <form onSubmit={handleEditApptSave} className="space-y-6">
                 <div>
                   <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2 pl-2">Cliente Asociado</label>
-                  <input type="text" disabled value={selectedAppt.client?.name} className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-zinc-500 font-bold cursor-not-allowed" />
+                  <input type="text" disabled value={selectedAppt.client?.name || selectedAppt.client_name || 'Anónimo'} className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-zinc-500 font-bold cursor-not-allowed" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -784,9 +812,7 @@ function KpiCard({ icon, title, value, trend, statusColor = "text-amber-500" }: 
   return (
     <div className="bg-zinc-900/50 border border-zinc-800 rounded-[2.5rem] p-8 hover:border-amber-500/50 transition-colors relative overflow-hidden group">
       <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 blur-[50px] rounded-full pointer-events-none group-hover:bg-amber-500/10 transition-colors"></div>
-      <div className={`w-14 h-14 bg-zinc-950 border border-zinc-800 rounded-2xl flex items-center justify-center mb-6 shadow-lg group-hover:scale-110 transition-transform ${statusColor}`}>
-        {icon}
-      </div>
+      <div className={`w-14 h-14 bg-zinc-950 border border-zinc-800 rounded-2xl flex items-center justify-center mb-6 shadow-lg group-hover:scale-110 transition-transform ${statusColor}`}>{icon}</div>
       <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest mb-1">{title}</p>
       <h4 className={`text-4xl font-black tracking-tighter ${statusColor === 'text-amber-500' ? 'text-white' : statusColor}`}>{value}</h4>
     </div>

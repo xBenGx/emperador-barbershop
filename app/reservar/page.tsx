@@ -13,7 +13,7 @@ import {
   Droplets, Wand2, ShieldCheck, Lock, Loader2
 } from "lucide-react";
 
-// Importamos el cliente de Supabase y nuestra nueva Server Action
+// Importamos el cliente de Supabase y nuestra Server Action
 import { createClient } from "@/utils/supabase/client";
 import { createAppointment } from "@/app/actions/appointment";
 
@@ -38,6 +38,11 @@ const DynamicIcon = ({ name, size = 24 }: { name: string, size?: number }) => {
   return <IconComponent size={size} />;
 };
 
+const formatMoney = (amount: number | string) => {
+  const numericAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+  return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(numericAmount || 0);
+};
+
 const generateDates = () => {
   const dates = [];
   const today = new Date();
@@ -47,7 +52,7 @@ const generateDates = () => {
   for(let i = 0; i < 14; i++) { 
     const d = new Date(today);
     d.setDate(today.getDate() + i);
-    // Saltamos domingos (0) y lunes (1) si así lo deseas. Por ahora, solo domingos.
+    // Saltamos domingos (0)
     if(d.getDay() !== 0) { 
       dates.push({ 
         day: days[d.getDay()], 
@@ -101,6 +106,7 @@ function BookingEngineContent() {
     guest: { name: "", phone: "", email: "" }
   });
   
+  const [clientNotes, setClientNotes] = useState<string>(""); // FIX: Declarado aquí para que no falle TypeScript
   const [isConfirming, setIsConfirming] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -113,7 +119,6 @@ function BookingEngineContent() {
   useEffect(() => {
     const loadInitialData = async () => {
       try {
-        // Pre-llenar datos del usuario autenticado si existe
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
           setBooking(prev => ({
@@ -125,7 +130,6 @@ function BookingEngineContent() {
             }
           }));
         } else {
-          // Si no hay usuario logueado, forzamos el login antes de reservar
           router.push('/login?error=Por favor, inicia sesión para agendar tu hora.');
           return;
         }
@@ -162,7 +166,7 @@ function BookingEngineContent() {
       if (booking.barber && booking.date) {
         try {
           const { data, error } = await supabase
-            .from('Appointments') // Asegúrate de que esta tabla se llama así en tu BD
+            .from('Appointments') 
             .select(`time, service_id, service:service_id ( duration )`)
             .eq('barber_id', booking.barber.id)
             .eq('date', booking.date.fullDate)
@@ -199,10 +203,8 @@ function BookingEngineContent() {
     const [hours, minutes] = timeStr.split(':').map(Number);
     const slotDate = new Date(year, month - 1, day, hours, minutes);
     
-    // Calcula la diferencia en horas
     const diffHours = (slotDate.getTime() - now.getTime()) / (1000 * 60 * 60);
 
-    // Regla: Bloquear si es en el pasado o falta menos de 2 horas
     if (diffHours < 2) return true;
 
     const slotStart = timeToMinutes(timeStr);
@@ -213,7 +215,7 @@ function BookingEngineContent() {
        const bEnd = bStart + booked.duration;
 
        if (slotStart < bEnd && slotEnd > bStart) {
-          return true; // Hay solapamiento
+          return true; 
        }
     }
 
@@ -227,9 +229,8 @@ function BookingEngineContent() {
     setAuthError(null);
 
     try {
-      // Validamos que todos los IDs existan antes de enviar
       if (!booking.barber?.id || !booking.service?.id) {
-        throw new Error("Faltan datos críticos para la reserva (Barbero o Servicio).");
+        throw new Error("Faltan datos críticos para la reserva (Barbero o Servicio). Refresca la página.");
       }
 
       const appointmentData = {
@@ -241,19 +242,16 @@ function BookingEngineContent() {
         time: booking.time,
         client_name: booking.guest.name,
         client_phone: booking.guest.phone,
-        notes: `Reserva online via web - Duración estimada: ${booking.service.duration || 60} min`
+        notes: booking.service.duration ? `Duración estimada: ${booking.service.duration} min. ${clientNotes}` : clientNotes
       };
 
-      console.log("Enviando reserva:", appointmentData);
-
-      // Ejecutamos la Server Action
       const result = await createAppointment(appointmentData);
       
       if (!result.success) {
         throw new Error(result.error);
       }
       
-      nextStep(); // Todo exitoso, pasamos a la pantalla final
+      nextStep(); 
     } catch (error: any) {
       console.error(error);
       setAuthError(error.message || "Hubo un error al procesar tu reserva. Intenta nuevamente.");
@@ -356,7 +354,7 @@ function BookingEngineContent() {
                 <div className="flex justify-between items-end">
                   <span className="text-xs uppercase font-black text-zinc-400 tracking-widest">A pagar en local</span>
                   <span className="text-4xl font-black text-white tracking-tighter drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]">
-                    {booking.service ? (typeof booking.service.price === 'number' ? `$${booking.service.price.toLocaleString('es-CL')}` : booking.service.price) : "$0"}
+                    {booking.service ? formatMoney(booking.service.price) : "$0"}
                   </span>
                 </div>
               </div>
@@ -433,7 +431,7 @@ function BookingEngineContent() {
                             <DynamicIcon name={srv.iconName || "Scissors"} />
                           </div>
                           <span className={`text-2xl font-black tracking-tighter ${booking.service?.id === srv.id ? 'text-black' : 'text-white'}`}>
-                            {typeof srv.price === 'number' ? `$${srv.price.toLocaleString('es-CL')}` : srv.price}
+                            {formatMoney(srv.price)}
                           </span>
                         </div>
                         <h3 className="text-xl md:text-2xl font-black uppercase tracking-tight mb-3 leading-tight">{srv.name}</h3>

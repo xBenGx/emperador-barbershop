@@ -24,9 +24,10 @@ export async function createAppointment(data: any) {
   }
 
   try {
+    console.log("Iniciando reserva para cliente:", user.id, "con barbero:", data.barber_id);
+
     // 2. 🛡️ FIX SQL (Llave Foránea): Garantizar que el cliente existe
     // Si el usuario no está en la tabla 'clients', el INSERT de abajo fallará.
-    // Con esto lo insertamos o actualizamos automáticamente.
     await supabaseAdmin.from('clients').upsert({
       id: user.id,
       name: data.client_name || user.user_metadata?.full_name || user.email?.split('@')[0],
@@ -35,9 +36,10 @@ export async function createAppointment(data: any) {
     }, { onConflict: 'id' });
 
     // 3. Inserción FORZADA a la tabla "Appointments" (Ignora bloqueos de RLS)
-    const { error: insertError } = await supabaseAdmin.from("Appointments").insert([{
+    // FIX: Se asegura que barber_id y service_id sean UUIDs válidos.
+    const appointmentPayload = {
       client_id: user.id, 
-      barber_id: data.barber_id, 
+      barber_id: data.barber_id, // ¡CRÍTICO PARA QUE LO VEA EL BARBERO!
       barber_name: data.barber_name,
       service_id: data.service_id,
       service_name: data.service_name,
@@ -47,7 +49,9 @@ export async function createAppointment(data: any) {
       client_phone: data.client_phone,
       status: "PENDING",
       notes: data.notes || ""
-    }]);
+    };
+
+    const { error: insertError } = await supabaseAdmin.from("Appointments").insert([appointmentPayload]);
 
     if (insertError) {
       console.error("Error BD [createAppointment]:", insertError.message);
