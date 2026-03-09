@@ -1,11 +1,12 @@
+// components/Footer.tsx
 "use client";
 
 import React from "react";
 import Link from "next/link";
-import Image from "next/image";
+import Image from "next/image"; // IMPORTANTE: next/image para optimización
 import { motion, Variants } from "framer-motion";
 import * as LucideIcons from "lucide-react";
-import { Crown, Instagram, Lock, MapPin, CheckCircle } from "lucide-react";
+import { Instagram, Lock, MapPin, CheckCircle } from "lucide-react";
 
 // Variante de animación para el CTA
 const popUp: Variants = { 
@@ -16,7 +17,7 @@ const popUp: Variants = {
 export default function Footer() {
   return (
     <footer className="bg-[#020202] pt-24 pb-6 px-6 relative overflow-hidden border-t border-zinc-900">
-      {/* Resplandor de fondo */}
+      {/* Resplandor de fondo Ámbar */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-[1200px] h-[300px] bg-amber-500/10 blur-[150px] rounded-full pointer-events-none" />
       
       {/* CTA PRINCIPAL (Domina el Trono) */}
@@ -41,12 +42,21 @@ export default function Footer() {
       <div className="max-w-[1400px] mx-auto border-t border-zinc-900 pt-16 relative z-10">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 lg:gap-8 mb-16">
           
-          {/* Columna 1: Brand Info */}
+          {/* Columna 1: Brand Info (EL CAMBIO ESTÁ AQUÍ) */}
           <div className="flex flex-col gap-6">
-            <Link href="/" className="flex items-center gap-3">
-               <Crown size={28} className="text-amber-500" />
-               <span className="font-serif font-black text-2xl text-white tracking-widest uppercase">Emperador</span>
+            {/* FIX QUIRÚRGICO: Reemplazado Corona y Emperador por el Logo Circular dimensionado */}
+            <Link href="/" className="block relative h-14 w-14 rounded-full overflow-hidden border border-zinc-800 shadow-2xl p-1 bg-black group-hover:border-amber-500/50 transition-colors">
+              <Image 
+                src="/logo.png" 
+                alt="Emperador Barbershop Logo" 
+                width={56} // Dimensiones fijas intrínsecas para Next.js
+                height={56} // Dimensiones fijas intrínsecas para Next.js
+                className="object-contain h-full w-full" 
+                priority
+              />
             </Link>
+            {/* FIN DEL FIX */}
+            
             <p className="text-zinc-400 text-sm leading-relaxed max-w-xs font-medium">
               La barbería no es un trámite, es un ritual. Disfruta de la mejor experiencia de grooming, atención premium, PS5 y mesa de Pool.
             </p>
@@ -115,6 +125,7 @@ export default function Footer() {
           </div>
 
           {/* FIRMA DE AGENCIA (POWERED BY BAYX) */}
+          {/* Tu firma cyan tech, impecable */}
           <a href="https://bayx.pro" target="_blank" rel="noopener noreferrer" className="group flex items-center gap-4 bg-zinc-950 border border-zinc-800/50 hover:border-[#00f0ff]/50 px-5 py-2.5 rounded-2xl transition-all duration-500 shadow-xl hover:shadow-[0_0_20px_rgba(0,240,255,0.1)]">
             <div className="flex flex-col text-right">
               <span className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em] group-hover:text-zinc-400 transition-colors">Engineered By</span>
