@@ -23,7 +23,8 @@ import {
 // TIPADOS
 // ============================================================================
 type AppointmentStatus = "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED" | "NO_SHOW" | "BLOCKED";
-type TabType = "RESUMEN" | "RESERVAS" | "CLIENTES" | "FINANZAS" | "HORARIO" | "MI_ESTACION";
+// FIX: Cambiado RESERVAS por MIS_CORTES
+type TabType = "RESUMEN" | "MIS_CORTES" | "CLIENTES" | "FINANZAS" | "HORARIO" | "MI_ESTACION";
 type ModalType = "EDIT_APPT" | null;
 
 interface Client { id: string; name: string; phone: string; email: string; points?: number; }
@@ -38,6 +39,9 @@ interface Appointment {
   notes?: string; 
   client_name?: string; 
   client_phone?: string; 
+  client_id?: string;
+  service_id?: string;
+  service_name?: string;
   client?: Client; 
   service?: Service; 
 }
@@ -130,7 +134,7 @@ export default function BarberDashboard() {
   }, []);
 
   // ============================================================================
-  // CARGA MAESTRA CON SEGURIDAD BLINDADA
+  // CARGA MAESTRA CON SEGURIDAD BLINDADA Y SINCRONIZACIÓN PERFECTA
   // ============================================================================
   const loadDashboardData = useCallback(async () => {
     setIsFetching(true);
@@ -164,44 +168,33 @@ export default function BarberDashboard() {
       const { data: chairData } = await supabase.from('chairs').select('*').eq('current_barber_id', user.id).single();
       if (chairData) setMyChair(chairData);
 
-      // 3. Citas (FIX SQL: client:clients en lugar de client_id)
-      const { data: apptsData, error: queryError } = await supabase
-        .from('Appointments')
-        .select(`
-          id, date, time, status, notes, client_name, client_phone,
-          client:clients (id, name, phone, email, points),
-          service:Services (id, name, price, duration)
-        `)
-        .eq('barber_id', user.id)
-        .gte('date', TODAY_DATE)
-        .order('time', { ascending: true });
-        
-      if (queryError) {
-        console.error("Error al cargar citas:", queryError.message);
-      }
+      // 3. Citas (FIX SQL: Lectura Plana Indestructible)
+      const { data: rawAppts } = await supabase.from('Appointments').select('*').eq('barber_id', user.id);
+      const { data: allServices } = await supabase.from('Services').select('*');
 
-      if (apptsData) {
-        const typedAppts = apptsData as unknown as Appointment[];
-        setAppointments(typedAppts);
+      if (rawAppts) {
+        const mappedAppts: Appointment[] = rawAppts.map((a: any) => {
+          const matchedService = allServices?.find(s => s.id === a.service_id);
+          return {
+            ...a,
+            client: { id: a.client_id, name: a.client_name || 'Anónimo', phone: a.client_phone || '', email: '' },
+            service: matchedService || { name: a.service_name || 'Servicio General', price: 0, duration: 60 }
+          };
+        });
+
+        // Filtrar y ordenar
+        const futureAppts = mappedAppts.filter(a => a.date >= TODAY_DATE).sort((a,b) => a.time.localeCompare(b.time));
+        setAppointments(futureAppts);
         
         const uniqueClientsMap = new Map();
-        typedAppts.forEach(a => {
-          if (a.client && !uniqueClientsMap.has(a.client.id)) {
-            uniqueClientsMap.set(a.client.id, a.client);
-          }
-        });
+        futureAppts.forEach(a => { if (a.client?.id && !uniqueClientsMap.has(a.client.id)) uniqueClientsMap.set(a.client.id, a.client); });
         setClients(Array.from(uniqueClientsMap.values()));
 
-        const todayAppts = typedAppts.filter(a => a.date === TODAY_DATE);
+        const todayAppts = futureAppts.filter(a => a.date === TODAY_DATE);
         const todayCompleted = todayAppts.filter(a => a.status === 'COMPLETED');
         const todayEarnings = todayCompleted.reduce((acc, curr) => acc + Number(curr.service?.price || 0), 0);
         
-        setKpis({
-          todayEarnings,
-          monthEarnings: todayEarnings * 24, 
-          todayAppointments: todayAppts.length,
-          totalClients: uniqueClientsMap.size
-        });
+        setKpis({ todayEarnings, monthEarnings: todayEarnings * 24, todayAppointments: todayAppts.length, totalClients: uniqueClientsMap.size });
       }
 
       // 4. Horarios
@@ -373,8 +366,21 @@ export default function BarberDashboard() {
   }
 
   return (
-    <div className="max-w-[1600px] mx-auto pb-20 pt-8 px-6 md:px-10">
+    <div className="max-w-[1600px] mx-auto pb-20 pt-8 px-6 md:px-10 relative">
       
+      {/* FIX MÁGICO: OCULTAR EL SIDEBAR Y MAXIMIZAR EL ANCHO */}
+      <style dangerouslySetInnerHTML={{__html: `
+        aside, nav[class*="sidebar" i], [class*="SideBar" i], [class*="Sidebar" i], #sidebar {
+          display: none !important;
+        }
+        main, body, html, [class*="content" i], [class*="layout" i], .md\\:ml-64 {
+          margin-left: 0 !important;
+          padding-left: 0 !important;
+          width: 100% !important;
+          max-width: 100% !important;
+        }
+      `}} />
+
       {/* HEADER DEL BARBERO */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-6">
         <div className="flex items-center gap-6">
@@ -413,7 +419,7 @@ export default function BarberDashboard() {
 
       {/* TABS NAVEGACIÓN */}
       <div className="flex gap-2 mb-8 border-b border-zinc-800 pb-4 overflow-x-auto hide-scrollbar scroll-smooth">
-        {(["RESUMEN", "RESERVAS", "CLIENTES", "FINANZAS", "HORARIO", "MI_ESTACION"] as TabType[]).map((tab) => (
+        {(["RESUMEN", "MIS_CORTES", "CLIENTES", "FINANZAS", "HORARIO", "MI_ESTACION"] as TabType[]).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -424,7 +430,7 @@ export default function BarberDashboard() {
             }`}
           >
             {tab === "RESUMEN" && <LayoutDashboard size={16}/>}
-            {tab === "RESERVAS" && <CalendarDays size={16}/>}
+            {tab === "MIS_CORTES" && <CalendarDays size={16}/>}
             {tab === "CLIENTES" && <Users size={16}/>}
             {tab === "FINANZAS" && <Wallet size={16}/>}
             {tab === "HORARIO" && <Clock size={16}/>}
@@ -464,7 +470,7 @@ export default function BarberDashboard() {
                         </div>
                         <div>
                           <h4 className="text-3xl font-black text-white uppercase tracking-tighter mb-1">{nextAppt.client?.name || nextAppt.client_name || 'Anónimo'}</h4>
-                          <p className="text-zinc-400 font-bold flex items-center gap-2"><Scissors size={16} className="text-amber-500"/> {nextAppt.service?.name}</p>
+                          <p className="text-zinc-400 font-bold flex items-center gap-2"><Scissors size={16} className="text-amber-500"/> {nextAppt.service?.name || nextAppt.service_name}</p>
                           {nextAppt.notes && <p className="text-amber-500 text-xs font-bold mt-2 bg-amber-500/10 inline-block px-3 py-1 rounded-md">Nota: {nextAppt.notes}</p>}
                         </div>
                       </div>
@@ -492,10 +498,10 @@ export default function BarberDashboard() {
         )}
 
         {/* =================================================================== */}
-        {/* TAB 2: RESERVAS */}
+        {/* TAB 2: MIS CORTES (AGENDA) */}
         {/* =================================================================== */}
-        {activeTab === "RESERVAS" && (
-          <motion.div key="reservas" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-8">
+        {activeTab === "MIS_CORTES" && (
+          <motion.div key="mis_cortes" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-8">
             <div className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar">
               {DATES.map((d, i) => (
                 <button 
@@ -519,7 +525,6 @@ export default function BarberDashboard() {
                   const isBlocked = appAtThisTime?.status === 'BLOCKED' || (!appAtThisTime && isPast);
 
                   if (appAtThisTime && appAtThisTime.status !== 'BLOCKED') {
-                    // SLOT OCUPADO POR UN CLIENTE
                     return (
                       <div key={time} className="flex gap-6 items-stretch group">
                         <div className="w-16 flex flex-col items-center">
@@ -535,7 +540,7 @@ export default function BarberDashboard() {
                                  {getStatusBadge(appAtThisTime.status)}
                                </div>
                                <p className="text-sm font-bold text-zinc-400 flex items-center gap-2">
-                                 <Scissors size={14} className="text-amber-500"/> {appAtThisTime.service?.name || 'Servicio General'} • <span className="text-white">{formatMoney(appAtThisTime.service?.price as number)}</span>
+                                 <Scissors size={14} className="text-amber-500"/> {appAtThisTime.service?.name || appAtThisTime.service_name || 'Servicio General'} • <span className="text-white">{formatMoney(appAtThisTime.service?.price as number)}</span>
                                </p>
                              </div>
                            </div>
@@ -600,7 +605,7 @@ export default function BarberDashboard() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {clients.map(client => {
-                const clientAppts = appointments.filter(a => a.client?.id === client.id);
+                const clientAppts = appointments.filter(a => a.client?.id === client.id || a.client_name === client.name);
                 return (
                   <div key={client.id} className="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-8 hover:border-amber-500/50 transition-colors group">
                     <div className="flex items-center gap-4 mb-6">
@@ -666,7 +671,7 @@ export default function BarberDashboard() {
                     <tr key={i} className="hover:bg-zinc-800/20 transition-colors">
                       <td className="px-6 py-5 font-bold text-white text-base">{app.time}</td>
                       <td className="px-6 py-5 uppercase font-bold text-zinc-300">{app.client?.name || app.client_name || 'Anónimo'}</td>
-                      <td className="px-6 py-5">{app.service?.name}</td>
+                      <td className="px-6 py-5">{app.service?.name || app.service_name}</td>
                       <td className="px-6 py-5 font-black text-amber-500 text-right text-lg">{formatMoney(Number(app.service?.price))}</td>
                     </tr>
                   ))}
