@@ -187,7 +187,13 @@ export default function BarberDashboard() {
         setAppointments(futureAppts);
         
         const uniqueClientsMap = new Map();
-        futureAppts.forEach(a => { if (a.client?.id && !uniqueClientsMap.has(a.client.id)) uniqueClientsMap.set(a.client.id, a.client); });
+        // Cargar y unificar clientes
+        mappedAppts.forEach(a => { 
+          const clientKey = a.client?.id || a.client?.phone || a.client?.name;
+          if (clientKey && !uniqueClientsMap.has(clientKey)) {
+            uniqueClientsMap.set(clientKey, a.client);
+          }
+        });
         setClients(Array.from(uniqueClientsMap.values()));
 
         const todayAppts = futureAppts.filter(a => a.date === TODAY_DATE);
@@ -226,10 +232,11 @@ export default function BarberDashboard() {
     return () => { if (channel) supabase.removeChannel(channel); };
   }, [loadDashboardData, supabase]);
 
+  // FIX BOTÓN CERRAR SESIÓN
   const handleLogout = async () => {
     setIsLoading(true);
     await supabase.auth.signOut();
-    router.push('/login');
+    window.location.replace('/login');
   };
 
   // ============================================================================
@@ -320,12 +327,16 @@ export default function BarberDashboard() {
     }
   };
 
+  // FIX COPIAR LINK
   const copyUniqueLink = () => {
     if (!barber) return;
     const link = `${window.location.origin}/reservar?barber=${barber.id}`;
-    navigator.clipboard.writeText(link);
-    setCopySuccess(true);
-    setTimeout(() => setCopySuccess(false), 3000);
+    navigator.clipboard.writeText(link).then(() => {
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 3000);
+    }).catch(err => {
+      alert(`Tu link de reserva es:\n\n${link}\n\nCópialo manualmente.`);
+    });
   };
 
   const openModal = (type: ModalType, item: any = null) => {
@@ -470,7 +481,7 @@ export default function BarberDashboard() {
                         </div>
                         <div>
                           <h4 className="text-3xl font-black text-white uppercase tracking-tighter mb-1">{nextAppt.client?.name || nextAppt.client_name || 'Anónimo'}</h4>
-                          <p className="text-zinc-400 font-bold flex items-center gap-2"><Scissors size={16} className="text-amber-500"/> {nextAppt.service?.name || nextAppt.service_name}</p>
+                          <p className="text-zinc-400 font-bold flex items-center gap-2"><Scissors size={16} className="text-amber-500"/> {nextAppt.service?.name}</p>
                           {nextAppt.notes && <p className="text-amber-500 text-xs font-bold mt-2 bg-amber-500/10 inline-block px-3 py-1 rounded-md">Nota: {nextAppt.notes}</p>}
                         </div>
                       </div>
@@ -597,35 +608,80 @@ export default function BarberDashboard() {
           </motion.div>
         )}
 
-        {/* --- TAB 3: CLIENTES DEL BARBERO --- */}
+        {/* --- TAB 3: CLIENTES AVANZADO --- */}
         {activeTab === "CLIENTES" && (
           <motion.div key="clientes" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-white mb-1">Mis Clientes</h2>
+              <h2 className="text-2xl font-bold text-white mb-1">Gestión de Clientes</h2>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {clients.map(client => {
-                const clientAppts = appointments.filter(a => a.client?.id === client.id || a.client_name === client.name);
+            
+            <div className="relative mb-8">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={20} />
+              <input 
+                type="text" 
+                placeholder="Buscar cliente por nombre o teléfono..." 
+                value={searchQuery} 
+                onChange={(e) => setSearchQuery(e.target.value)} 
+                className="w-full bg-zinc-900/50 border border-zinc-800 rounded-2xl pl-12 pr-4 py-4 text-white focus:border-amber-500 outline-none transition-all shadow-inner"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+              {clients.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()) || (c.phone && c.phone.includes(searchQuery))).map(client => {
+                
+                // Lógica avanzada para calcular métricas del cliente
+                // Leemos las citas guardadas que coincidan con este cliente en particular
+                const clientAppts = appointments.filter(a => a.client?.id === client.id || a.client?.name === client.name);
+                const completedAppts = clientAppts.filter(a => a.status === 'COMPLETED');
+                const totalSpent = completedAppts.reduce((sum, a) => sum + Number(a.service?.price || 0), 0);
+                const lastVisit = completedAppts.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+
                 return (
-                  <div key={client.id} className="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-8 hover:border-amber-500/50 transition-colors group">
-                    <div className="flex items-center gap-4 mb-6">
-                      <div className="w-16 h-16 bg-zinc-950 rounded-2xl flex items-center justify-center text-amber-500 font-black text-2xl border border-zinc-800 group-hover:bg-amber-500 group-hover:text-black transition-colors">
-                        {client.name.charAt(0)}
+                  <div key={client.id || client.name} className="bg-zinc-900/40 border border-zinc-800 rounded-[2rem] overflow-hidden hover:border-amber-500/30 transition-colors group flex flex-col">
+                    <div className="p-6 border-b border-zinc-800/50 flex items-start gap-4">
+                      <div className="w-14 h-14 bg-zinc-950 rounded-2xl flex items-center justify-center text-amber-500 font-black text-2xl border border-zinc-800 group-hover:bg-amber-500 group-hover:text-black transition-colors shrink-0">
+                        {client.name.charAt(0).toUpperCase()}
                       </div>
-                      <div>
-                        <h4 className="text-xl font-bold text-white uppercase tracking-tight">{client.name}</h4>
-                        <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest mt-1">Cortes contigo: {clientAppts.length}</p>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-xl font-black text-white uppercase tracking-tight truncate">{client.name}</h4>
+                        <div className="flex items-center gap-3 mt-2">
+                          <span className="flex items-center gap-1 text-[10px] font-mono text-zinc-400 bg-zinc-950 px-2 py-1 rounded-md border border-zinc-800"><Smartphone size={10} className="text-amber-500"/> {client.phone || "Sin teléfono"}</span>
+                        </div>
                       </div>
                     </div>
-                    <div className="space-y-3 pt-4 border-t border-zinc-800/50">
-                      <a href={`https://wa.me/${client.phone?.replace(/[^0-9]/g, '')}?text=Hola%20${client.name},%20te%20escribo%20de%20parte%20de%20tu%20barbero%20${barber?.name}...`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-3 w-full py-4 text-sm text-green-500 font-bold bg-green-500/10 rounded-xl border border-green-500/20 hover:bg-green-500 hover:text-black transition-colors">
-                        <MessageCircle size={18} /> Escribir WhatsApp
+                    
+                    <div className="p-6 bg-zinc-950/30 grid grid-cols-2 gap-4 flex-1">
+                      <div className="space-y-1">
+                        <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest">Cortes Completados</p>
+                        <p className="text-xl font-black text-white">{completedAppts.length}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest">Ingresos Generados</p>
+                        <p className="text-xl font-black text-green-500">{formatMoney(totalSpent)}</p>
+                      </div>
+                      <div className="space-y-1 col-span-2">
+                        <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest">Última Visita</p>
+                        <p className="text-sm font-bold text-zinc-300 flex items-center gap-2">
+                          <CalendarDays size={14} className="text-amber-500"/>
+                          {lastVisit ? `${lastVisit.date} • ${lastVisit.service?.name}` : 'Aún no tiene cortes completados'}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="p-4 border-t border-zinc-800/50 flex gap-2">
+                      <a href={`https://wa.me/${client.phone?.replace(/[^0-9]/g, '')}?text=Hola%20${client.name},%20te%20escribo%20de%20parte%20de%20tu%20barbero%20${barber?.name}...`} target="_blank" rel="noopener noreferrer" className="flex-1 flex items-center justify-center gap-2 py-3 text-xs font-black uppercase tracking-widest bg-[#25D366]/10 text-[#25D366] hover:bg-[#25D366] hover:text-black rounded-xl transition-all border border-[#25D366]/20">
+                        <MessageCircle size={16} /> Escribir WhatsApp
                       </a>
                     </div>
                   </div>
                 )
               })}
-              {clients.length === 0 && <p className="text-zinc-500 font-medium col-span-full text-center py-10">Aún no has registrado clientes en tu agenda.</p>}
+              {clients.length === 0 && (
+                <div className="col-span-full text-center py-20 bg-zinc-900/20 border border-zinc-800 border-dashed rounded-3xl">
+                  <Users size={48} className="mx-auto text-zinc-700 mb-4"/>
+                  <p className="text-zinc-500 font-bold">Aún no hay clientes registrados en tu agenda.</p>
+                </div>
+              )}
             </div>
           </motion.div>
         )}
@@ -671,7 +727,7 @@ export default function BarberDashboard() {
                     <tr key={i} className="hover:bg-zinc-800/20 transition-colors">
                       <td className="px-6 py-5 font-bold text-white text-base">{app.time}</td>
                       <td className="px-6 py-5 uppercase font-bold text-zinc-300">{app.client?.name || app.client_name || 'Anónimo'}</td>
-                      <td className="px-6 py-5">{app.service?.name || app.service_name}</td>
+                      <td className="px-6 py-5">{app.service?.name}</td>
                       <td className="px-6 py-5 font-black text-amber-500 text-right text-lg">{formatMoney(Number(app.service?.price))}</td>
                     </tr>
                   ))}
