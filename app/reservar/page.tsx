@@ -127,11 +127,12 @@ function BookingEngineContent() {
   const [dbServices, setDbServices] = useState<any[]>(FALLBACK_SERVICES);
   const [bookedSlots, setBookedSlots] = useState<{time: string, duration: number}[]>([]);
 
-  // 1. Cargar Datos y Pre-llenar Cuenta de Cliente
+  // 1. Cargar Datos y Pre-llenar Cuenta de Cliente (Permite Invitados)
   useEffect(() => {
     const loadInitialData = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
+        // Si hay usuario, prellenamos. Si no hay, NO lo expulsamos al login.
         if (user) {
           setBooking(prev => ({
             ...prev,
@@ -141,9 +142,6 @@ function BookingEngineContent() {
               email: user.email || ""
             }
           }));
-        } else {
-          router.push('/login?error=Por favor, inicia sesión para agendar tu hora.');
-          return;
         }
 
         const { data: barbersData } = await supabase.from('Barbers').select('*').eq('status', 'ACTIVE');
@@ -170,28 +168,31 @@ function BookingEngineContent() {
       }
     };
     loadInitialData();
-  }, [supabase, barberParam, router]);
+  }, [supabase, barberParam]);
 
-  // 2. Cargar horas ocupadas (Bloqueo de Calendario en Tiempo Real)
+  // 2. Cargar horas ocupadas (Bloqueo de Calendario en Tiempo Real - FIX SQL)
   useEffect(() => {
     const fetchBookedSlots = async () => {
       if (booking.barber && booking.date) {
         try {
-          // FIX SQL: 'service:Services' en lugar de 'service:service_id'
-          const { data, error } = await supabase
+          // Extraemos de forma plana para evitar errores de Foreign Key en Vercel/Supabase
+          const { data: rawAppts } = await supabase
             .from('Appointments') 
-            .select(`time, service_id, service:Services ( duration )`)
+            .select('time, service_id')
             .eq('barber_id', booking.barber.id)
             .eq('date', booking.date.fullDate)
             .neq('status', 'CANCELLED');
             
-          if (error) throw error;
-            
-          if (data) {
-            const mappedSlots = data.map((d: any) => ({
-              time: d.time,
-              duration: d.service?.duration || 60 
-            }));
+          const { data: srvs } = await supabase.from('Services').select('id, duration');
+
+          if (rawAppts) {
+            const mappedSlots = rawAppts.map((a: any) => {
+              const srv = srvs?.find(s => s.id === a.service_id);
+              return {
+                time: a.time,
+                duration: srv?.duration || 60 
+              };
+            });
             setBookedSlots(mappedSlots);
           }
         } catch (error) {
@@ -279,9 +280,11 @@ function BookingEngineContent() {
   return (
     <div className="min-h-screen bg-[#050505] text-zinc-50 font-sans selection:bg-amber-500/30 selection:text-amber-200 relative overflow-x-hidden pt-[160px] md:pt-[200px] pb-24">
       
+      {/* GLOBAL BACKGROUND */}
       <div className="fixed inset-0 z-0 pointer-events-none opacity-[0.03]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}></div>
       <div className="fixed inset-0 z-0 pointer-events-none bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:32px_32px]"></div>
 
+      {/* HEADER TÁCTICO INTERNO - CENTRADO */}
       <header className="relative w-full z-40 mb-12 md:mb-16">
         <div className="max-w-[1400px] mx-auto px-6 relative flex items-center justify-center h-16">
           
@@ -313,10 +316,13 @@ function BookingEngineContent() {
         </div>
       </header>
 
+      {/* CONTENIDO PRINCIPAL */}
       <div className="px-6 max-w-[1400px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-16 text-left relative z-10">
         
+        {/* COLUMNA IZQUIERDA: RESUMEN DINÁMICO (Sticky Sidebar) */}
         <div className="hidden lg:block lg:col-span-4 text-left">
           <div className="sticky top-40 space-y-6">
+            
             <div className="bg-zinc-950/80 border border-zinc-800 p-10 rounded-[3rem] overflow-hidden relative shadow-2xl backdrop-blur-md">
               <div className="absolute -top-10 -right-10 opacity-5 pointer-events-none">
                 <Crown size={200} className="text-white" />
@@ -325,6 +331,7 @@ function BookingEngineContent() {
               <h3 className="text-amber-500 font-black uppercase text-xs tracking-[0.4em] mb-10 border-b border-zinc-800 pb-4 inline-block relative z-10">Tu Trono</h3>
               
               <ul className="space-y-10 relative z-10 text-left">
+                
                 <li className={`flex gap-6 items-center transition-opacity duration-500 ${!booking.barber ? 'opacity-30' : 'opacity-100'}`}>
                   <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border overflow-hidden transition-colors ${booking.barber ? 'border-amber-500 shadow-[0_0_20px_rgba(217,119,6,0.3)]' : 'bg-zinc-900 text-zinc-500 border-zinc-800'}`}>
                     {booking.barber ? <Image src={booking.barber.img} alt="Barber" width={56} height={56} className="object-cover h-full w-full" unoptimized /> : <UserCircle size={24} />}
@@ -377,6 +384,7 @@ function BookingEngineContent() {
           </div>
         </div>
 
+        {/* COLUMNA DERECHA: WIZARD DE RESERVA */}
         <div className="lg:col-span-8 text-left">
           <AnimatePresence mode="wait">
             
