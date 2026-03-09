@@ -56,38 +56,39 @@ function LoginContent() {
       }
 
       const userId = authData.user.id;
+      const userEmail = authData.user.email || email;
 
-      // 2. 🛡️ SUPER BLINDAJE DE ROL (Triple Verificación)
-      
-      // Nivel A: Revisar Metadata interna del token (Más rápido)
-      let finalRole = authData.user.user_metadata?.app_role;
+      // 2. 🛡️ SUPER BLINDAJE DE ROL (Fuente de Verdad Absoluta)
+      let finalRole = "CLIENT"; // Asumimos cliente por defecto
 
-      // Nivel B: Revisar tabla maestra de Usuarios (Si no hay metadata)
-      if (!finalRole) {
-        const { data: userProfile } = await supabase.from("User").select("role").eq("id", userId).single();
-        if (userProfile && userProfile.role) {
-          finalRole = userProfile.role;
-        }
-      }
+      // Nivel A: Revisar si es ADMIN en la tabla maestra
+      const { data: adminCheck } = await supabase
+        .from("User")
+        .select("role")
+        .eq("id", userId)
+        .single();
 
-      // Nivel C: EL FIX DEFINITIVO PARA BARBEROS BUGEADOS
-      // Si el sistema cree que es CLIENTE, pero en realidad está en la tabla Barbers, lo corregimos y lo dejamos entrar.
-      if (finalRole !== "ADMIN" && finalRole !== "BARBER") {
-        const { data: barberCheck } = await supabase.from("Barbers").select("id").eq("id", userId).single();
+      if (adminCheck?.role === "ADMIN") {
+        finalRole = "ADMIN";
+      } else {
+        // Nivel B: Buscar DIRECTAMENTE en la tabla Barbers por Email (Infalible)
+        const { data: barberCheck } = await supabase
+          .from("Barbers")
+          .select("id")
+          .ilike("email", userEmail) // Búsqueda sin importar mayúsculas/minúsculas
+          .single();
         
         if (barberCheck) {
-          finalRole = "BARBER"; // Lo forzamos a Barbero porque SÍ existe en la tabla.
+          finalRole = "BARBER"; // ¡Existe en la tabla de barberos! Le damos el rol.
           
-          // Auto-reparación en segundo plano para que la base de datos quede perfecta
-          await supabase.from("User").upsert({ id: userId, email: email, role: "BARBER" });
+          // 🛠️ AUTO-REPARACIÓN SILENCIOSA
+          // Arregla la base de datos y la sesión actual por si los Triggers fallaron antes
+          await supabase.from("User").upsert({ id: userId, email: userEmail, role: "BARBER" });
           await supabase.auth.updateUser({ data: { app_role: 'BARBER' } });
-        } else {
-          finalRole = "CLIENT"; // Si no está en la tabla de barberos, definitivamente es un cliente.
         }
       }
 
       // 3. 🔒 VALIDACIÓN DE SEGURIDAD Y REDIRECCIÓN CRÍTICA
-      
       if (portal === "ADMIN") {
         if (finalRole === "ADMIN") {
           return router.push("/dashboards/admin");
@@ -115,7 +116,7 @@ function LoginContent() {
         }
       }
 
-      // Fallback de seguridad en caso de que el portal no se haya seleccionado bien
+      // Fallback de seguridad por si no hay portal seleccionado
       if (finalRole === "CLIENT") {
         router.push("/dashboards/client/book");
       } else if (finalRole === "BARBER") {
