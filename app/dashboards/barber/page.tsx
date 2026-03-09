@@ -59,12 +59,11 @@ const generateDates = () => {
 
 const DATES = generateDates();
 const TODAY_DATE = DATES[0].fullDate;
-// Intervalos de 1 Hora estrictos
 const TIMELINE_SLOTS = ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"];
 const DAYS_OF_WEEK = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
 
 // ============================================================================
-// COMPONENTE PRINCIPAL
+// COMPONENTE PRINCIPAL DEL BARBERO
 // ============================================================================
 export default function BarberDashboard() {
   const supabase = createClient();
@@ -105,32 +104,44 @@ export default function BarberDashboard() {
   }, []);
 
   // ============================================================================
-  // CARGA MAESTRA
+  // CARGA MAESTRA CON SEGURIDAD BLINDADA
   // ============================================================================
   const loadDashboardData = useCallback(async () => {
     setIsFetching(true);
     try {
       const { data: { user }, error: authError } = await supabase.auth.getUser();
-      if (!user || authError) throw new Error("No auth");
-
-      const { data: userProfile } = await supabase.from('User').select('role').eq('id', user.id).single();
-      if (userProfile?.role !== 'BARBER' && userProfile?.role !== 'ADMIN') {
-        setAuthError(true);
-        await supabase.auth.signOut();
-        router.push('/login?error=Acceso Denegado.');
+      if (!user || authError) {
+        router.push('/login');
         return;
       }
 
-      // 1. Datos del barbero
+      // 1. 🛡️ VERIFICACIÓN BLINDADA: Consultar directamente la tabla Barbers
       const { data: barberData } = await supabase.from('Barbers').select('*').eq('id', user.id).single();
-      if (barberData) setBarber(barberData);
-      else setBarber({ id: user.id, name: userProfile?.role || "Barbero" });
+
+      // Si el usuario no existe en la tabla de Barberos, verificamos si es Administrador.
+      if (!barberData) {
+        const { data: userProfile } = await supabase.from('User').select('role').eq('id', user.id).single();
+        if (userProfile?.role !== 'ADMIN') {
+          // Si no es ni barbero ni admin, LO EXPULSAMOS.
+          setAuthError(true);
+          await supabase.auth.signOut();
+          router.push('/login?error=Acceso%20Denegado.');
+          return;
+        }
+      }
+
+      // Si llegó hasta aquí, ESTÁ AUTORIZADO. Cargamos sus datos.
+      if (barberData) {
+        setBarber(barberData);
+      } else {
+        setBarber({ id: user.id, name: "Administrador" }); // Vista de admin
+      }
 
       // 2. Sillón
       const { data: chairData } = await supabase.from('chairs').select('*').eq('current_barber_id', user.id).single();
       if (chairData) setMyChair(chairData);
 
-      // 3. Citas de ESTE barbero (Usando Appointments con mayúscula)
+      // 3. Citas
       const { data: apptsData } = await supabase
         .from('Appointments')
         .select(`
@@ -171,6 +182,7 @@ export default function BarberDashboard() {
       if (schedData) setSchedules(schedData);
 
     } catch (error) {
+      console.error(error);
       router.push('/login');
     } finally {
       setIsAppLoading(false);
@@ -279,7 +291,7 @@ export default function BarberDashboard() {
       if (error) throw error;
       
       loadDashboardData();
-      alert("Horarios de trabajo actualizados en el sistema. Los clientes ya no podrán agendar fuera de este rango.");
+      alert("Horarios de trabajo actualizados en el sistema.");
     } catch (error: any) {
       console.error(error);
       alert("Error al guardar los horarios: " + error.message);
@@ -301,9 +313,6 @@ export default function BarberDashboard() {
     if (type === "EDIT_APPT") setSelectedAppt(item);
   };
 
-  // ============================================================================
-  // HELPERS VISUALES
-  // ============================================================================
   const getStatusBadge = (status: AppointmentStatus) => {
     const badges = {
       PENDING: <span className="px-3 py-1 bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1"><Clock size={12}/> Pendiente</span>,
@@ -318,9 +327,6 @@ export default function BarberDashboard() {
 
   const filteredAppointments = appointments.filter(a => a.date === selectedDateFilter && (a.client?.name || "").toLowerCase().includes(searchQuery.toLowerCase()));
 
-  // ----------------------------------------------------------------------------
-  // PANTALLAS DE CARGA
-  // ----------------------------------------------------------------------------
   if (isAppLoading) {
     return (
       <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center text-amber-500 gap-4">
@@ -339,9 +345,6 @@ export default function BarberDashboard() {
     );
   }
 
-  // ----------------------------------------------------------------------------
-  // RENDER
-  // ----------------------------------------------------------------------------
   return (
     <div className="max-w-[1600px] mx-auto pb-20 pt-8 px-6 md:px-10">
       
@@ -412,7 +415,6 @@ export default function BarberDashboard() {
         {activeTab === "RESUMEN" && (
           <motion.div key="resumen" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-8">
             
-            {/* PRÓXIMO CLIENTE WIDGET */}
             <div className="bg-amber-500/10 border border-amber-500/30 rounded-[2.5rem] p-8 md:p-10 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/20 blur-[100px] rounded-full pointer-events-none"></div>
               <h3 className="text-xl font-black text-white uppercase tracking-tight mb-8 flex items-center gap-3 relative z-10">
@@ -453,7 +455,6 @@ export default function BarberDashboard() {
               })()}
             </div>
 
-            {/* KPIs */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <KpiCard icon={<DollarSign size={24} />} title="Generado Hoy" value={formatMoney(kpis.todayEarnings)} statusColor="text-green-500" />
               <KpiCard icon={<TrendingUp size={24} />} title="Proyección Mes" value={formatMoney(kpis.monthEarnings)} />
@@ -487,12 +488,10 @@ export default function BarberDashboard() {
               <div className="space-y-2">
                 {TIMELINE_SLOTS.map(time => {
                   const appAtThisTime = filteredAppointments.find(a => a.time.startsWith(time.split(':')[0]));
-                  
                   const isPast = selectedDateFilter === TODAY_DATE && time < currentHour;
                   const isBlocked = appAtThisTime?.status === 'BLOCKED' || (!appAtThisTime && isPast);
 
                   if (appAtThisTime && appAtThisTime.status !== 'BLOCKED') {
-                    // SLOT OCUPADO POR UN CLIENTE
                     return (
                       <div key={time} className="flex gap-6 items-stretch group">
                         <div className="w-16 flex flex-col items-center">
@@ -537,7 +536,6 @@ export default function BarberDashboard() {
                       </div>
                     );
                   } else {
-                    // SLOT LIBRE O BLOQUEADO
                     return (
                       <div key={time} className={`flex gap-6 items-stretch group transition-opacity ${isBlocked ? 'opacity-30' : 'opacity-60 hover:opacity-100'}`}>
                         <div className="w-16 flex flex-col items-center">
