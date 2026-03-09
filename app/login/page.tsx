@@ -13,7 +13,7 @@ import Link from "next/link";
 type PortalType = "CLIENTE" | "BARBERO" | "ADMIN" | null;
 
 // ============================================================================
-// COMPONENTE CONTENIDO DE LOGIN (Lógica de Redirección Corregida)
+// COMPONENTE CONTENIDO DE LOGIN (Lógica de Redirección con Super Blindaje)
 // ============================================================================
 function LoginContent() {
   const router = useRouter();
@@ -55,23 +55,41 @@ function LoginContent() {
           : authError.message);
       }
 
-      // 2. Obtener Rol REAL desde la tabla pública usando el ID del usuario
-      const { data: userProfile, error: roleError } = await supabase
-        .from("User")
-        .select("role")
-        .eq("id", authData.user.id)
-        .single();
+      const userId = authData.user.id;
 
-      if (roleError) {
-        console.error("Error obteniendo rol:", roleError);
+      // 2. 🛡️ SUPER BLINDAJE DE ROL (Triple Verificación)
+      
+      // Nivel A: Revisar Metadata interna del token (Más rápido)
+      let finalRole = authData.user.user_metadata?.app_role;
+
+      // Nivel B: Revisar tabla maestra de Usuarios (Si no hay metadata)
+      if (!finalRole) {
+        const { data: userProfile } = await supabase.from("User").select("role").eq("id", userId).single();
+        if (userProfile && userProfile.role) {
+          finalRole = userProfile.role;
+        }
       }
 
-      const dbRole = userProfile?.role || "CLIENT";
+      // Nivel C: EL FIX DEFINITIVO PARA BARBEROS BUGEADOS
+      // Si el sistema cree que es CLIENTE, pero en realidad está en la tabla Barbers, lo corregimos y lo dejamos entrar.
+      if (finalRole !== "ADMIN" && finalRole !== "BARBER") {
+        const { data: barberCheck } = await supabase.from("Barbers").select("id").eq("id", userId).single();
+        
+        if (barberCheck) {
+          finalRole = "BARBER"; // Lo forzamos a Barbero porque SÍ existe en la tabla.
+          
+          // Auto-reparación en segundo plano para que la base de datos quede perfecta
+          await supabase.from("User").upsert({ id: userId, email: email, role: "BARBER" });
+          await supabase.auth.updateUser({ data: { app_role: 'BARBER' } });
+        } else {
+          finalRole = "CLIENT"; // Si no está en la tabla de barberos, definitivamente es un cliente.
+        }
+      }
 
       // 3. 🔒 VALIDACIÓN DE SEGURIDAD Y REDIRECCIÓN CRÍTICA
       
       if (portal === "ADMIN") {
-        if (dbRole === "ADMIN") {
+        if (finalRole === "ADMIN") {
           return router.push("/dashboards/admin");
         } else {
           await supabase.auth.signOut();
@@ -80,7 +98,7 @@ function LoginContent() {
       }
 
       if (portal === "BARBERO") {
-        if (dbRole === "BARBER" || dbRole === "ADMIN") {
+        if (finalRole === "BARBER" || finalRole === "ADMIN") {
           return router.push("/dashboards/barber");
         } else {
           await supabase.auth.signOut();
@@ -89,7 +107,7 @@ function LoginContent() {
       }
 
       if (portal === "CLIENTE") {
-        if (dbRole === "CLIENT" || dbRole === "ADMIN") {
+        if (finalRole === "CLIENT" || finalRole === "ADMIN") {
           return router.push("/dashboards/client/book");
         } else {
           await supabase.auth.signOut();
@@ -97,12 +115,12 @@ function LoginContent() {
         }
       }
 
-      // Fallback de seguridad (por si falla el estado del portal)
-      if (dbRole === "CLIENT") {
+      // Fallback de seguridad en caso de que el portal no se haya seleccionado bien
+      if (finalRole === "CLIENT") {
         router.push("/dashboards/client/book");
-      } else if (dbRole === "BARBER") {
+      } else if (finalRole === "BARBER") {
         router.push("/dashboards/barber");
-      } else if (dbRole === "ADMIN") {
+      } else if (finalRole === "ADMIN") {
         router.push("/dashboards/admin");
       }
 
