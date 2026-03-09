@@ -27,18 +27,18 @@ type TabType = "RESUMEN" | "RESERVAS" | "CLIENTES" | "FINANZAS" | "HORARIO" | "M
 type ModalType = "EDIT_APPT" | null;
 
 interface Client { id: string; name: string; phone: string; email: string; points?: number; }
-interface Service { id: string; name: string; price: number; }
+interface Service { id: string; name: string; price: number; duration?: number; } // FIX: Agregado duration para evitar errores
 
-// FIX: Aquí faltaba declarar client_name en la interfaz, por eso TypeScript marcaba error.
+// FIX: Aquí está declarada la variable client_name que faltaba
 interface Appointment { 
   id: string; 
   date: string; 
   time: string; 
   status: AppointmentStatus; 
   notes?: string; 
+  client_name?: string; 
+  client_phone?: string; 
   client?: Client; 
-  client_name?: string;
-  client_phone?: string;
   service?: Service; 
 }
 
@@ -49,7 +49,19 @@ interface Schedule { id: string; day_of_week: string; is_active: boolean; start_
 // ============================================================================
 // UTILIDADES
 // ============================================================================
-const formatMoney = (amount: number) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount || 0);
+const formatMoney = (amount: number | string) => {
+  const numericAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+  return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(numericAmount || 0);
+};
+
+// FIX: ZONA HORARIA LOCAL (Evita errores de medianoche)
+const getLocalTodayDate = () => {
+  const today = new Date();
+  today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
+  return today.toISOString().split('T')[0];
+};
+
+const TODAY_DATE = getLocalTodayDate();
 
 const generateDates = () => {
   const dates = [];
@@ -60,18 +72,19 @@ const generateDates = () => {
   for(let i = 0; i < 7; i++) {
     const d = new Date(today);
     d.setDate(today.getDate() + i);
+    const localDateStr = new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+
     dates.push({ 
       day: days[d.getDay()], 
       date: d.getDate().toString(), 
       month: months[d.getMonth()],
-      fullDate: d.toISOString().split('T')[0] 
+      fullDate: localDateStr 
     });
   }
   return dates;
 };
 
 const DATES = generateDates();
-const TODAY_DATE = DATES[0].fullDate;
 const TIMELINE_SLOTS = ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"];
 const DAYS_OF_WEEK = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
 
@@ -131,11 +144,9 @@ export default function BarberDashboard() {
       // 1. 🛡️ VERIFICACIÓN BLINDADA: Consultar directamente la tabla Barbers
       const { data: barberData } = await supabase.from('Barbers').select('*').eq('id', user.id).single();
 
-      // Si el usuario no existe en la tabla de Barberos, verificamos si es Administrador.
       if (!barberData) {
         const { data: userProfile } = await supabase.from('User').select('role').eq('id', user.id).single();
         if (userProfile?.role !== 'ADMIN') {
-          // Si no es ni barbero ni admin, LO EXPULSAMOS.
           setAuthError(true);
           await supabase.auth.signOut();
           router.push('/login?error=Acceso%20Denegado.');
@@ -143,28 +154,31 @@ export default function BarberDashboard() {
         }
       }
 
-      // Si llegó hasta aquí, ESTÁ AUTORIZADO. Cargamos sus datos.
       if (barberData) {
         setBarber(barberData);
       } else {
-        setBarber({ id: user.id, name: "Administrador" }); // Vista de admin
+        setBarber({ id: user.id, name: "Administrador" }); 
       }
 
       // 2. Sillón
       const { data: chairData } = await supabase.from('chairs').select('*').eq('current_barber_id', user.id).single();
       if (chairData) setMyChair(chairData);
 
-      // 3. Citas (Sincronización robusta con Appointments mayúscula)
-      const { data: apptsData } = await supabase
+      // 3. Citas (FIX SQL: client:clients en lugar de client_id)
+      const { data: apptsData, error: queryError } = await supabase
         .from('Appointments')
         .select(`
           id, date, time, status, notes, client_name, client_phone,
-          client:client_id (id, name, phone, email, points),
-          service:service_id (id, name, price)
+          client:clients (id, name, phone, email, points),
+          service:Services (id, name, price, duration)
         `)
-        .eq('barber_id', user.id) // FILTRO CRÍTICO: SOLO LAS CITAS DE ESTE BARBERO
+        .eq('barber_id', user.id)
         .gte('date', TODAY_DATE)
         .order('time', { ascending: true });
+        
+      if (queryError) {
+        console.error("Error al cargar citas:", queryError.message);
+      }
 
       if (apptsData) {
         const typedAppts = apptsData as unknown as Appointment[];
@@ -304,7 +318,7 @@ export default function BarberDashboard() {
       if (error) throw error;
       
       loadDashboardData();
-      alert("Horarios de trabajo actualizados en el sistema. Los clientes ya no podrán agendar fuera de este rango.");
+      alert("Horarios de trabajo actualizados en el sistema.");
     } catch (error: any) {
       console.error(error);
       alert("Error al guardar los horarios: " + error.message);
@@ -326,9 +340,6 @@ export default function BarberDashboard() {
     if (type === "EDIT_APPT") setSelectedAppt(item);
   };
 
-  // ============================================================================
-  // HELPERS VISUALES
-  // ============================================================================
   const getStatusBadge = (status: AppointmentStatus) => {
     const badges = {
       PENDING: <span className="px-3 py-1 bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1"><Clock size={12}/> Pendiente</span>,
@@ -343,9 +354,6 @@ export default function BarberDashboard() {
 
   const filteredAppointments = appointments.filter(a => a.date === selectedDateFilter && (a.client?.name || a.client_name || "").toLowerCase().includes(searchQuery.toLowerCase()));
 
-  // ----------------------------------------------------------------------------
-  // PANTALLAS DE CARGA
-  // ----------------------------------------------------------------------------
   if (isAppLoading) {
     return (
       <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center text-amber-500 gap-4">
@@ -364,9 +372,6 @@ export default function BarberDashboard() {
     );
   }
 
-  // ----------------------------------------------------------------------------
-  // RENDER PRINCIPAL DEL BARBERO
-  // ----------------------------------------------------------------------------
   return (
     <div className="max-w-[1600px] mx-auto pb-20 pt-8 px-6 md:px-10">
       
@@ -437,7 +442,6 @@ export default function BarberDashboard() {
         {activeTab === "RESUMEN" && (
           <motion.div key="resumen" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-8">
             
-            {/* PRÓXIMO CLIENTE WIDGET */}
             <div className="bg-amber-500/10 border border-amber-500/30 rounded-[2.5rem] p-8 md:p-10 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/20 blur-[100px] rounded-full pointer-events-none"></div>
               <h3 className="text-xl font-black text-white uppercase tracking-tight mb-8 flex items-center gap-3 relative z-10">
@@ -478,7 +482,6 @@ export default function BarberDashboard() {
               })()}
             </div>
 
-            {/* KPIs */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <KpiCard icon={<DollarSign size={24} />} title="Generado Hoy" value={formatMoney(kpis.todayEarnings)} statusColor="text-green-500" />
               <KpiCard icon={<TrendingUp size={24} />} title="Proyección Mes" value={formatMoney(kpis.monthEarnings)} />
@@ -512,8 +515,6 @@ export default function BarberDashboard() {
               <div className="space-y-2">
                 {TIMELINE_SLOTS.map(time => {
                   const appAtThisTime = filteredAppointments.find(a => a.time.startsWith(time.split(':')[0]));
-                  
-                  // Lógica de Bloqueo del Tiempo
                   const isPast = selectedDateFilter === TODAY_DATE && time < currentHour;
                   const isBlocked = appAtThisTime?.status === 'BLOCKED' || (!appAtThisTime && isPast);
 
@@ -563,7 +564,6 @@ export default function BarberDashboard() {
                       </div>
                     );
                   } else {
-                    // SLOT LIBRE O BLOQUEADO
                     return (
                       <div key={time} className={`flex gap-6 items-stretch group transition-opacity ${isBlocked ? 'opacity-30' : 'opacity-60 hover:opacity-100'}`}>
                         <div className="w-16 flex flex-col items-center">
