@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Playfair_Display, Inter } from "next/font/google";
 import Navbar from "@/components/Navbar"; 
 import MusicPlayer from "@/components/MusicPlayer"; 
+import Footer from "@/components/Footer"; 
 import "./globals.css";
 
 // Configuración de tipografías premium
@@ -58,6 +59,15 @@ export default function RootLayout({
         <main className="flex-grow relative w-full p-0 m-0">
           {children}
         </main>
+
+        {/* ========================================================================
+          FOOTER GLOBAL:
+          Al estar fuera del main flex-grow, siempre se mantendrá al fondo 
+          de la pantalla, pase lo que pase.
+          ========================================================================
+        */}
+        <Footer />
+        
       </body>
     </html>
   );
