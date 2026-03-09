@@ -21,25 +21,21 @@ import { createClient } from "@/utils/supabase/client";
 // DATA MAESTRA (FALLBACKS) - Se usan si la BD está vacía
 // ============================================================================
 const FALLBACK_HERO_SLIDES = [
-  { id: "h1", media_type: "image", media_url: "https://images.unsplash.com/photo-1599351431202-1e0f0137899a?q=80&w=2000&auto=format&fit=crop" },
-  { id: "h2", media_type: "video", media_url: "https://cdn.pixabay.com/video/2023/10/22/185955-876723223_large.mp4" } 
+  // Slide 1: Presentación de Marca Oficial (La tipografía gigante)
+  { id: "brand", type: "brand", media_type: "image", media_url: "https://images.unsplash.com/photo-1599351431202-1e0f0137899a?q=80&w=2000&auto=format&fit=crop" },
+  // Slide 2: Ejemplo de Promoción / Producto administrable
+  { id: "promo1", type: "promo", title: "WAHL MAGIC CLIP", subtitle: "Edición Gold Cordless", tag: "NUEVO STOCK", media_type: "image", media_url: "https://images.unsplash.com/photo-1621607512214-68297480165e?q=80&w=2000&auto=format&fit=crop" },
+  // Slide 3: Ejemplo de Promoción 2
+  { id: "promo2", type: "promo", title: "POMADA REUZEL", subtitle: "Matte Clay Extreme", tag: "OFERTA DEL MES", media_type: "image", media_url: "https://images.unsplash.com/photo-1597354984706-fac992d9306f?q=80&w=2000&auto=format&fit=crop" }
 ];
 
-const FALLBACK_STORE_PROMOS = [
-  {
-    id: "1", tag: "LAST DAY!",
-    title_left: "Wahl Magic Clip", subtitle_left: "Edición Gold Cordless", price_left: "$149.990", old_price_left: "$189.990",
-    title_right: "Detailer Li", subtitle_right: "Trimmer Gold", price_right: "$119.990", old_price_right: "$149.990",
-    media_type: "image", media_url: "https://images.unsplash.com/photo-1621607512214-68297480165e?q=80&w=2000&auto=format&fit=crop", 
-    promo_text: "Por la compra de una Wahl Magic Clip en LastDay!,", promo_highlight: "+$19.990", promo_end: "lleva un set de peines premium."
-  },
-  {
-    id: "2", tag: "NUEVO STOCK",
-    title_left: "Pomada Reuzel", subtitle_left: "Matte Clay 113g", price_left: "$22.990", old_price_left: "$28.990",
-    title_right: "Pomada Reuzel", subtitle_right: "Extreme Hold 113g", price_right: "$22.990", old_price_right: "$28.990",
-    media_type: "image", media_url: "https://images.unsplash.com/photo-1597354984706-fac992d9306f?q=80&w=2000&auto=format&fit=crop", 
-    promo_text: "Por la compra de 2 pomadas Reuzel en la web,", promo_highlight: "ENVÍO GRATIS", promo_end: "a todo Curicó."
-  }
+// Archivos MP4 Locales subidos a /public
+const LOCAL_REELS = [
+  // FIX: Ruta actualizada a /presentacion.mp4
+  { id: "v1", src: "/presentacion.mp4", title: "La Experiencia", desc: "Nuestra administradora te presenta el nivel Emperador." },
+  { id: "v2", src: "/cortes.mp4", title: "Cortes & Fades", desc: "El arte de nuestros barberos en acción." },
+  { id: "v3", src: "/mesadepool.mp4", title: "Zona Relax", desc: "Mesa de pool gratuita mientras esperas tu turno." },
+  { id: "v4", src: "/barberia.mp4", title: "Nuestro Salón", desc: "Conoce las instalaciones premium." }
 ];
 
 const FALLBACK_TEAM = [
@@ -71,9 +67,9 @@ const FALLBACK_FAQS = [
 
 const INSTA_REELS = [
   { id: "i1", likes: "12.4k", comments: "145", type: "post", media_type: "image", media_url: "https://images.unsplash.com/photo-1593702275687-f8b402bf1fb5?q=80&w=600&h=600&auto=format&fit=crop", link: "https://www.instagram.com/emperador_barbershop/?hl=es" },
-  { id: "i2", likes: "8.2k", comments: "98", type: "reel", media_type: "video", media_url: "https://cdn.pixabay.com/video/2021/08/25/86266-592652136_large.mp4", link: "https://www.instagram.com/emperador_barbershop/?hl=es" },
+  { id: "i2", likes: "8.2k", comments: "98", type: "reel", media_type: "image", media_url: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=600&h=600&auto=format&fit=crop", link: "https://www.instagram.com/emperador_barbershop/?hl=es" },
   { id: "i3", likes: "15.1k", comments: "230", type: "post", media_type: "image", media_url: "https://images.unsplash.com/photo-1605497788044-5a32c7078486?q=80&w=600&h=600&auto=format&fit=crop", link: "https://www.instagram.com/emperador_barbershop/?hl=es" },
-  { id: "i4", likes: "20.5k", comments: "314", type: "reel", media_type: "video", media_url: "https://cdn.pixabay.com/video/2022/11/13/138848-771146747_large.mp4", link: "https://www.instagram.com/emperador_barbershop/?hl=es" },
+  { id: "i4", likes: "20.5k", comments: "314", type: "reel", media_type: "image", media_url: "https://images.unsplash.com/photo-1621607512214-68297480165e?q=80&w=600&h=600&auto=format&fit=crop", link: "https://www.instagram.com/emperador_barbershop/?hl=es" },
   { id: "i5", likes: "9.8k", comments: "112", type: "post", media_type: "image", media_url: "https://images.unsplash.com/photo-1585747860715-2ba37e788b70?q=80&w=600&h=600&auto=format&fit=crop", link: "https://www.instagram.com/emperador_barbershop/?hl=es" },
   { id: "i6", likes: "18.3k", comments: "289", type: "reel", media_type: "image", media_url: "https://images.unsplash.com/photo-1595152772835-219674b2a8a6?q=80&w=600&h=600&auto=format&fit=crop", link: "https://www.instagram.com/emperador_barbershop/?hl=es" },
 ];
@@ -86,7 +82,6 @@ const DynamicIcon = ({ name, size = 24 }: { name: string, size?: number }) => {
   return <IconComponent size={size} />;
 };
 
-// Formateador robusto para precios de servicios
 const formatPrice = (price: string | number) => {
   if (typeof price === 'number') {
     return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(price);
@@ -94,15 +89,10 @@ const formatPrice = (price: string | number) => {
   return price.startsWith('$') ? price : `$${price}`;
 };
 
-// MOTOR MULTIMEDIA: Reproduce Video o Imagen según la Base de Datos
 const MediaRenderer = ({ type, url, alt, className }: { type: string, url: string, alt: string, className: string }) => {
   if (type === 'video' || url?.includes('.mp4')) {
     return (
-      <video 
-        src={url} 
-        autoPlay loop muted playsInline 
-        className={`object-cover object-center w-full h-full ${className}`}
-      />
+      <video src={url} autoPlay loop muted playsInline className={`object-cover object-center w-full h-full ${className}`} />
     );
   }
   return <Image src={url || '/placeholder.jpg'} alt={alt} fill className={`object-cover object-center ${className}`} unoptimized priority />;
@@ -143,11 +133,9 @@ const FAQItem = ({ faq }: { faq: any }) => {
 export default function UltimateEmperadorLanding() {
   const supabase = createClient();
 
-  // Estados de Base de Datos
   const [heroSlides, setHeroSlides] = useState<any[]>(FALLBACK_HERO_SLIDES);
   const [team, setTeam] = useState<any[]>(FALLBACK_TEAM);
   const [services, setServices] = useState<any[]>(FALLBACK_SERVICES);
-  const [storePromos, setStorePromos] = useState<any[]>(FALLBACK_STORE_PROMOS);
   const [reviews, setReviews] = useState<any[]>(FALLBACK_REVIEWS);
   const [faqs, setFaqs] = useState<any[]>(FALLBACK_FAQS);
   const [reels, setReels] = useState<any[]>(INSTA_REELS);
@@ -269,6 +257,24 @@ export default function UltimateEmperadorLanding() {
   };
 
   // ============================================================================
+  // LÓGICA DE VIDEOS VERTICALES (Reels Player)
+  // ============================================================================
+  const handleVideoPlay = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    // 1. Pausa todos los demás videos que puedan estar reproduciéndose
+    const videos = document.querySelectorAll('video');
+    videos.forEach((vid) => {
+      if (vid !== e.currentTarget) {
+        vid.pause();
+      }
+    });
+
+    // 2. Apaga la música de fondo de la página
+    if (isPlaying) {
+      fadeOutAudioAndPause();
+    }
+  };
+
+  // ============================================================================
   // FETCH Y SLIDERS
   // ============================================================================
   useEffect(() => {
@@ -282,18 +288,18 @@ export default function UltimateEmperadorLanding() {
         const { data: dbSettings } = await supabase.from('settings').select('*').eq('key', 'background_music').single();
         if (dbSettings?.value) setMusicSrc(dbSettings.value);
 
+        // Aquí traes tus slides dinámicos desde Supabase, pero mantendremos el de la marca siempre como el primero.
         const { data: dbHero } = await supabase.from('HeroSlides').select('*').order('order_index', { ascending: true });
-        if (dbHero?.length) setHeroSlides(dbHero);
+        if (dbHero?.length) {
+          // Aseguramos que el slide base de la marca esté al inicio
+          setHeroSlides([FALLBACK_HERO_SLIDES[0], ...dbHero]);
+        }
 
         const { data: dbTeam } = await supabase.from('Barbers').select('*').eq('status', 'ACTIVE').order('created_at', { ascending: true });
         if (dbTeam?.length) setTeam(dbTeam);
 
-        // Limitamos a 4 servicios para la portada, ordenados por precio
         const { data: dbServices } = await supabase.from('Services').select('*').order('price', { ascending: true }).limit(4);
         if (dbServices?.length) setServices(dbServices);
-
-        const { data: dbStore } = await supabase.from('StorePromos').select('*').order('created_at', { ascending: false });
-        if (dbStore?.length) setStorePromos(dbStore);
 
         const { data: dbReviews } = await supabase.from('Reviews').select('*');
         if (dbReviews?.length) setReviews(dbReviews);
@@ -311,20 +317,16 @@ export default function UltimateEmperadorLanding() {
   }, [supabase]);
 
   const VolumeIcon = isMuted || volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
+  const currentSlideData = heroSlides[currentHeroSlide];
 
   return (
-    // FIX DE ESPACIO: El margen negativo principal anula el padding global del layout para que la imagen cubra al 100%
     <main className="bg-[#050505] min-h-screen font-sans selection:bg-amber-500 selection:text-black overflow-x-hidden relative -mt-24 md:-mt-28">
       
       {/* ELEMENTO DE AUDIO OCULTO */}
       <audio ref={audioRef} src={musicSrc} loop preload="auto" />
       <div className="fixed inset-0 z-0 pointer-events-none bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:32px_32px]"></div>
       
-      {/* ========================================================================= */}
-      {/* COMPONENTES FLOTANTES */}
-      {/* ========================================================================= */}
-      
-      {/* MÚSICA (Avanzado) */}
+      {/* MÚSICA FLOTANTE */}
       {isMounted && (
         <motion.div
           initial={{ y: 100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ type: "spring", stiffness: 100, damping: 20, delay: 1 }}
@@ -365,7 +367,7 @@ export default function UltimateEmperadorLanding() {
         </motion.div>
       )}
 
-      {/* BOTÓN AGENDAR (Derecha) */}
+      {/* BOTÓN AGENDAR FLOTANTE */}
       <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 2, type: "spring", stiffness: 100 }} className="fixed bottom-6 right-6 md:bottom-10 md:right-10 z-[100]">
         <Link href="/reservar" className="relative flex items-center justify-center w-16 h-16 md:w-20 md:h-20 bg-amber-500 rounded-full shadow-[0_0_30px_rgba(217,119,6,0.8)] hover:scale-110 transition-transform group border-2 border-amber-300">
           <motion.div animate={{ scale: [1, 1.3, 1], opacity: [0.6, 0, 0] }} transition={{ repeat: Infinity, duration: 1.5 }} className="absolute inset-0 rounded-full bg-amber-500"></motion.div>
@@ -374,57 +376,82 @@ export default function UltimateEmperadorLanding() {
       </motion.div>
 
       {/* ========================================================================= */}
-      {/* 1. HERO GLOBAL (Carrusel) */}
+      {/* 1. HERO GLOBAL DINÁMICO (Marca -> Promociones) */}
       {/* ========================================================================= */}
       <section className="relative w-full h-[100dvh] flex flex-col justify-center overflow-hidden bg-black">
         
         <AnimatePresence mode="wait">
           <motion.div key={currentHeroSlide} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.8, ease: "easeInOut" }} className="absolute inset-0 w-full h-full flex flex-col justify-center">
             
-            {/* SLIDES DEL HERO DINÁMICO */}
             <div className="w-full h-full relative flex flex-col justify-center items-center">
               <motion.div style={{ y: yHero }} className="absolute inset-0 w-full h-full z-0">
                 <MediaRenderer 
-                  type={heroSlides[currentHeroSlide]?.media_type || 'image'} 
-                  url={heroSlides[currentHeroSlide]?.media_url || '/placeholder.jpg'} 
-                  alt="Barbería Emperador Hero" 
-                  className="grayscale contrast-125 opacity-50 scale-105" 
+                  type={currentSlideData?.media_type || 'image'} 
+                  url={currentSlideData?.media_url || '/placeholder.jpg'} 
+                  alt="Emperador Hero" 
+                  className={`grayscale contrast-125 scale-105 transition-all duration-[10000ms] ease-linear ${currentSlideData?.type === 'promo' ? 'scale-110 opacity-70' : 'opacity-50'}`} 
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/60 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/60 to-[#050505]/30" />
               </motion.div>
 
-              {/* FIX DEL LOGO GIGANTE: Padding top extremo para que el texto baje y no choque con la Navbar */}
               <div className="relative z-10 w-full max-w-[1400px] px-6 text-center pt-[150px] md:pt-[220px]">
-                <motion.div initial="hidden" animate="visible" variants={staggerContainer}>
-                  <motion.div variants={popUp} className="mb-6 inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/50 px-6 py-2 rounded-full text-[10px] md:text-xs font-black text-amber-500 uppercase tracking-[0.4em] shadow-[0_0_20px_rgba(217,119,6,0.2)] backdrop-blur-md">
-                    <MapPin size={14} /> Peña 666, Piso 2 • Curicó
+                {currentSlideData?.type !== 'promo' ? (
+                  /* RENDER TIPO 1: BRANDING (El logo y la tipografía gigante) */
+                  <motion.div initial="hidden" animate="visible" variants={staggerContainer}>
+                    <motion.div variants={popUp} className="mb-6 inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/50 px-6 py-2 rounded-full text-[10px] md:text-xs font-black text-amber-500 uppercase tracking-[0.4em] shadow-[0_0_20px_rgba(217,119,6,0.2)] backdrop-blur-md">
+                      <MapPin size={14} /> Peña 666, Piso 2 • Curicó
+                    </motion.div>
+                    
+                    <div className="overflow-hidden mb-2">
+                      <motion.h2 variants={textReveal} className="text-[14vw] lg:text-[11rem] font-serif font-black text-white leading-[0.8] tracking-tighter uppercase drop-shadow-2xl">
+                        EMPERADOR
+                      </motion.h2>
+                    </div>
+                    <div className="overflow-hidden mb-8">
+                      <motion.h2 variants={textReveal} className="text-[10vw] lg:text-[8rem] font-serif font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-amber-500 to-amber-700 leading-[0.8] tracking-widest uppercase drop-shadow-2xl">
+                        BARBERSHOP
+                      </motion.h2>
+                    </div>
+                    
+                    <motion.p variants={popUp} className="text-zinc-300 text-lg md:text-2xl font-medium max-w-2xl mx-auto mb-12 drop-shadow-md">
+                      La barbería no es un trámite, es un ritual. Disfruta de la mejor experiencia de grooming, atención premium, PS5 y mesa de Pool.
+                    </motion.p>
+                    
+                    <motion.div variants={popUp} className="flex flex-col sm:flex-row items-center gap-4 justify-center w-full">
+                      <Link href="/reservar" className="relative overflow-hidden w-full sm:w-auto px-12 py-5 bg-amber-500 text-black font-black uppercase tracking-[0.2em] text-sm hover:text-black transition-all shadow-[0_0_40px_rgba(217,119,6,0.5)] flex items-center justify-center gap-3 rounded-xl group hover:scale-105">
+                        <span className="relative z-10 flex items-center gap-3">Asegura tu Trono <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" /></span>
+                        <div className="absolute inset-0 bg-white translate-y-full group-hover:translate-y-0 transition-transform duration-300 z-0" />
+                      </Link>
+                      <a href="https://www.instagram.com/emperador_barbershop/?hl=es" target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto px-8 py-5 border border-zinc-700 bg-zinc-900/50 backdrop-blur-sm text-white font-black uppercase tracking-[0.2em] text-sm hover:border-amber-500 hover:text-amber-500 transition-all flex items-center justify-center gap-3 rounded-xl group">
+                        <Instagram size={20} className="group-hover:scale-110 transition-transform" /> Ver Trabajos
+                      </a>
+                    </motion.div>
                   </motion.div>
-                  
-                  <div className="overflow-hidden mb-2">
-                    <motion.h2 variants={textReveal} className="text-[14vw] lg:text-[11rem] font-serif font-black text-white leading-[0.8] tracking-tighter uppercase drop-shadow-2xl">
-                      EMPERADOR
-                    </motion.h2>
-                  </div>
-                  <div className="overflow-hidden mb-8">
-                    <motion.h2 variants={textReveal} className="text-[10vw] lg:text-[8rem] font-serif font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-amber-500 to-amber-700 leading-[0.8] tracking-widest uppercase drop-shadow-2xl">
-                      BARBERSHOP
-                    </motion.h2>
-                  </div>
-                  
-                  <motion.p variants={popUp} className="text-zinc-300 text-lg md:text-2xl font-medium max-w-2xl mx-auto mb-12 drop-shadow-md">
-                    La barbería no es un trámite, es un ritual. Disfruta de la mejor experiencia de grooming, atención premium, PS5 y mesa de Pool.
-                  </motion.p>
-                  
-                  <motion.div variants={popUp} className="flex flex-col sm:flex-row items-center gap-4 justify-center w-full">
-                    <Link href="/reservar" className="relative overflow-hidden w-full sm:w-auto px-12 py-5 bg-amber-500 text-black font-black uppercase tracking-[0.2em] text-sm hover:text-black transition-all shadow-[0_0_40px_rgba(217,119,6,0.5)] flex items-center justify-center gap-3 rounded-xl group hover:scale-105">
-                      <span className="relative z-10 flex items-center gap-3">Asegura tu Trono <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" /></span>
-                      <div className="absolute inset-0 bg-white translate-y-full group-hover:translate-y-0 transition-transform duration-300 z-0" />
-                    </Link>
-                    <a href="https://www.instagram.com/emperador_barbershop/?hl=es" target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto px-8 py-5 border border-zinc-700 bg-zinc-900/50 backdrop-blur-sm text-white font-black uppercase tracking-[0.2em] text-sm hover:border-amber-500 hover:text-amber-500 transition-all flex items-center justify-center gap-3 rounded-xl group">
-                      <Instagram size={20} className="group-hover:scale-110 transition-transform" /> Ver Trabajos
-                    </a>
+                ) : (
+                  /* RENDER TIPO 2: PROMOCIONAL (Productos, Ofertas) */
+                  <motion.div initial="hidden" animate="visible" variants={staggerContainer} className="flex flex-col items-center">
+                    <motion.div variants={popUp} className="mb-6 inline-flex items-center gap-2 bg-zinc-900/80 border border-zinc-700 px-6 py-2 rounded-full text-[10px] md:text-xs font-black text-white uppercase tracking-[0.4em] shadow-xl backdrop-blur-md">
+                      {currentSlideData.tag || 'EMPERADOR STORE'}
+                    </motion.div>
+                    
+                    <div className="overflow-hidden mb-2">
+                      <motion.h2 variants={textReveal} className="text-5xl md:text-8xl font-serif font-black text-white leading-[0.9] tracking-tighter uppercase drop-shadow-2xl">
+                        {currentSlideData.title}
+                      </motion.h2>
+                    </div>
+                    <div className="overflow-hidden mb-12">
+                      <motion.h3 variants={textReveal} className="text-2xl md:text-4xl font-serif font-bold text-amber-500 leading-tight tracking-widest uppercase drop-shadow-lg">
+                        {currentSlideData.subtitle}
+                      </motion.h3>
+                    </div>
+
+                    <motion.div variants={popUp} className="flex flex-col sm:flex-row items-center gap-4 justify-center w-full">
+                      <Link href="/tienda" className="px-12 py-5 bg-white text-black font-black uppercase tracking-[0.2em] text-sm hover:bg-amber-500 transition-colors shadow-2xl flex items-center justify-center gap-3 rounded-xl hover:scale-105 duration-300">
+                        Ir a la Tienda <ShoppingCart size={20} />
+                      </Link>
+                    </motion.div>
                   </motion.div>
-                </motion.div>
+                )}
               </div>
             </div>
           </motion.div>
@@ -454,11 +481,42 @@ export default function UltimateEmperadorLanding() {
       </div>
 
       {/* ========================================================================= */}
-      {/* 2. EQUIPO DE TRABAJO (TEAM EMPERADOR) */}
+      {/* 2. REELS VERTICALES (VIDEOS LOCALES) */}
       {/* ========================================================================= */}
-      <section id="squad" className="py-24 md:py-32 bg-[#050505] relative overflow-hidden border-b border-zinc-900">
-        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-amber-600/5 blur-[150px] rounded-full pointer-events-none" />
+      <section className="py-24 md:py-32 bg-[#050505] relative border-b border-zinc-900 overflow-hidden">
+        <div className="absolute top-1/2 left-0 w-96 h-96 bg-amber-600/10 blur-[150px] rounded-full pointer-events-none" />
+        
+        <div className="max-w-[1400px] mx-auto px-6 mb-12 relative z-10">
+           <h2 className="text-amber-500 font-black text-sm uppercase tracking-[0.4em] mb-4">Emperador TV</h2>
+           <h3 className="text-4xl md:text-6xl font-serif font-black text-white uppercase tracking-tighter leading-none">LA EXPERIENCIA<br/> EN VIVO.</h3>
+        </div>
 
+        <div className="max-w-[1400px] mx-auto px-6 relative z-10">
+          <div className="flex overflow-x-auto gap-6 pb-12 snap-x snap-mandatory hide-scrollbar">
+             {LOCAL_REELS.map((reel) => (
+               <div key={reel.id} className="min-w-[280px] w-[280px] md:min-w-[320px] md:w-[320px] h-[500px] md:h-[580px] relative rounded-3xl overflow-hidden snap-center bg-zinc-900 border border-zinc-800 shadow-2xl group flex-shrink-0">
+                  <video 
+                    src={reel.src} 
+                    controls 
+                    playsInline 
+                    onPlay={handleVideoPlay} 
+                    className="w-full h-full object-cover" 
+                    poster="/placeholder.jpg" // Puedes agregar un poster personalizado en tu public si lo deseas
+                  />
+                  <div className="absolute top-0 left-0 w-full p-6 bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
+                     <h4 className="text-white font-black uppercase tracking-wider text-lg">{reel.title}</h4>
+                     <p className="text-zinc-300 text-xs font-medium mt-1 leading-snug">{reel.desc}</p>
+                  </div>
+               </div>
+             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ========================================================================= */}
+      {/* 3. EQUIPO DE TRABAJO (TEAM EMPERADOR) */}
+      {/* ========================================================================= */}
+      <section id="squad" className="py-24 md:py-32 bg-zinc-950 relative overflow-hidden border-b border-zinc-900">
         <div className="max-w-[1400px] mx-auto px-6 relative z-10">
           <div className="text-center mb-16 md:mb-24">
             <h2 className="text-amber-500 font-black text-sm uppercase tracking-[0.4em] mb-4">Conoce a los Maestros</h2>
@@ -489,9 +547,9 @@ export default function UltimateEmperadorLanding() {
       </section>
 
       {/* ========================================================================= */}
-      {/* 3. SERVICIOS DESTACADOS (Sincronizados) */}
+      {/* 4. SERVICIOS DESTACADOS (Sincronizados) */}
       {/* ========================================================================= */}
-      <section id="servicios" className="py-24 md:py-32 bg-zinc-950 relative">
+      <section id="servicios" className="py-24 md:py-32 bg-[#050505] relative border-b border-zinc-900">
         <div className="max-w-[1400px] mx-auto px-6 relative z-10">
           <div className="flex flex-col md:flex-row justify-between items-end mb-16 md:mb-24 gap-8">
              <div>
@@ -539,9 +597,9 @@ export default function UltimateEmperadorLanding() {
       </section>
 
       {/* ========================================================================= */}
-      {/* 4. VIP ROOM (THE VIBE) */}
+      {/* 5. VIP ROOM (THE VIBE) */}
       {/* ========================================================================= */}
-      <section id="flow" className="py-24 md:py-32 relative bg-[#050505] border-t border-zinc-900">
+      <section id="flow" className="py-24 md:py-32 relative bg-zinc-950 border-b border-zinc-900">
         <div className="max-w-[1400px] mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-16 md:gap-20 items-center relative z-10">
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-100px" }} variants={staggerContainer}>
             <motion.h2 variants={fadeUp} className="text-amber-500 font-black text-sm uppercase tracking-[0.4em] mb-4">El Club Privado</motion.h2>
@@ -574,129 +632,83 @@ export default function UltimateEmperadorLanding() {
       </section>
 
       {/* ========================================================================= */}
-      {/* 5. REVIEWS & TRUST */}
+      {/* 6. INSTAGRAM V3 (Estilo White Card Exacto) */}
       {/* ========================================================================= */}
-      <section className="py-24 bg-zinc-900/30 border-y border-zinc-900">
-        <div className="max-w-[1400px] mx-auto px-6">
-           <div className="text-center mb-16">
-             <h2 className="text-amber-500 font-black text-sm uppercase tracking-[0.4em]">El Respeto se Gana</h2>
-           </div>
-           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={staggerContainer} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {reviews.map((r, i) => (
-                <motion.div key={r.id || i} variants={fadeUp} className="p-10 bg-zinc-950 border border-zinc-800 rounded-[2rem] relative overflow-hidden group hover:border-amber-500 transition-colors shadow-xl hover:-translate-y-2 duration-300">
-                   <div className="absolute -top-6 -right-6 text-zinc-900 group-hover:text-amber-500/10 transition-colors group-hover:rotate-12 duration-500"><MessageSquare size={120} /></div>
-                   <div className="flex gap-1 mb-6 text-amber-500 relative z-10">
-                     {[...Array(r.rating)].map((_, j) => <Star key={j} size={16} fill="currentColor" />)}
-                   </div>
-                   <p className="text-white text-lg font-medium leading-relaxed italic mb-8 relative z-10">"{r.text}"</p>
-                   <div className="flex items-center gap-4 relative z-10">
-                      <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-amber-500 font-black text-xs border border-zinc-700">{r.name[0]}</div>
-                      <span className="text-zinc-400 font-black uppercase text-[10px] tracking-widest">{r.name}</span>
-                   </div>
-                </motion.div>
-              ))}
-           </motion.div>
-        </div>
-      </section>
-
-      {/* ========================================================================= */}
-      {/* 6. INSTAGRAM V2 SINCRONIZADO AL PERFIL OFICIAL */}
-      {/* ========================================================================= */}
-      <section id="instagram" className="py-24 md:py-32 bg-black relative overflow-hidden border-b border-zinc-900">
-         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[1000px] h-[400px] bg-gradient-to-r from-purple-600/10 via-pink-600/10 to-amber-500/10 blur-[120px] rounded-full pointer-events-none" />
+      <section id="instagram" className="py-24 md:py-32 bg-[#050505] relative overflow-hidden border-b border-zinc-900">
+         {/* Fondo estilo desenfocado de la publicación */}
+         <div className="absolute inset-0 opacity-40">
+           <Image src="https://images.unsplash.com/photo-1593702275687-f8b402bf1fb5?q=80&w=2000&auto=format&fit=crop" fill className="object-cover blur-3xl scale-110" alt="Insta Background" unoptimized />
+         </div>
+         <div className="absolute inset-0 bg-black/50" />
          
-         <div className="max-w-[950px] mx-auto px-4 md:px-6 relative z-10">
+         <div className="max-w-[500px] mx-auto px-4 md:px-0 relative z-10">
             
-            {/* Cabecera Tipo Instagram Sincronizada */}
-            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} className="flex flex-col sm:flex-row items-center sm:items-start gap-6 sm:gap-10 mb-12">
-               
-               <a href="https://www.instagram.com/emperador_barbershop/?hl=es" target="_blank" rel="noopener noreferrer" className="relative w-28 h-28 sm:w-36 sm:h-36 shrink-0 group cursor-pointer block">
-                  <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-[#fdf497] via-[#fd5949] to-[#d6249f] p-[3px] group-hover:scale-105 transition-transform duration-300">
-                     <div className="bg-black w-full h-full rounded-full border-2 border-black overflow-hidden relative flex items-center justify-center">
-                        <Image src="/logo.png" alt="Emperador Logo Instagram" fill className="object-cover p-1 bg-[#050505]" />
-                     </div>
-                  </div>
-               </a>
-               
-               <div className="flex-1 text-white text-center sm:text-left w-full">
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-5">
-                     <a href="https://www.instagram.com/emperador_barbershop/?hl=es" target="_blank" rel="noopener noreferrer" className="text-xl sm:text-2xl font-medium tracking-wide flex items-center justify-center sm:justify-start gap-2 hover:text-zinc-300 transition-colors">
-                       emperador_barbershop 
-                       <CheckCircle size={18} className="text-blue-500 fill-blue-500/20" />
-                     </a>
-                     <div className="flex gap-2 justify-center sm:justify-start">
-                       <a href="https://www.instagram.com/emperador_barbershop/?hl=es" target="_blank" rel="noopener noreferrer" className="bg-[#0095f6] hover:bg-[#1877f2] text-white font-bold text-sm py-1.5 px-6 rounded-lg transition-colors">
-                         Seguir
-                       </a>
-                       <a href="https://www.instagram.com/emperador_barbershop/?hl=es" target="_blank" rel="noopener noreferrer" className="bg-zinc-800 hover:bg-zinc-700 text-white font-bold text-sm py-1.5 px-4 rounded-lg transition-colors">
-                         Mensaje
-                       </a>
-                     </div>
-                  </div>
-                  
-                  <div className="flex justify-center sm:justify-start gap-6 sm:gap-10 mb-5 text-sm sm:text-base border-y border-zinc-800/50 py-3 sm:border-0 sm:py-0">
-                     <span><span className="font-bold">849</span> publicaciones</span>
-                     <span><span className="font-bold">12.5 mil</span> seguidores</span>
-                     <span><span className="font-bold">120</span> seguidos</span>
-                  </div>
-                  
-                  <div className="text-sm sm:text-base leading-snug">
-                     <p className="font-bold mb-1">Emperador BarberShop</p>
-                     <p className="text-zinc-200 whitespace-pre-line">
-                       Barbería Premium en Curicó 💈<br/>
-                       ✂️ Fades & Grooming de Alto Nivel<br/>
-                       🎮 PS5 & Pool Room VIP<br/>
-                       📍 Peña 666, Piso 2 (Costado Falabella)
-                     </p>
-                     <a href="https://www.instagram.com/emperador_barbershop/?hl=es" target="_blank" rel="noopener noreferrer" className="text-[#e0f1ff] font-bold hover:underline mt-1 block">
-                       instagram.com/emperador_barbershop
-                     </a>
-                  </div>
-               </div>
-            </motion.div>
-
-            {/* Pestañas de Navegación Instagram */}
-            <div className="flex justify-center border-t border-zinc-800 mb-1 gap-12">
-               <button className="flex items-center gap-2 pt-4 font-bold text-xs uppercase tracking-widest text-white border-t border-white -mt-px">
-                 <LayoutGrid size={14} /> Publicaciones
-               </button>
-               <a href="https://www.instagram.com/emperador_barbershop/?hl=es" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 pt-4 font-bold text-xs uppercase tracking-widest text-zinc-500 hover:text-zinc-300 transition-colors">
-                 <Clapperboard size={14} /> Reels
-               </a>
+            {/* Cabecera exterior de la Card */}
+            <div className="flex justify-between items-center mb-4 text-white font-bold text-sm drop-shadow-lg">
+              <div className="flex items-center gap-2">
+                <div className="bg-gradient-to-tr from-[#fdf497] via-[#fd5949] to-[#d6249f] rounded-[0.4rem] p-0.5 shadow-md">
+                  <Instagram size={20} className="text-white" />
+                </div>
+                <span>@emperador_barbershop</span>
+              </div>
+              <a href="https://www.instagram.com/emperador_barbershop/" target="_blank" rel="noopener noreferrer" className="text-[10px] md:text-xs uppercase font-black tracking-widest text-zinc-300 hover:text-white transition-colors">
+                Abrir App ↗
+              </a>
             </div>
 
-            {/* Grid Sincronizado de Medios */}
-            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={staggerContainer} className="grid grid-cols-3 gap-1 md:gap-2">
-               {reels.map((post) => (
-                  <motion.a 
-                    key={post.id} 
-                    href={post.link || "https://www.instagram.com/emperador_barbershop/?hl=es"} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    variants={popUp} 
-                    className="group relative aspect-square bg-zinc-900 overflow-hidden cursor-pointer"
-                  >
-                     <MediaRenderer 
-                       type={post.media_type || (post.type === 'reel' ? 'video' : 'image')} 
-                       url={post.media_url} 
-                       alt="Emperador Post" 
-                       className="group-hover:scale-105 transition-transform duration-700" 
-                     />
-                     <div className="absolute top-2 right-2 text-white drop-shadow-md">
-                        {post.type === 'reel' || post.media_type === 'video' ? <Clapperboard size={18} fill="currentColor" /> : null}
+            {/* WHITE CARD (Estilo Boulevard Zapallar) */}
+            <div className="bg-white rounded-[2rem] overflow-hidden shadow-2xl pb-4">
+               <div className="p-6 relative">
+                  {/* Icono Insta flotante derecha */}
+                  <a href="https://www.instagram.com/emperador_barbershop/" target="_blank" rel="noopener noreferrer" className="absolute top-6 right-6 hover:scale-110 transition-transform">
+                     <Instagram size={32} className="text-[#d6249f]" />
+                  </a>
+
+                  {/* Perfil & Estadísticas */}
+                  <div className="flex items-center gap-5">
+                     <a href="https://www.instagram.com/emperador_barbershop/" target="_blank" rel="noopener noreferrer" className="shrink-0 w-[84px] h-[84px] rounded-full bg-gradient-to-tr from-[#fdf497] via-[#fd5949] to-[#d6249f] p-[3px] shadow-sm">
+                        <div className="w-full h-full bg-white rounded-full p-[2px]">
+                           <div className="w-full h-full relative rounded-full overflow-hidden border border-gray-100 bg-black flex items-center justify-center">
+                             <Image src="/logo.png" fill className="object-cover p-1" alt="Emperador Logo Instagram" />
+                           </div>
+                        </div>
+                     </a>
+                     <div className="text-black flex flex-col justify-center">
+                        <h3 className="font-bold text-base md:text-lg leading-none mb-1">emperador_barbershop</h3>
+                        <p className="text-zinc-600 text-sm font-medium mb-1">Emperador BarberShop</p>
+                        <p className="text-zinc-500 text-[13px] md:text-sm font-medium">12,5 mil seguidores</p>
+                        <p className="text-zinc-400 text-[13px] md:text-sm mt-0.5">•</p>
+                        <p className="text-zinc-500 text-[13px] md:text-sm font-medium">849 publicaciones</p>
                      </div>
-                     <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-4 sm:gap-6 backdrop-blur-[2px]">
-                        <div className="flex items-center gap-2 text-white font-bold text-sm sm:text-lg"><Heart fill="currentColor" className="w-4 h-4 sm:w-6 sm:h-6" /> {post.likes}</div>
-                        <div className="flex items-center gap-2 text-white font-bold text-sm sm:text-lg"><MessageCircle fill="currentColor" className="w-4 h-4 sm:w-6 sm:h-6" /> {post.comments}</div>
-                     </div>
-                  </motion.a>
-               ))}
-            </motion.div>
-            
-            <div className="text-center mt-12">
-               <a href="https://www.instagram.com/emperador_barbershop/?hl=es" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-zinc-400 hover:text-amber-500 text-sm font-bold uppercase tracking-widest transition-colors">
-                 Ver más fotos en nuestro Instagram Oficial <ExternalLink size={16} />
-               </a>
+                  </div>
+               </div>
+
+               {/* Grid de Fotos sin espacios excesivos (Max 6 fotos) */}
+               <div className="grid grid-cols-3 gap-0.5 bg-gray-200">
+                  {reels.slice(0, 6).map((post) => (
+                    <a 
+                      key={post.id} 
+                      href={post.link || "https://www.instagram.com/emperador_barbershop/"} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="relative aspect-square bg-white overflow-hidden group block"
+                    >
+                       <MediaRenderer 
+                         type={post.media_type || (post.type === 'reel' ? 'video' : 'image')} 
+                         url={post.media_url} 
+                         alt="Insta Post" 
+                         className="group-hover:scale-105 transition-transform duration-500" 
+                       />
+                       <div className="absolute top-2 right-2 text-white drop-shadow-md">
+                          {post.type === 'reel' || post.media_type === 'video' ? <Clapperboard size={16} fill="currentColor" /> : null}
+                       </div>
+                       <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 backdrop-blur-sm">
+                          <div className="flex items-center gap-1 text-white font-bold text-xs"><Heart fill="currentColor" size={14} /> {post.likes}</div>
+                          <div className="flex items-center gap-1 text-white font-bold text-xs"><MessageCircle fill="currentColor" size={14} /> {post.comments}</div>
+                       </div>
+                    </a>
+                  ))}
+               </div>
             </div>
          </div>
       </section>
@@ -704,7 +716,7 @@ export default function UltimateEmperadorLanding() {
       {/* ========================================================================= */}
       {/* 7. AYUDA / FAQ */}
       {/* ========================================================================= */}
-      <section id="faq" className="py-24 md:py-32 bg-[#0a0a0a] border-y border-zinc-900">
+      <section id="faq" className="py-24 md:py-32 bg-[#050505]">
         <div className="max-w-3xl mx-auto px-6">
           <div className="text-center mb-16">
              <h2 className="text-amber-500 font-black text-sm uppercase tracking-[0.4em] mb-4">Resolviendo Dudas</h2>
@@ -718,71 +730,6 @@ export default function UltimateEmperadorLanding() {
         </div>
       </section>
 
-      {/* ========================================================================= */}
-      {/* 8. CTA FINAL & FOOTER PREMIUM */}
-      {/* ========================================================================= */}
-      <footer className="bg-black pt-24 pb-12 px-6 relative overflow-hidden">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-[1200px] h-[300px] bg-amber-500/10 blur-[150px] rounded-full pointer-events-none" />
-        
-        <div className="max-w-[1400px] mx-auto text-center mb-20 relative z-10">
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={popUp}>
-            <div className="mx-auto w-24 h-24 md:w-32 md:h-32 mb-8 rounded-full overflow-hidden border-2 border-amber-500 shadow-[0_0_30px_rgba(217,119,6,0.4)] relative bg-zinc-950 p-2 hover:scale-105 transition-transform duration-500">
-               <div className="relative w-full h-full rounded-full overflow-hidden">
-                 <Image src="/logo.png" alt="Emperador Logo Final" fill className="object-cover bg-[#050505]" />
-               </div>
-            </div>
-            
-            <h2 className="text-5xl md:text-[6rem] lg:text-[8rem] font-serif font-black text-white leading-[0.85] tracking-tighter uppercase mb-10 drop-shadow-xl">
-              DOMINA EL <br /> <span className="text-amber-500">TRONO.</span>
-            </h2>
-            <Link href="/reservar" className="px-10 md:px-14 py-5 md:py-6 bg-amber-500 text-black font-black uppercase tracking-[0.2em] text-xs md:text-base rounded-2xl hover:bg-white hover:scale-110 transition-all duration-300 shadow-[0_0_40px_rgba(217,119,6,0.4)] inline-flex items-center gap-4 group">
-              Agenda Tu Cita <CheckCircle size={24} className="group-hover:text-green-600 transition-colors" />
-            </Link>
-          </motion.div>
-        </div>
-
-        <div className="max-w-[1400px] mx-auto grid grid-cols-1 md:grid-cols-3 gap-12 border-t border-zinc-900 pt-16 mb-12 relative z-10">
-           {/* Columna 1 */}
-           <div>
-              <h4 className="text-white font-black text-xl uppercase tracking-tighter mb-6 italic">EMPERADOR</h4>
-              <div className="space-y-4 text-zinc-400 font-bold uppercase text-[10px] tracking-[0.2em]">
-                 <p className="flex items-center gap-3 hover:text-white transition-colors cursor-default"><MapPin size={16} className="text-amber-500 shrink-0" /> Peña 666, Piso 2, Curicó</p>
-                 <a href="https://www.instagram.com/emperador_barbershop/?hl=es" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 hover:text-amber-500 transition-colors">
-                    <Instagram size={16} className="text-amber-500 shrink-0" /> @emperador_barbershop
-                 </a>
-              </div>
-           </div>
-           
-           {/* Columna 2 */}
-           <div>
-              <h4 className="text-zinc-600 font-black uppercase text-xs tracking-widest mb-6">Horarios de Atención</h4>
-              <ul className="text-white font-black text-sm uppercase tracking-tighter space-y-2">
-                 <li className="flex justify-between border-b border-zinc-900 pb-3 hover:text-amber-500 transition-colors cursor-default"><span>Lunes - Sábado</span> <span className="text-amber-500">10:00 - 20:00</span></li>
-                 <li className="flex justify-between text-zinc-700 pt-3 cursor-default"><span>Domingo</span> <span>Cerrado por descanso</span></li>
-              </ul>
-           </div>
-           
-           {/* Columna 3 (Accesos Rápidos) */}
-           <div className="flex flex-col items-start md:items-end justify-between gap-6 md:gap-0">
-              <div className="flex items-center gap-2 text-zinc-500"><ShieldCheck size={16} className="text-green-500" /> <span className="font-black uppercase text-[10px] tracking-widest">Plataforma 100% Segura</span></div>
-              
-              <div className="flex flex-col items-start md:items-end gap-3 w-full md:w-auto mt-auto">
-                <Link href="/login" className="w-full md:w-auto px-6 py-3 bg-zinc-900 border border-zinc-800 hover:border-amber-500 text-zinc-400 hover:text-white rounded-xl transition-all flex items-center justify-center md:justify-end gap-3 group">
-                   <Lock size={14} className="group-hover:text-amber-500 transition-colors" /> 
-                   <span className="font-black uppercase text-[10px] tracking-[0.2em]">Intranet Staff</span>
-                </Link>
-                <p className="text-zinc-700 font-black uppercase text-[9px] tracking-[0.3em] mt-2">
-                  DESARROLLADO POR <a href="https://bayx.cl" target="_blank" rel="noopener noreferrer" className="text-amber-700 hover:text-amber-500 transition-colors">BAYX AGENCY</a>
-                </p>
-              </div>
-           </div>
-        </div>
-        
-        {/* MARCA DE AGUA GIGANTE FINAL */}
-        <div className="text-center text-zinc-900/30 font-black text-[12vw] uppercase leading-none select-none relative z-0 overflow-hidden pointer-events-none mt-4">
-           EMPERADOR
-        </div>
-      </footer>
     </main>
   );
 }
