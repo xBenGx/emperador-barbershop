@@ -29,39 +29,43 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   const path = request.nextUrl.pathname
 
-  // 1. Identificamos qué tipo de ruta está intentando visitar (Corregido a la estructura real)
   const isAdminRoute = path.startsWith('/dashboards/admin')
   const isBarberRoute = path.startsWith('/dashboards/barber')
   const isClientRoute = path.startsWith('/dashboards/client')
 
-  // 2. Si es una ruta protegida y NO hay usuario, a login de inmediato
+  // 1. Si no hay usuario, a login de inmediato
   if (!user && (isAdminRoute || isBarberRoute || isClientRoute)) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // 3. Lógica estricta de redirección según roles
+  // 2. Lógica estricta de redirección según roles
   if (user && (isAdminRoute || isBarberRoute || isClientRoute)) {
-    // Leemos el rol. Priorizamos el JWT (user_metadata) por rendimiento.
     let userRole = user.user_metadata?.app_role
 
-    // Si no está en metadata, consultamos la base de datos
-    if (!userRole) {
-      const { data: userProfile } = await supabase.from('User').select('role').eq('id', user.id).single()
-      userRole = userProfile?.role || 'CLIENT' // Asumimos cliente por defecto
+    // 🛡️ BLINDAJE EXTRA: Si no tiene rol claro, revisamos directamente si su email es de un barbero.
+    if (userRole !== 'ADMIN' && userRole !== 'BARBER') {
+      const { data: isBarber } = await supabase.from('Barbers').select('id').eq('email', user.email).single();
+      
+      if (isBarber) {
+        userRole = 'BARBER';
+      } else {
+        const { data: userProfile } = await supabase.from('User').select('role').eq('id', user.id).single();
+        userRole = userProfile?.role || 'CLIENT';
+      }
     }
 
-    // REGLA 1: Zona Admin (Solo Administradores)
+    // Regla 1: Zona Admin
     if (isAdminRoute && userRole !== 'ADMIN') {
       const fallbackUrl = userRole === 'BARBER' ? '/dashboards/barber' : '/dashboards/client/book'
       return NextResponse.redirect(new URL(fallbackUrl, request.url))
     }
 
-    // REGLA 2: Zona Barbero (Administradores y Barberos)
+    // Regla 2: Zona Barbero
     if (isBarberRoute && userRole !== 'BARBER' && userRole !== 'ADMIN') {
       return NextResponse.redirect(new URL('/dashboards/client/book', request.url))
     }
 
-    // REGLA 3: Zona Cliente (Administradores y Clientes. Barberos NO entran aquí)
+    // Regla 3: Zona Cliente
     if (isClientRoute && userRole === 'BARBER') {
       return NextResponse.redirect(new URL('/dashboards/barber', request.url))
     }

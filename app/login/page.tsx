@@ -56,35 +56,27 @@ function LoginContent() {
       }
 
       const userId = authData.user.id;
-      const userEmail = authData.user.email || email;
 
-      // 2. 🛡️ SUPER BLINDAJE DE ROL (Fuente de Verdad Absoluta)
+      // 2. 🛡️ SUPER BLINDAJE (Búsqueda Infalible por Email)
       let finalRole = "CLIENT"; // Asumimos cliente por defecto
 
-      // Nivel A: Revisar si es ADMIN en la tabla maestra
-      const { data: adminCheck } = await supabase
-        .from("User")
-        .select("role")
-        .eq("id", userId)
+      // Buscamos DIRECTAMENTE en la tabla Barbers usando el email exacto
+      const { data: barberCheck } = await supabase
+        .from("Barbers")
+        .select("id")
+        .eq("email", email)
         .single();
-
-      if (adminCheck?.role === "ADMIN") {
-        finalRole = "ADMIN";
+      
+      if (barberCheck) {
+        // ¡Existe en la tabla Barbers! Lo forzamos a Barbero.
+        finalRole = "BARBER"; 
+        // Auto-reparación silenciosa del token de sesión para el middleware
+        await supabase.auth.updateUser({ data: { app_role: 'BARBER' } });
       } else {
-        // Nivel B: Buscar DIRECTAMENTE en la tabla Barbers por Email (Infalible)
-        const { data: barberCheck } = await supabase
-          .from("Barbers")
-          .select("id")
-          .ilike("email", userEmail) // Búsqueda sin importar mayúsculas/minúsculas
-          .single();
-        
-        if (barberCheck) {
-          finalRole = "BARBER"; // ¡Existe en la tabla de barberos! Le damos el rol.
-          
-          // 🛠️ AUTO-REPARACIÓN SILENCIOSA
-          // Arregla la base de datos y la sesión actual por si los Triggers fallaron antes
-          await supabase.from("User").upsert({ id: userId, email: userEmail, role: "BARBER" });
-          await supabase.auth.updateUser({ data: { app_role: 'BARBER' } });
+        // Si no es barbero, revisamos si es ADMIN
+        const { data: adminCheck } = await supabase.from("User").select("role").eq("id", userId).single();
+        if (adminCheck?.role === "ADMIN") {
+          finalRole = "ADMIN";
         }
       }
 
@@ -116,7 +108,7 @@ function LoginContent() {
         }
       }
 
-      // Fallback de seguridad por si no hay portal seleccionado
+      // Fallback de seguridad general
       if (finalRole === "CLIENT") {
         router.push("/dashboards/client/book");
       } else if (finalRole === "BARBER") {
