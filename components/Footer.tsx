@@ -44,20 +44,21 @@ export default function Footer() {
           
           {/* Columna 1: Brand Info (EL CAMBIO ESTÁ AQUÍ) */}
           <div className="flex flex-col gap-6">
-            {/* FIX QUIRÚRGICO: Reemplazado Corona y Emperador por el Logo Circular dimensionado */}
-            <Link href="/" className="block relative h-14 w-14 rounded-full overflow-hidden border border-zinc-800 shadow-2xl p-1 bg-black group-hover:border-amber-500/50 transition-colors">
+            
+            {/* FIX: Logo mucho más grande y con escalado responsivo */}
+            <Link href="/" className="block relative h-24 w-24 md:h-32 md:w-32 rounded-full overflow-hidden border-2 border-zinc-800 shadow-2xl bg-black hover:border-amber-500/50 transition-colors group">
               <Image 
                 src="/logo.png" 
                 alt="Emperador Barbershop Logo" 
-                width={56} // Dimensiones fijas intrínsecas para Next.js
-                height={56} // Dimensiones fijas intrínsecas para Next.js
-                className="object-contain h-full w-full" 
+                fill
+                sizes="(max-width: 768px) 96px, 128px"
+                className="object-contain p-2 group-hover:scale-105 transition-transform duration-500" 
                 priority
               />
             </Link>
             {/* FIN DEL FIX */}
             
-            <p className="text-zinc-400 text-sm leading-relaxed max-w-xs font-medium">
+            <p className="text-zinc-400 text-sm leading-relaxed max-w-xs font-medium mt-2">
               La barbería no es un trámite, es un ritual. Disfruta de la mejor experiencia de grooming, atención premium, PS5 y mesa de Pool.
             </p>
             <div className="flex items-center gap-5 mt-2">
@@ -125,7 +126,6 @@ export default function Footer() {
           </div>
 
           {/* FIRMA DE AGENCIA (POWERED BY BAYX) */}
-          {/* Tu firma cyan tech, impecable */}
           <a href="https://bayx.pro" target="_blank" rel="noopener noreferrer" className="group flex items-center gap-4 bg-zinc-950 border border-zinc-800/50 hover:border-[#00f0ff]/50 px-5 py-2.5 rounded-2xl transition-all duration-500 shadow-xl hover:shadow-[0_0_20px_rgba(0,240,255,0.1)]">
             <div className="flex flex-col text-right">
               <span className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em] group-hover:text-zinc-400 transition-colors">Engineered By</span>
