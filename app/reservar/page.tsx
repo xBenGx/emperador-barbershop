@@ -3,14 +3,14 @@
 import React, { useState, useEffect, Suspense, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 import * as LucideIcons from "lucide-react";
 import { 
   Scissors, Clock, Calendar as CalendarIcon, MapPin, 
   ChevronLeft, CheckCircle2, User, Sparkles, ChevronRight,
   Phone, Mail, UserCircle, AlertCircle, Crown, Star, Flame, Crosshair, Zap,
-  Droplets, Wand2, ShieldCheck, Lock
+  Droplets, Wand2, ShieldCheck, Lock, Loader2
 } from "lucide-react";
 
 // Importamos el cliente de Supabase y nuestra nueva Server Action
@@ -47,6 +47,7 @@ const generateDates = () => {
   for(let i = 0; i < 14; i++) { 
     const d = new Date(today);
     d.setDate(today.getDate() + i);
+    // Saltamos domingos (0) y lunes (1) si así lo deseas. Por ahora, solo domingos.
     if(d.getDay() !== 0) { 
       dates.push({ 
         day: days[d.getDay()], 
@@ -60,7 +61,7 @@ const generateDates = () => {
 };
 const DATES = generateDates();
 
-// FIX: Intervalos exactos de 1 HORA.
+// Intervalos exactos de 1 HORA.
 const TIME_SLOTS = {
   manana: ["10:00", "11:00", "12:00", "13:00", "14:00"],
   tarde: ["15:00", "16:00", "17:00"],
@@ -87,6 +88,7 @@ const slideIn: Variants = {
 // ============================================================================
 function BookingEngineContent() {
   const supabase = createClient();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const barberParam = searchParams.get('barber'); 
 
@@ -100,6 +102,7 @@ function BookingEngineContent() {
   });
   
   const [isConfirming, setIsConfirming] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   // Estados de BD
   const [dbBarbers, setDbBarbers] = useState<any[]>(FALLBACK_BARBERS);
@@ -121,6 +124,10 @@ function BookingEngineContent() {
               email: user.email || ""
             }
           }));
+        } else {
+          // Si no hay usuario logueado, forzamos el login antes de reservar
+          router.push('/login?error=Por favor, inicia sesión para agendar tu hora.');
+          return;
         }
 
         const { data: barbersData } = await supabase.from('Barbers').select('*').eq('status', 'ACTIVE');
@@ -143,19 +150,19 @@ function BookingEngineContent() {
         const { data: servicesData } = await supabase.from('Services').select('*').order('price', { ascending: true });
         if (servicesData && servicesData.length > 0) setDbServices(servicesData);
       } catch (error) {
-        console.error("Usando datos de respaldo.");
+        console.error("Error cargando datos:", error);
       }
     };
     loadInitialData();
-  }, [supabase, barberParam]);
+  }, [supabase, barberParam, router]);
 
-  // 2. Cargar horas ocupadas inteligentemente
+  // 2. Cargar horas ocupadas (Bloqueo de Calendario en Tiempo Real)
   useEffect(() => {
     const fetchBookedSlots = async () => {
       if (booking.barber && booking.date) {
         try {
           const { data, error } = await supabase
-            .from('Appointments')
+            .from('Appointments') // Asegúrate de que esta tabla se llama así en tu BD
             .select(`time, service_id, service:service_id ( duration )`)
             .eq('barber_id', booking.barber.id)
             .eq('date', booking.date.fullDate)
@@ -164,7 +171,7 @@ function BookingEngineContent() {
           if (data) {
             const mappedSlots = data.map((d: any) => ({
               time: d.time,
-              duration: d.service?.duration || 60 // Por defecto 1 hora si falla la relación
+              duration: d.service?.duration || 60 
             }));
             setBookedSlots(mappedSlots);
           }
@@ -183,7 +190,7 @@ function BookingEngineContent() {
   const nextStep = () => setStep((p) => Math.min(p + 1, 5));
   const prevStep = () => setStep((p) => Math.max(p - 1, 1));
 
-  // 3. MOTOR DE COLISIONES
+  // 3. MOTOR DE COLISIONES DE TIEMPO
   const isSlotUnavailable = useCallback((timeStr: string) => {
     if (!booking.date || !booking.service) return true;
 
@@ -191,8 +198,11 @@ function BookingEngineContent() {
     const [year, month, day] = booking.date.fullDate.split('-').map(Number);
     const [hours, minutes] = timeStr.split(':').map(Number);
     const slotDate = new Date(year, month - 1, day, hours, minutes);
+    
+    // Calcula la diferencia en horas
     const diffHours = (slotDate.getTime() - now.getTime()) / (1000 * 60 * 60);
 
+    // Regla: Bloquear si es en el pasado o falta menos de 2 horas
     if (diffHours < 2) return true;
 
     const slotStart = timeToMinutes(timeStr);
@@ -203,7 +213,7 @@ function BookingEngineContent() {
        const bEnd = bStart + booked.duration;
 
        if (slotStart < bEnd && slotEnd > bStart) {
-          return true; 
+          return true; // Hay solapamiento
        }
     }
 
@@ -211,10 +221,17 @@ function BookingEngineContent() {
   }, [booking.date, booking.service, bookedSlots]);
 
 
-  // 4. CONFIRMACIÓN FINAL A LA BASE DE DATOS USANDO SERVER ACTION
+  // 4. CONFIRMACIÓN FINAL USANDO LA SERVER ACTION
   const handleFinalConfirm = async () => {
     setIsConfirming(true);
+    setAuthError(null);
+
     try {
+      // Validamos que todos los IDs existan antes de enviar
+      if (!booking.barber?.id || !booking.service?.id) {
+        throw new Error("Faltan datos críticos para la reserva (Barbero o Servicio).");
+      }
+
       const appointmentData = {
         barber_id: booking.barber.id,
         barber_name: booking.barber.name,
@@ -227,6 +244,8 @@ function BookingEngineContent() {
         notes: `Reserva online via web - Duración estimada: ${booking.service.duration || 60} min`
       };
 
+      console.log("Enviando reserva:", appointmentData);
+
       // Ejecutamos la Server Action
       const result = await createAppointment(appointmentData);
       
@@ -234,10 +253,10 @@ function BookingEngineContent() {
         throw new Error(result.error);
       }
       
-      nextStep(); 
+      nextStep(); // Todo exitoso, pasamos a la pantalla final
     } catch (error: any) {
       console.error(error);
-      alert(error.message || "Hubo un error al procesar tu reserva. Asegúrate de tener iniciada tu sesión de Cliente.");
+      setAuthError(error.message || "Hubo un error al procesar tu reserva. Intenta nuevamente.");
     } finally {
       setIsConfirming(false);
     }
@@ -553,10 +572,16 @@ function BookingEngineContent() {
                       className="w-full bg-black/50 border border-zinc-800 rounded-[2rem] pl-16 pr-6 py-6 text-white font-bold text-lg focus:outline-none focus:border-amber-500 focus:bg-zinc-950 transition-all placeholder:text-zinc-700 shadow-inner" 
                     />
                   </div>
+
+                  {authError && (
+                    <div className="bg-red-500/10 border border-red-500/20 text-red-500 p-4 rounded-xl text-xs font-bold flex items-center gap-2">
+                      <AlertCircle size={16} /> {authError}
+                    </div>
+                  )}
                   
                   <div className="pt-6 mt-6 border-t border-zinc-800">
                     <button type="submit" disabled={isConfirming} className="w-full py-8 bg-amber-500 hover:bg-amber-400 disabled:bg-amber-500/50 disabled:text-black/50 text-black text-xl font-black uppercase tracking-[0.2em] rounded-[2rem] shadow-[0_0_40px_rgba(217,119,6,0.4)] hover:scale-[1.02] transition-all duration-300 flex items-center justify-center gap-3">
-                      {isConfirming ? <Zap className="animate-pulse" size={28} /> : <CheckCircle2 size={28} />}
+                      {isConfirming ? <Loader2 className="animate-spin" size={28} /> : <CheckCircle2 size={28} />}
                       {isConfirming ? "Sincronizando..." : "Asegurar Mi Trono"}
                     </button>
                   </div>
@@ -603,9 +628,6 @@ function BookingEngineContent() {
   );
 }
 
-// ============================================================================
-// COMPONENTE EXPORTADO
-// ============================================================================
 export default function BookingEngine() {
   return (
     <Suspense fallback={
