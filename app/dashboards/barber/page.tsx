@@ -23,14 +23,12 @@ import {
 // TIPADOS
 // ============================================================================
 type AppointmentStatus = "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED" | "NO_SHOW" | "BLOCKED";
-// FIX: Cambiado RESERVAS por MIS_CORTES
 type TabType = "RESUMEN" | "MIS_CORTES" | "CLIENTES" | "FINANZAS" | "HORARIO" | "MI_ESTACION";
 type ModalType = "EDIT_APPT" | null;
 
 interface Client { id: string; name: string; phone: string; email: string; points?: number; }
-interface Service { id: string; name: string; price: number; duration?: number; } // FIX: Agregado duration para evitar errores
+interface Service { id: string; name: string; price: number; duration?: number; }
 
-// FIX: Aquí está declarada la variable client_name que faltaba
 interface Appointment { 
   id: string; 
   date: string; 
@@ -58,7 +56,6 @@ const formatMoney = (amount: number | string) => {
   return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(numericAmount || 0);
 };
 
-// FIX: ZONA HORARIA LOCAL (Evita errores de medianoche)
 const getLocalTodayDate = () => {
   const today = new Date();
   today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
@@ -77,13 +74,7 @@ const generateDates = () => {
     const d = new Date(today);
     d.setDate(today.getDate() + i);
     const localDateStr = new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
-
-    dates.push({ 
-      day: days[d.getDay()], 
-      date: d.getDate().toString(), 
-      month: months[d.getMonth()],
-      fullDate: localDateStr 
-    });
+    dates.push({ day: days[d.getDay()], date: d.getDate().toString(), month: months[d.getMonth()], fullDate: localDateStr });
   }
   return dates;
 };
@@ -145,7 +136,7 @@ export default function BarberDashboard() {
         return;
       }
 
-      // 1. 🛡️ VERIFICACIÓN BLINDADA: Consultar directamente la tabla Barbers
+      // 1. VERIFICACIÓN BLINDADA: Consultar directamente la tabla Barbers
       const { data: barberData } = await supabase.from('Barbers').select('*').eq('id', user.id).single();
 
       if (!barberData) {
@@ -168,7 +159,7 @@ export default function BarberDashboard() {
       const { data: chairData } = await supabase.from('chairs').select('*').eq('current_barber_id', user.id).single();
       if (chairData) setMyChair(chairData);
 
-      // 3. Citas (FIX SQL: Lectura Plana Indestructible)
+      // 3. LECTURA DE CITAS: Consulta plana y manual join en JS
       const { data: rawAppts } = await supabase.from('Appointments').select('*').eq('barber_id', user.id);
       const { data: allServices } = await supabase.from('Services').select('*');
 
@@ -186,8 +177,8 @@ export default function BarberDashboard() {
         const futureAppts = mappedAppts.filter(a => a.date >= TODAY_DATE).sort((a,b) => a.time.localeCompare(b.time));
         setAppointments(futureAppts);
         
-        const uniqueClientsMap = new Map();
         // Cargar y unificar clientes
+        const uniqueClientsMap = new Map();
         mappedAppts.forEach(a => { 
           const clientKey = a.client?.id || a.client?.phone || a.client?.name;
           if (clientKey && !uniqueClientsMap.has(clientKey)) {
@@ -208,7 +199,7 @@ export default function BarberDashboard() {
       if (schedData) setSchedules(schedData);
 
     } catch (error) {
-      console.error(error);
+      console.error("Error al cargar datos del Barbero:", error);
       router.push('/login');
     } finally {
       setIsAppLoading(false);
@@ -218,30 +209,53 @@ export default function BarberDashboard() {
 
   useEffect(() => {
     loadDashboardData();
-
     let channel: any;
     const setupRealtime = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       channel = supabase.channel('barber-sync-station')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'Appointments', filter: `barber_id=eq.${user.id}` }, 
-        () => loadDashboardData()).subscribe();
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'Appointments', filter: `barber_id=eq.${user.id}` }, () => loadDashboardData()).subscribe();
     };
     setupRealtime();
-
     return () => { if (channel) supabase.removeChannel(channel); };
   }, [loadDashboardData, supabase]);
 
-  // FIX BOTÓN CERRAR SESIÓN
+  // ============================================================================
+  // ACCIONES CRUD Y NAVEGACIÓN
+  // ============================================================================
+
+  // FIX: Botón de Cerrar Sesión (Hard Redirect asegurado)
   const handleLogout = async () => {
-    setIsLoading(true);
-    await supabase.auth.signOut();
-    window.location.replace('/login');
+    try {
+      setIsLoading(true);
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error("Error cerrando sesión:", error);
+    } finally {
+      // Usar window.location.href garantiza que el navegador recargue la página
+      // y destruya cualquier estado en caché, enviándote directo al login.
+      window.location.href = '/login';
+    }
   };
 
-  // ============================================================================
-  // ACCIONES CRUD
-  // ============================================================================
+  // FIX: Botón de Copiar Enlace con el formato "nombre-apellido"
+  const copyUniqueLink = () => {
+    if (!barber || !barber.name) return;
+    
+    // Formatea el nombre: lo pasa a minúsculas y cambia los espacios por guiones medios
+    const formattedName = barber.name.trim().toLowerCase().replace(/\s+/g, '-');
+    const link = `${window.location.origin}/reservar?barber=${formattedName}`;
+    
+    navigator.clipboard.writeText(link).then(() => {
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 3000);
+    }).catch(err => {
+      console.error("No se pudo copiar automáticamente:", err);
+      // Fallback seguro por si el navegador bloquea el portapapeles
+      prompt("Copia tu link de reservas manualmente:", link);
+    });
+  };
+
   const handleUpdateStatus = async (id: string, newStatus: AppointmentStatus) => {
     setIsLoading(true);
     const { error } = await supabase.from('Appointments').update({ status: newStatus }).eq('id', id);
@@ -327,18 +341,6 @@ export default function BarberDashboard() {
     }
   };
 
-  // FIX COPIAR LINK
-  const copyUniqueLink = () => {
-    if (!barber) return;
-    const link = `${window.location.origin}/reservar?barber=${barber.id}`;
-    navigator.clipboard.writeText(link).then(() => {
-      setCopySuccess(true);
-      setTimeout(() => setCopySuccess(false), 3000);
-    }).catch(err => {
-      alert(`Tu link de reserva es:\n\n${link}\n\nCópialo manualmente.`);
-    });
-  };
-
   const openModal = (type: ModalType, item: any = null) => {
     setModalType(type);
     if (type === "EDIT_APPT") setSelectedAppt(item);
@@ -379,7 +381,7 @@ export default function BarberDashboard() {
   return (
     <div className="max-w-[1600px] mx-auto pb-20 pt-8 px-6 md:px-10 relative">
       
-      {/* FIX MÁGICO: OCULTAR EL SIDEBAR Y MAXIMIZAR EL ANCHO */}
+      {/* OCULTAR SIDEBAR (CSS INYECTADO) */}
       <style dangerouslySetInnerHTML={{__html: `
         aside, nav[class*="sidebar" i], [class*="SideBar" i], [class*="Sidebar" i], #sidebar {
           display: none !important;
@@ -630,7 +632,6 @@ export default function BarberDashboard() {
               {clients.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()) || (c.phone && c.phone.includes(searchQuery))).map(client => {
                 
                 // Lógica avanzada para calcular métricas del cliente
-                // Leemos las citas guardadas que coincidan con este cliente en particular
                 const clientAppts = appointments.filter(a => a.client?.id === client.id || a.client?.name === client.name);
                 const completedAppts = clientAppts.filter(a => a.status === 'COMPLETED');
                 const totalSpent = completedAppts.reduce((sum, a) => sum + Number(a.service?.price || 0), 0);
@@ -679,7 +680,7 @@ export default function BarberDashboard() {
               {clients.length === 0 && (
                 <div className="col-span-full text-center py-20 bg-zinc-900/20 border border-zinc-800 border-dashed rounded-3xl">
                   <Users size={48} className="mx-auto text-zinc-700 mb-4"/>
-                  <p className="text-zinc-500 font-bold">Aún no hay clientes registrados en tu agenda.</p>
+                  <p className="text-zinc-500 font-bold">Aún no hay clientes en tu agenda.</p>
                 </div>
               )}
             </div>
