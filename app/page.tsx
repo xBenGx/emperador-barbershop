@@ -21,13 +21,9 @@ import { createClient } from "@/utils/supabase/client";
 // DATA MAESTRA (FALLBACKS)
 // ============================================================================
 const FALLBACK_HERO_SLIDES = [
-  // Slide 1: Presentación de Marca (SIN OPACIDAD NEGRA, IMAGEN FULL COLOR)
   { id: "brand1", type: "brand", media_type: "image", media_url: "https://images.unsplash.com/photo-1599351431202-1e0f0137899a?q=80&w=2000&auto=format&fit=crop" },
-  // Slide 2: Promoción
   { id: "promo1", type: "promo", title: "WAHL MAGIC CLIP", subtitle: "Edición Gold Cordless", tag: "NUEVO STOCK", media_type: "image", media_url: "https://images.unsplash.com/photo-1621607512214-68297480165e?q=80&w=2000&auto=format&fit=crop" },
-  // Slide 3: Presentación de Marca 2
   { id: "brand2", type: "brand", media_type: "image", media_url: "https://images.unsplash.com/photo-1622286342621-4bd786c2447c?q=80&w=2000&auto=format&fit=crop" },
-  // Slide 4: Promoción 2
   { id: "promo2", type: "promo", title: "POMADA REUZEL", subtitle: "Matte Clay Extreme", tag: "OFERTA DEL MES", media_type: "image", media_url: "https://images.unsplash.com/photo-1597354984706-fac992d9306f?q=80&w=2000&auto=format&fit=crop" }
 ];
 
@@ -58,7 +54,6 @@ const FALLBACK_FAQS = [
   { id: "f4", q: "¿Puedo comprar productos online?", a: "Sí, contamos con una tienda integrada donde puedes adquirir ceras, pomadas y máquinas profesionales." },
 ];
 
-// Falso Grid de Instagram que te lleva al perfil real
 const INSTA_REELS = [
   { id: "i1", likes: "12.4k", comments: "145", type: "image", media_url: "https://images.unsplash.com/photo-1593702275687-f8b402bf1fb5?q=80&w=600&h=600&auto=format&fit=crop" },
   { id: "i2", likes: "8.2k", comments: "98", type: "image", media_url: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=600&h=600&auto=format&fit=crop" },
@@ -114,7 +109,7 @@ const DistributedVideo = ({ src, onUnmute, className }: { src: string, onUnmute:
   };
 
   return (
-    <div className={`relative group overflow-hidden ${className}`}>
+    <div className={`relative group overflow-hidden bg-black ${className}`}>
       <video 
         ref={videoRef}
         src={src}
@@ -127,7 +122,7 @@ const DistributedVideo = ({ src, onUnmute, className }: { src: string, onUnmute:
       {/* Botón flotante para el audio (Transparente cristal) */}
       <button 
         onClick={toggleMute}
-        className="absolute bottom-4 right-4 z-20 w-12 h-12 flex items-center justify-center bg-black/40 hover:bg-amber-500 hover:text-black text-white border border-white/20 hover:border-amber-400 rounded-full backdrop-blur-md transition-all duration-300 shadow-lg group-hover:scale-110"
+        className="absolute bottom-4 right-4 z-50 w-12 h-12 flex items-center justify-center bg-black/60 hover:bg-amber-500 text-white hover:text-black border border-white/20 hover:border-amber-400 rounded-full backdrop-blur-md transition-all duration-300 shadow-[0_0_15px_rgba(0,0,0,0.5)] cursor-pointer pointer-events-auto group-hover:scale-110"
       >
         {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} className="animate-pulse" />}
       </button>
@@ -251,7 +246,7 @@ export default function UltimateEmperadorLanding() {
           setIsPlaying(true);
           setHasInteracted(true);
           fadeInAudio(isMuted ? 0 : volume);
-        }).catch(() => console.log("Autoplay bloqueado por el navegador."));
+        }).catch(() => console.log("Autoplay bloqueado."));
       }
       document.removeEventListener('click', handleInteraction);
       document.removeEventListener('scroll', handleInteraction);
@@ -295,11 +290,9 @@ export default function UltimateEmperadorLanding() {
 
   // CONTROL INTELIGENTE DE AUDIO: Se llama cuando el usuario activa el audio en CUALQUIER video distribuido
   const handleGlobalReelUnmute = (activeVideo: HTMLVideoElement) => {
-    // 1. Apaga la música general de la web
     if (isPlaying) {
       fadeOutAudioAndPause();
     }
-    // 2. Silencia cualquier otro video que estuviera sonando
     const allVideos = document.querySelectorAll('video');
     allVideos.forEach(vid => {
       if (vid !== activeVideo) {
@@ -407,92 +400,91 @@ export default function UltimateEmperadorLanding() {
       </motion.div>
 
       {/* ========================================================================= */}
-      {/* 1. HERO GLOBAL DINÁMICO (Cero Filtros Negros) */}
+      {/* 1. HERO GLOBAL DINÁMICO (Cero Filtros Negros, Crossfade Suave) */}
       {/* ========================================================================= */}
       <section className="relative w-full h-[100dvh] flex flex-col justify-center overflow-hidden bg-[#050505]">
-        <AnimatePresence mode="wait">
-          <motion.div key={currentHeroSlide} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 1.2, ease: "easeInOut" }} className="absolute inset-0 w-full h-full flex flex-col justify-center">
+        <AnimatePresence>
+          <motion.div key={currentHeroSlide} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 1.5, ease: "easeInOut" }} className="absolute inset-0 w-full h-full flex flex-col justify-center">
             
             <div className="w-full h-full relative flex flex-col justify-center items-center">
               <motion.div style={{ y: yHero }} className="absolute inset-0 w-full h-full z-0">
-                {/* FIX: Se eliminaron los filtros grayscale y opacity. Ahora la imagen brilla. */}
+                {/* IMAGEN SIN FILTROS OSCUROS */}
                 <MediaRenderer 
                   type={currentSlideData?.media_type || 'image'} 
                   url={currentSlideData?.media_url || 'https://images.unsplash.com/photo-1599351431202-1e0f0137899a?q=80&w=2000&auto=format&fit=crop'} 
                   alt="Emperador Hero" 
                   className="transition-all duration-[10000ms] ease-linear scale-105" 
                 />
-                {/* Gradiente súper sutil SOLO en la parte inferior para que se lea el texto */}
-                <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/40 to-transparent pointer-events-none" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-transparent to-transparent pointer-events-none" />
               </motion.div>
-
-              <div className="relative z-10 w-full max-w-[1400px] px-6 text-center pt-[150px] md:pt-[220px] pointer-events-none">
-                {currentSlideData?.type !== 'promo' ? (
-                  /* RENDER TIPO 1: BRANDING */
-                  <motion.div initial="hidden" animate="visible" variants={staggerContainer} className="pointer-events-auto">
-                    <motion.div variants={popUp} className="mb-6 inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/50 px-6 py-2 rounded-full text-[10px] md:text-xs font-black text-amber-500 uppercase tracking-[0.4em] shadow-[0_0_20px_rgba(217,119,6,0.2)] backdrop-blur-md">
-                      <MapPin size={14} /> Peña 666, Piso 2 • Curicó
-                    </motion.div>
-                    
-                    <div className="overflow-hidden mb-2">
-                      <motion.h2 variants={textReveal} className="text-[14vw] lg:text-[11rem] font-serif font-black text-white leading-[0.8] tracking-tighter uppercase drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)]">
-                        EMPERADOR
-                      </motion.h2>
-                    </div>
-                    <div className="overflow-hidden mb-8">
-                      <motion.h2 variants={textReveal} className="text-[10vw] lg:text-[8rem] font-serif font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-amber-500 to-amber-700 leading-[0.8] tracking-widest uppercase drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)]">
-                        BARBERSHOP
-                      </motion.h2>
-                    </div>
-                    
-                    <motion.p variants={popUp} className="text-zinc-200 text-lg md:text-2xl font-medium max-w-2xl mx-auto mb-12 drop-shadow-md bg-black/30 p-4 rounded-2xl backdrop-blur-sm">
-                      La barbería no es un trámite, es un ritual. Disfruta de la mejor experiencia de grooming, atención premium, PS5 y mesa de Pool.
-                    </motion.p>
-                    
-                    <motion.div variants={popUp} className="flex flex-col sm:flex-row items-center gap-4 justify-center w-full">
-                      <Link href="/reservar" className="relative overflow-hidden w-full sm:w-auto px-12 py-5 bg-amber-500 text-black font-black uppercase tracking-[0.2em] text-sm hover:text-black transition-all shadow-[0_0_40px_rgba(217,119,6,0.5)] flex items-center justify-center gap-3 rounded-xl group hover:scale-105">
-                        <span className="relative z-10 flex items-center gap-3">Asegura tu Trono <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" /></span>
-                        <div className="absolute inset-0 bg-white translate-y-full group-hover:translate-y-0 transition-transform duration-300 z-0" />
-                      </Link>
-                      <a href="https://www.instagram.com/emperador_barbershop/" target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto px-8 py-5 border border-white/50 bg-black/50 backdrop-blur-md text-white font-black uppercase tracking-[0.2em] text-sm hover:border-amber-500 hover:text-amber-500 transition-all flex items-center justify-center gap-3 rounded-xl group">
-                        <Instagram size={20} className="group-hover:scale-110 transition-transform" /> Ver Trabajos
-                      </a>
-                    </motion.div>
-                  </motion.div>
-                ) : (
-                  /* RENDER TIPO 2: PROMOCIONAL */
-                  <motion.div initial="hidden" animate="visible" variants={staggerContainer} className="flex flex-col items-center pointer-events-auto">
-                    <motion.div variants={popUp} className="mb-6 inline-flex items-center gap-2 bg-black/80 border border-white/20 px-6 py-2 rounded-full text-[10px] md:text-xs font-black text-white uppercase tracking-[0.4em] shadow-xl backdrop-blur-md">
-                      {currentSlideData.tag || 'EMPERADOR STORE'}
-                    </motion.div>
-                    
-                    <div className="overflow-hidden mb-2">
-                      <motion.h2 variants={textReveal} className="text-5xl md:text-8xl font-serif font-black text-white leading-[0.9] tracking-tighter uppercase drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)]">
-                        {currentSlideData.title}
-                      </motion.h2>
-                    </div>
-                    <div className="overflow-hidden mb-12">
-                      <motion.h3 variants={textReveal} className="text-2xl md:text-4xl font-serif font-bold text-amber-500 leading-tight tracking-widest uppercase drop-shadow-lg bg-black/30 px-6 py-2 rounded-xl backdrop-blur-sm inline-block">
-                        {currentSlideData.subtitle}
-                      </motion.h3>
-                    </div>
-
-                    <motion.div variants={popUp} className="flex flex-col sm:flex-row items-center gap-4 justify-center w-full">
-                      <Link href="/tienda" className="px-12 py-5 bg-white text-black font-black uppercase tracking-[0.2em] text-sm hover:bg-amber-500 transition-colors shadow-2xl flex items-center justify-center gap-3 rounded-xl hover:scale-105 duration-300">
-                        Ir a la Tienda <ShoppingCart size={20} />
-                      </Link>
-                    </motion.div>
-                  </motion.div>
-                )}
-              </div>
             </div>
           </motion.div>
         </AnimatePresence>
 
+        <div className="relative z-10 w-full max-w-[1400px] mx-auto px-6 text-center pt-[150px] md:pt-[220px] pointer-events-none flex flex-col justify-center h-full">
+          {currentSlideData?.type !== 'promo' ? (
+            /* RENDER BRANDING (Con Panel Cristal) */
+            <motion.div initial="hidden" animate="visible" variants={staggerContainer} className="bg-black/30 backdrop-blur-md p-8 md:p-16 rounded-[3rem] border border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] pointer-events-auto inline-block self-center">
+              <motion.div variants={popUp} className="mb-6 inline-flex items-center gap-2 bg-amber-500/90 text-black px-6 py-2 rounded-full text-[10px] md:text-xs font-black uppercase tracking-[0.4em] shadow-lg">
+                <MapPin size={14} /> Peña 666, Piso 2 • Curicó
+              </motion.div>
+              
+              <div className="overflow-hidden mb-2">
+                <motion.h2 variants={textReveal} className="text-[12vw] lg:text-[10rem] font-serif font-black text-white leading-[0.8] tracking-tighter uppercase drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)]">
+                  EMPERADOR
+                </motion.h2>
+              </div>
+              <div className="overflow-hidden mb-8">
+                <motion.h2 variants={textReveal} className="text-[9vw] lg:text-[7rem] font-serif font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-amber-500 to-amber-700 leading-[0.8] tracking-widest uppercase drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)]">
+                  BARBERSHOP
+                </motion.h2>
+              </div>
+              
+              <motion.p variants={popUp} className="text-zinc-100 text-lg md:text-xl font-medium max-w-2xl mx-auto mb-10 drop-shadow-md">
+                La barbería no es un trámite, es un ritual. Disfruta de la mejor experiencia de grooming, atención premium, PS5 y mesa de Pool.
+              </motion.p>
+              
+              <motion.div variants={popUp} className="flex flex-col sm:flex-row items-center gap-4 justify-center w-full">
+                <Link href="/reservar" className="relative overflow-hidden w-full sm:w-auto px-10 py-4 bg-amber-500 text-black font-black uppercase tracking-[0.2em] text-sm hover:text-black transition-all shadow-[0_0_40px_rgba(217,119,6,0.5)] flex items-center justify-center gap-3 rounded-xl group hover:scale-105">
+                  <span className="relative z-10 flex items-center gap-3">Asegura tu Trono <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" /></span>
+                  <div className="absolute inset-0 bg-white translate-y-full group-hover:translate-y-0 transition-transform duration-300 z-0" />
+                </Link>
+                <a href="https://www.instagram.com/emperador_barbershop/" target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto px-8 py-4 border border-zinc-400 bg-black/50 text-white font-black uppercase tracking-[0.2em] text-sm hover:border-amber-500 hover:text-amber-500 transition-all flex items-center justify-center gap-3 rounded-xl group backdrop-blur-sm">
+                  <Instagram size={20} className="group-hover:scale-110 transition-transform" /> Ver Trabajos
+                </a>
+              </motion.div>
+            </motion.div>
+          ) : (
+            /* RENDER PROMOCIONAL */
+            <motion.div initial="hidden" animate="visible" variants={staggerContainer} className="bg-black/50 backdrop-blur-xl p-10 md:p-20 rounded-[3rem] border border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] inline-flex flex-col items-center pointer-events-auto self-center">
+              <motion.div variants={popUp} className="mb-6 inline-flex items-center gap-2 bg-zinc-900 border border-zinc-700 px-6 py-2 rounded-full text-[10px] md:text-xs font-black text-white uppercase tracking-[0.4em] shadow-xl">
+                {currentSlideData.tag || 'EMPERADOR STORE'}
+              </motion.div>
+              
+              <div className="overflow-hidden mb-2">
+                <motion.h2 variants={textReveal} className="text-5xl md:text-8xl font-serif font-black text-white leading-[0.9] tracking-tighter uppercase drop-shadow-2xl">
+                  {currentSlideData.title}
+                </motion.h2>
+              </div>
+              <div className="overflow-hidden mb-12">
+                <motion.h3 variants={textReveal} className="text-2xl md:text-4xl font-serif font-bold text-amber-500 leading-tight tracking-widest uppercase drop-shadow-lg">
+                  {currentSlideData.subtitle}
+                </motion.h3>
+              </div>
+
+              <motion.div variants={popUp}>
+                <Link href="/tienda" className="px-12 py-5 bg-white text-black font-black uppercase tracking-[0.2em] text-sm hover:bg-amber-500 transition-colors shadow-2xl flex items-center justify-center gap-3 rounded-xl hover:scale-105 duration-300">
+                  Ir a la Tienda <ShoppingCart size={20} />
+                </Link>
+              </motion.div>
+            </motion.div>
+          )}
+        </div>
+
         {/* Indicadores de Paginación */}
         <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex gap-4 z-50">
           {[...Array(totalSlides)].map((_, idx) => (
-            <button key={idx} onClick={() => setCurrentHeroSlide(idx)} className={`h-2 rounded-full transition-all duration-500 ${currentHeroSlide === idx ? 'bg-amber-500 w-12 shadow-[0_0_10px_rgba(217,119,6,0.8)]' : 'bg-white/50 hover:bg-amber-500/50 w-3 backdrop-blur-md'}`} aria-label={`Ir al slide ${idx + 1}`} />
+            <button key={idx} onClick={() => setCurrentHeroSlide(idx)} className={`h-2 rounded-full transition-all duration-500 ${currentHeroSlide === idx ? 'bg-amber-500 w-12 shadow-[0_0_10px_rgba(217,119,6,0.8)]' : 'bg-white/50 hover:bg-amber-500 w-4 cursor-pointer'}`} aria-label={`Ir al slide ${idx + 1}`} />
           ))}
         </div>
       </section>
@@ -513,32 +505,32 @@ export default function UltimateEmperadorLanding() {
       </div>
 
       {/* ========================================================================= */}
-      {/* 2. LA EXPERIENCIA (VIDEO: presentacion.mp4 - Formato Vertical como Reel) */}
+      {/* 2. LA EXPERIENCIA (VIDEO presentacion.mp4 EN FONDO Y EN CAJA VERTICAL) */}
       {/* ========================================================================= */}
-      <section className="py-24 md:py-32 relative border-b border-zinc-900 overflow-hidden">
-        {/* Fondo: El mismo video pero desenfocado y oscuro */}
+      <section className="py-24 md:py-32 relative border-b border-zinc-900 overflow-hidden min-h-screen flex items-center">
+        {/* FONDO: Video vivo, difuminado levemente para que la caja principal destaque */}
         <div className="absolute inset-0 z-0">
-          <video src="/presentacion.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover opacity-30 blur-2xl scale-110" />
-          <div className="absolute inset-0 bg-[#050505]/70" />
+          <video src="/presentacion.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover blur-xl opacity-60 scale-110" />
         </div>
         
-        <div className="max-w-[1400px] mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center relative z-10">
-           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={staggerContainer}>
+        <div className="max-w-[1400px] w-full mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center relative z-10">
+           {/* TEXTO CON PANEL DIFUMINADO */}
+           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={staggerContainer} className="bg-black/60 backdrop-blur-xl p-10 md:p-12 rounded-[2rem] border border-white/10 shadow-2xl">
               <motion.h2 variants={fadeUp} className="text-amber-500 font-black text-sm uppercase tracking-[0.4em] mb-4">La Experiencia</motion.h2>
-              <motion.h3 variants={fadeUp} className="text-4xl md:text-6xl font-serif font-black text-white uppercase tracking-tighter leading-[0.9] mb-6">
-                MÁS QUE UN CORTE,<br/> <span className="text-zinc-500">UN RITUAL.</span>
+              <motion.h3 variants={fadeUp} className="text-5xl md:text-7xl font-serif font-black text-white uppercase tracking-tighter leading-[0.9] mb-6">
+                MÁS QUE UN CORTE,<br/> <span className="text-zinc-400">UN RITUAL.</span>
               </motion.h3>
-              <motion.p variants={fadeUp} className="text-zinc-300 text-lg leading-relaxed mb-8 max-w-lg">
+              <motion.p variants={fadeUp} className="text-zinc-200 text-lg leading-relaxed">
                 Nuestra administradora te cuenta por qué Emperador Barbershop ha redefinido el estándar de grooming masculino en Curicó. Atención premium, instalaciones de primer nivel y un resultado impecable garantizado.
               </motion.p>
            </motion.div>
            
-           {/* Recuadro vertical para el video de presentación */}
+           {/* RECUADRO VERTICAL GIGANTE (VIDEO PRINCIPAL) */}
            <motion.div initial={{ opacity: 0, y: 50 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 1 }} className="flex justify-center lg:justify-end">
               <DistributedVideo 
                  src="/presentacion.mp4" 
                  onUnmute={handleGlobalReelUnmute} 
-                 className="w-[300px] md:w-[360px] h-[550px] md:h-[650px] rounded-[2rem] shadow-[0_0_50px_rgba(0,0,0,0.6)] border border-white/10" 
+                 className="w-[340px] md:w-[420px] h-[600px] md:h-[750px] rounded-[2.5rem] shadow-[0_0_60px_rgba(0,0,0,0.8)] border-[6px] border-zinc-900" 
               />
            </motion.div>
         </div>
@@ -547,7 +539,7 @@ export default function UltimateEmperadorLanding() {
       {/* ========================================================================= */}
       {/* 3. EQUIPO DE TRABAJO (TEAM EMPERADOR) */}
       {/* ========================================================================= */}
-      <section id="squad" className="py-24 md:py-32 bg-zinc-950 relative overflow-hidden border-b border-zinc-900">
+      <section id="squad" className="py-24 md:py-32 bg-[#050505] relative overflow-hidden border-b border-zinc-900">
         <div className="max-w-[1400px] mx-auto px-6 relative z-10">
           <div className="text-center mb-16 md:mb-24">
             <h2 className="text-amber-500 font-black text-sm uppercase tracking-[0.4em] mb-4">Conoce a los Maestros</h2>
@@ -578,27 +570,33 @@ export default function UltimateEmperadorLanding() {
       </section>
 
       {/* ========================================================================= */}
-      {/* 4. SERVICIOS DESTACADOS (VIDEO: cortes.mp4) */}
+      {/* 4. SERVICIOS DESTACADOS (VIDEO cortes.mp4 EN FONDO Y EN CAJA HORIZONTAL) */}
       {/* ========================================================================= */}
-      <section id="servicios" className="py-24 md:py-32 bg-[#050505] relative border-b border-zinc-900">
+      <section id="servicios" className="py-24 md:py-32 relative border-b border-zinc-900 overflow-hidden">
+        {/* FONDO: cortes.mp4 vivo y brillante */}
+        <div className="absolute inset-0 z-0">
+          <video src="/cortes.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover blur-lg opacity-40 scale-105" />
+        </div>
+
         <div className="max-w-[1400px] mx-auto px-6 relative z-10">
           <div className="flex flex-col lg:flex-row justify-between items-end mb-16 md:mb-24 gap-12">
-             <div className="flex-1">
+             <div className="flex-1 bg-black/60 backdrop-blur-xl p-8 md:p-12 rounded-[2rem] border border-white/10 shadow-2xl">
                <motion.h2 initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} className="text-amber-500 font-black text-sm uppercase tracking-[0.4em] mb-4">Lo Más Pedido</motion.h2>
                <motion.h3 initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} className="text-5xl md:text-9xl font-serif font-black text-white uppercase tracking-tighter leading-none mb-6">SERVICIOS.</motion.h3>
-               <motion.p initial={{ opacity: 0, x: 20 }} whileInView={{ opacity: 1, x: 0 }} className="text-zinc-500 font-bold uppercase tracking-widest text-xs border-l-2 border-amber-500 pl-6 max-w-sm">
+               <motion.p initial={{ opacity: 0, x: 20 }} whileInView={{ opacity: 1, x: 0 }} className="text-zinc-200 font-bold uppercase tracking-widest text-xs border-l-2 border-amber-500 pl-6 max-w-sm">
                  Técnicas de vanguardia y productos premium para garantizar un resultado de nivel imperial.
                </motion.p>
              </div>
              
-             <motion.div initial={{ opacity: 0, scale: 0.9 }} whileInView={{ opacity: 1, scale: 1 }} className="w-full lg:w-[400px] h-[300px] shrink-0">
-               <DistributedVideo src="/cortes.mp4" onUnmute={handleGlobalReelUnmute} className="w-full h-full rounded-[2rem] shadow-xl border border-zinc-800" />
+             {/* RECUADRO HORIZONTAL (VIDEO PRINCIPAL SERVICIOS) */}
+             <motion.div initial={{ opacity: 0, scale: 0.9 }} whileInView={{ opacity: 1, scale: 1 }} className="w-full lg:w-[500px] h-[300px] shrink-0">
+               <DistributedVideo src="/cortes.mp4" onUnmute={handleGlobalReelUnmute} className="w-full h-full rounded-[2rem] shadow-[0_0_50px_rgba(0,0,0,0.8)] border-[4px] border-zinc-800" />
              </motion.div>
           </div>
           
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-50px" }} variants={staggerContainer} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
              {services.map((s, i) => (
-               <motion.div key={s.id || i} variants={popUp} whileHover={{ y: -10, scale: 1.02 }} className="group p-8 bg-zinc-900/40 border border-zinc-800 rounded-[2rem] hover:bg-zinc-900 hover:border-amber-500 transition-all duration-300 flex flex-col justify-between shadow-lg relative overflow-hidden">
+               <motion.div key={s.id || i} variants={popUp} whileHover={{ y: -10, scale: 1.02 }} className="group p-8 bg-zinc-950/80 backdrop-blur-md border border-zinc-800 rounded-[2rem] hover:bg-zinc-900 hover:border-amber-500 transition-all duration-300 flex flex-col justify-between shadow-2xl relative overflow-hidden">
                   <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
 
                   <div className="relative z-10">
@@ -606,12 +604,12 @@ export default function UltimateEmperadorLanding() {
                       <DynamicIcon name={s.iconName || "Scissors"} />
                     </div>
                     <h4 className="text-xl font-black text-white uppercase mb-3 leading-tight group-hover:text-amber-500 transition-colors line-clamp-2">{s.name}</h4>
-                    <p className="text-zinc-500 font-medium mb-8 text-sm leading-relaxed line-clamp-3">{s.desc}</p>
+                    <p className="text-zinc-400 font-medium mb-8 text-sm leading-relaxed line-clamp-3">{s.desc}</p>
                   </div>
                   <div className="relative z-10">
                     <div className="flex justify-between items-end pt-6 border-t border-zinc-800 mb-6 group-hover:border-amber-500/30 transition-colors">
                       <div>
-                        <span className="block text-[10px] text-zinc-600 font-black uppercase tracking-widest mb-1">{s.time}</span>
+                        <span className="block text-[10px] text-zinc-500 font-black uppercase tracking-widest mb-1">{s.time}</span>
                         <span className="text-3xl font-black text-amber-500 tracking-tighter">{formatPrice(s.price)}</span>
                       </div>
                     </div>
@@ -623,8 +621,8 @@ export default function UltimateEmperadorLanding() {
              ))}
           </motion.div>
           
-          <div className="text-center mt-16">
-            <Link href="/servicios" className="inline-flex items-center gap-2 text-amber-500 hover:text-white font-black uppercase tracking-[0.2em] text-sm border-b border-amber-500 hover:border-white pb-1 transition-colors">
+          <div className="text-center mt-16 bg-black/60 p-4 rounded-[2rem] inline-block mx-auto backdrop-blur-md border border-white/10">
+            <Link href="/servicios" className="inline-flex items-center gap-2 text-amber-500 hover:text-white font-black uppercase tracking-[0.2em] text-sm px-6 py-2 transition-colors">
               Ver Menú Completo <ChevronRight size={16} />
             </Link>
           </div>
@@ -632,41 +630,42 @@ export default function UltimateEmperadorLanding() {
       </section>
 
       {/* ========================================================================= */}
-      {/* 5. VIP ROOM (VIDEO: mesadepool.mp4) */}
+      {/* 5. VIP ROOM (VIDEO mesadepool.mp4 EN FONDO Y EN CAJA GIGANTE) */}
       {/* ========================================================================= */}
-      <section id="flow" className="py-24 md:py-32 relative bg-zinc-950 border-b border-zinc-900">
+      <section id="flow" className="py-24 md:py-32 relative border-b border-zinc-900 overflow-hidden">
+        {/* FONDO: mesadepool.mp4 */}
+        <div className="absolute inset-0 z-0">
+          <video src="/mesadepool.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover blur-lg opacity-40 scale-105" />
+        </div>
+
         <div className="max-w-[1400px] mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-16 md:gap-20 items-center relative z-10">
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-100px" }} variants={staggerContainer}>
+          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-100px" }} variants={staggerContainer} className="bg-black/60 backdrop-blur-xl p-8 md:p-12 rounded-[2rem] border border-white/10 shadow-2xl">
             <motion.h2 variants={fadeUp} className="text-amber-500 font-black text-sm uppercase tracking-[0.4em] mb-4">El Club Privado</motion.h2>
             <motion.h3 variants={fadeUp} className="text-5xl md:text-8xl font-serif font-black text-white uppercase tracking-tighter leading-[0.9] mb-8">
-              EL VIP ES <br /> <span className="text-transparent bg-clip-text bg-gradient-to-b from-zinc-500 to-zinc-800">PARA TODOS.</span>
+              EL VIP ES <br /> <span className="text-transparent bg-clip-text bg-gradient-to-b from-zinc-400 to-zinc-600">PARA TODOS.</span>
             </motion.h3>
-            <motion.p variants={fadeUp} className="text-zinc-400 text-lg md:text-xl font-medium leading-relaxed mb-12 max-w-lg">
+            <motion.p variants={fadeUp} className="text-zinc-200 text-lg md:text-xl font-medium leading-relaxed mb-12 max-w-lg">
               La espera aburrida es del pasado. Hemos transformado nuestro salón en un santuario. Llega temprano a tu cita, es un privilegio.
             </motion.p>
             <motion.div variants={fadeUp} className="space-y-6">
-              <div className="flex items-center gap-6 p-6 bg-zinc-900/50 border border-zinc-800/50 rounded-2xl hover:border-amber-500/50 transition-colors group shadow-lg">
+              <div className="flex items-center gap-6 p-6 bg-zinc-900/80 border border-zinc-800 rounded-2xl hover:border-amber-500/50 transition-colors group shadow-lg">
                 <div className="w-16 h-16 bg-black rounded-xl flex items-center justify-center text-amber-500 shrink-0 group-hover:scale-110 transition-transform"><Gamepad2 size={32} /></div>
-                <div><h4 className="text-white font-black text-xl uppercase tracking-tight">PlayStation 5 Libre</h4><p className="text-zinc-500 text-sm font-medium mt-1">Últimos títulos. Juega mientras esperas.</p></div>
+                <div><h4 className="text-white font-black text-xl uppercase tracking-tight">PlayStation 5 Libre</h4><p className="text-zinc-400 text-sm font-medium mt-1">Últimos títulos. Juega mientras esperas.</p></div>
               </div>
-              <div className="flex items-center gap-6 p-6 bg-zinc-900/50 border border-zinc-800/50 rounded-2xl hover:border-amber-500/50 transition-colors group shadow-lg">
+              <div className="flex items-center gap-6 p-6 bg-zinc-900/80 border border-zinc-800 rounded-2xl hover:border-amber-500/50 transition-colors group shadow-lg">
                 <div className="w-16 h-16 bg-black rounded-xl flex items-center justify-center text-amber-500 shrink-0 group-hover:scale-110 transition-transform"><Crown size={32} /></div>
-                <div><h4 className="text-white font-black text-xl uppercase tracking-tight">Mesa de Pool Premium</h4><p className="text-zinc-500 text-sm font-medium mt-1">Desafía a tus panas. 100% gratuita.</p></div>
+                <div><h4 className="text-white font-black text-xl uppercase tracking-tight">Mesa de Pool Premium</h4><p className="text-zinc-400 text-sm font-medium mt-1">Desafía a tus panas. 100% gratuita.</p></div>
               </div>
             </motion.div>
           </motion.div>
           
-          <motion.div initial={{ opacity: 0, x: 50 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 1 }} className="relative h-[500px] md:h-[700px] w-full group">
-            <div className="absolute inset-0 bg-amber-500 translate-x-4 translate-y-4 rounded-[3rem] opacity-20 group-hover:translate-x-6 group-hover:translate-y-6 transition-transform duration-500" />
-            <div className="relative h-full w-full rounded-[3rem] overflow-hidden border border-zinc-800 shadow-2xl bg-zinc-900">
-               {/* FIX: Video automático de fondo para la sección VIP sin opacidades negras que lo oculten */}
-               <DistributedVideo 
-                 src="/mesadepool.mp4" 
-                 onUnmute={handleGlobalReelUnmute} 
-                 className="w-full h-full"
-               />
-               <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-transparent to-transparent pointer-events-none" />
-            </div>
+          {/* CAJA DE VIDEO GIGANTE (VIP) */}
+          <motion.div initial={{ opacity: 0, x: 50 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 1 }} className="relative h-[450px] md:h-[700px] w-full">
+             <DistributedVideo 
+               src="/mesadepool.mp4" 
+               onUnmute={handleGlobalReelUnmute} 
+               className="w-full h-full rounded-[3rem] shadow-[0_0_60px_rgba(0,0,0,0.8)] border-[6px] border-zinc-900"
+             />
           </motion.div>
         </div>
       </section>
@@ -674,56 +673,64 @@ export default function UltimateEmperadorLanding() {
       {/* ========================================================================= */}
       {/* 6. EL SALÓN (VIDEO: barberia.mp4) */}
       {/* ========================================================================= */}
-      <section className="py-24 md:py-32 bg-[#050505] relative border-b border-zinc-900">
-        <div className="max-w-[1400px] mx-auto px-6 text-center mb-16 relative z-10">
-           <h2 className="text-amber-500 font-black text-sm uppercase tracking-[0.4em] mb-4">Instalaciones Premium</h2>
-           <h3 className="text-4xl md:text-7xl font-serif font-black text-white uppercase tracking-tighter leading-none">NUESTRO SALÓN.</h3>
+      <section className="py-24 md:py-32 relative border-b border-zinc-900 overflow-hidden">
+        {/* FONDO: barberia.mp4 */}
+        <div className="absolute inset-0 z-0">
+          <video src="/barberia.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover blur-lg opacity-40 scale-105" />
         </div>
+        
+        <div className="max-w-[1400px] mx-auto px-6 text-center mb-16 relative z-10">
+           <div className="bg-black/60 backdrop-blur-md p-8 md:p-12 rounded-[2rem] border border-white/10 shadow-2xl inline-block">
+             <h2 className="text-amber-500 font-black text-sm uppercase tracking-[0.4em] mb-4">Instalaciones Premium</h2>
+             <h3 className="text-4xl md:text-7xl font-serif font-black text-white uppercase tracking-tighter leading-none">NUESTRO SALÓN.</h3>
+           </div>
+        </div>
+        
+        {/* CAJA HORIZONTAL GIGANTE PARA SALON */}
         <div className="max-w-[1200px] mx-auto px-6 relative z-10">
            <DistributedVideo 
               src="/barberia.mp4" 
               onUnmute={handleGlobalReelUnmute} 
-              className="w-full h-[300px] md:h-[600px] rounded-[2rem] shadow-2xl border border-zinc-800" 
+              className="w-full h-[350px] md:h-[650px] rounded-[3rem] shadow-[0_0_60px_rgba(0,0,0,0.8)] border-[4px] border-zinc-800" 
            />
         </div>
       </section>
 
       {/* ========================================================================= */}
-      {/* 7. INSTAGRAM (ENLACE FORZADO AL PERFIL REAL) */}
+      {/* 7. INSTAGRAM (ENLACE DIRECTO Y EXPLICITO AL PERFIL) */}
       {/* ========================================================================= */}
-      <section id="instagram" className="py-24 md:py-32 bg-zinc-950 relative overflow-hidden border-b border-zinc-900">
-         {/* Fondo estilo desenfocado */}
-         <div className="absolute inset-0 opacity-30 pointer-events-none">
+      <section id="instagram" className="py-24 md:py-32 bg-[#0a0a0a] relative overflow-hidden border-b border-zinc-900 flex justify-center">
+         {/* Fondo decorativo oscuro */}
+         <div className="absolute inset-0 opacity-20 pointer-events-none">
            <Image src="https://images.unsplash.com/photo-1593702275687-f8b402bf1fb5?q=80&w=2000&auto=format&fit=crop" fill className="object-cover blur-3xl scale-110" alt="Insta Background" unoptimized />
          </div>
          
-         <div className="max-w-[450px] mx-auto px-4 md:px-0 relative z-10">
+         <div className="w-full max-w-[450px] px-4 relative z-10">
             
-            {/* Cabecera oscura exterior - ENLACE DIRECTO AL PERFIL */}
-            <a href="https://www.instagram.com/emperador_barbershop/" target="_blank" rel="noopener noreferrer" className="flex justify-between items-center mb-4 text-white font-bold text-sm px-2 drop-shadow-md group">
+            {/* CABECERA EXTERIOR (Abrir App) */}
+            <a href="https://www.instagram.com/emperador_barbershop/" target="_blank" rel="noopener noreferrer" className="flex justify-between items-center mb-4 text-white font-bold text-sm px-2 group cursor-pointer">
               <div className="flex items-center gap-2">
                 <div className="bg-gradient-to-tr from-[#fdf497] via-[#fd5949] to-[#d6249f] rounded-[0.4rem] p-0.5 group-hover:scale-110 transition-transform">
                   <Instagram size={18} className="text-white" />
                 </div>
                 <span className="tracking-wide group-hover:text-amber-500 transition-colors">@emperador_barbershop</span>
               </div>
-              <span className="text-[10px] md:text-xs uppercase font-black tracking-widest text-zinc-300 group-hover:text-white transition-colors">
+              <span className="text-[10px] md:text-xs uppercase font-black tracking-widest text-zinc-400 group-hover:text-white transition-colors">
                 ABRIR APP ↗
               </span>
             </a>
 
-            {/* WHITE CARD CLON EXACTO - TODA LA TARJETA ES UN ENLACE */}
-            <div className="bg-white rounded-[1.5rem] overflow-hidden shadow-2xl hover:shadow-[0_0_40px_rgba(214,36,159,0.2)] transition-shadow duration-500">
+            {/* TARJETA BLANCA (Diseño IDÉNTICO a tu captura) */}
+            <div className="bg-white rounded-[1.5rem] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] hover:shadow-[0_20px_50px_rgba(214,36,159,0.3)] transition-shadow duration-500 cursor-pointer">
                
-               {/* Cabecera de la tarjeta */}
+               {/* Click principal lleva al perfil */}
                <a href="https://www.instagram.com/emperador_barbershop/" target="_blank" rel="noopener noreferrer" className="block p-5 md:p-6 relative group">
-                  {/* Icono Insta flotante derecha */}
                   <div className="absolute top-5 right-5 group-hover:scale-110 transition-transform">
                      <Instagram size={28} className="text-[#d6249f]" />
                   </div>
 
-                  {/* Perfil & Estadísticas */}
                   <div className="flex items-center gap-4">
+                     {/* Borde Instagram en el Logo */}
                      <div className="shrink-0 w-[70px] h-[70px] md:w-[84px] md:h-[84px] rounded-full bg-gradient-to-tr from-[#fdf497] via-[#fd5949] to-[#d6249f] p-[3px] shadow-sm group-hover:scale-105 transition-transform">
                         <div className="w-full h-full bg-white rounded-full p-[2px]">
                            <div className="w-full h-full relative rounded-full overflow-hidden border border-gray-100 bg-black flex items-center justify-center">
@@ -741,9 +748,9 @@ export default function UltimateEmperadorLanding() {
                   </div>
                </a>
 
-               {/* Grid de Fotos (Todos los enlaces forzados al perfil) */}
+               {/* GRID DE FOTOS EXACTO (Se usan fotos estáticas y un render puro <Image> para garantizar que NO se vean blancas) */}
                <div className="grid grid-cols-3 gap-0.5 bg-gray-200">
-                  {reels.slice(0, 6).map((post) => (
+                  {reels.map((post) => (
                     <a 
                       key={post.id} 
                       href="https://www.instagram.com/emperador_barbershop/" 
@@ -751,14 +758,15 @@ export default function UltimateEmperadorLanding() {
                       rel="noopener noreferrer"
                       className="relative aspect-square bg-white overflow-hidden group block"
                     >
-                       <MediaRenderer 
-                         type={post.media_type || (post.type === 'reel' ? 'video' : 'image')} 
-                         url={post.media_url} 
+                       <Image 
+                         src={post.media_url} 
                          alt="Insta Post" 
-                         className="group-hover:scale-105 transition-transform duration-500" 
+                         fill
+                         className="object-cover group-hover:scale-105 transition-transform duration-500" 
+                         unoptimized
                        />
                        <div className="absolute top-2 right-2 text-white drop-shadow-md">
-                          {post.type === 'reel' || post.media_type === 'video' ? <Clapperboard size={14} fill="currentColor" /> : null}
+                          {post.type === 'reel' ? <Clapperboard size={14} fill="currentColor" /> : null}
                        </div>
                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 backdrop-blur-sm">
                           <div className="flex items-center gap-1 text-white font-bold text-xs"><Heart fill="currentColor" size={12} /> {post.likes}</div>
