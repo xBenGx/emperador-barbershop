@@ -67,6 +67,12 @@ const formatMoney = (amount: number | string) => {
   return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(numericAmount);
 };
 
+// FIX: La función que faltaba y hacía que Vercel fallara. ¡No la borres!
+const isValidUUID = (uuid: string | undefined | null) => {
+  if (!uuid) return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid);
+};
+
 // ============================================================================
 // COMPONENTE PRINCIPAL DEL DASHBOARD
 // ============================================================================
@@ -434,8 +440,7 @@ function AdminDashboardContent() {
           email: formData.get("email"), 
           points: parseInt(formData.get("points") as string) || 0 
         };
-        // Actualiza si existe, o crea si es nuevo
-        if (editingItem && editingItem.id) {
+        if (editingItem && isValidUUID(editingItem.id)) {
           await supabase.from('clients').update(data).eq('id', editingItem.id);
         } else {
           await supabase.from('clients').insert([data]);
@@ -990,7 +995,7 @@ function AdminDashboardContent() {
                   </div>
                 )}
 
-                {/* --- FORMULARIO: CLIENTE (AÑADIDO Y CORREGIDO) --- */}
+                {/* --- FORMULARIO: CLIENTE --- */}
                 {modalType === "CLIENT" && (
                   <>
                     <InputField label="Nombre Completo" name="name" defaultValue={editingItem?.name || ""} required />
@@ -1031,7 +1036,6 @@ function AdminDashboardContent() {
                     <div className="grid grid-cols-2 gap-5"><InputField label="Especialidad (Rol)" name="role" defaultValue={editingItem?.role || ""} required /><InputField label="Etiqueta Visual" name="tag" defaultValue={editingItem?.tag || ""} required /></div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                      {/* FIX: Se quitó el disabled para poder editar el correo en todo momento */}
                       <InputField label="Email (Acceso)" name="email" type="email" defaultValue={editingItem?.email || ""} required={true} />
                       
                       <div className="space-y-2">
