@@ -15,7 +15,7 @@ import {
   Package, Boxes, BadgePercent, BarChart3, ShoppingBag,
   Disc, Music, UploadCloud, Volume2, VolumeX, Volume1,
   MessageCircle, CalendarDays, KeyRound, Smartphone, ShieldAlert, XCircle,
-  LogOut, RefreshCw, Lock, Video, Star, HelpCircle, Instagram, Heart, Link2, RotateCcw
+  LogOut, RefreshCw, Lock, Video, Star, HelpCircle, Instagram, Heart, Link2, RotateCcw, Mail
 } from "lucide-react";
 
 import * as LucideIcons from "lucide-react";
@@ -61,7 +61,6 @@ const DynamicIcon = ({ name, size = 24, className = "" }: { name: string, size?:
   return <IconComponent size={size} className={className} />;
 };
 
-// Función global de formateo de moneda a Peso Chileno
 const formatMoney = (amount: number | string) => {
   const numericAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
   if (isNaN(numericAmount)) return '$0';
@@ -296,7 +295,7 @@ function AdminDashboardContent() {
     setModalType(type);
   };
 
-  // FIX: Borrado forzado para usuarios fantasmas
+  // FIX: Borrado Forzado para todos los casos (Incluso usuarios fantasmas)
   const handleDelete = async (table: string, id: string) => {
     if (!window.confirm("¿Confirmas la eliminación permanente de este registro?")) return;
     try {
@@ -307,13 +306,12 @@ function AdminDashboardContent() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id }),
           });
-          // No lanzamos error duro aquí para permitir que siga el código y lo borre de la tabla visualmente
         } catch (e) { 
-          console.warn("Auth deletion failed, forcing local table deletion..."); 
+          console.warn("Fallo borrado de Auth, forzando limpieza local..."); 
         }
       }
 
-      // Forzamos el borrado directo en la base de datos pública
+      // Forzamos el borrado directo en la base de datos pública independientemente del Auth
       await supabase.from(table).delete().eq('id', id);
       
       verifyAdminAndFetchData(); 
@@ -393,9 +391,21 @@ function AdminDashboardContent() {
       }
 
       if (modalType === "CLIENT") {
-        const data = { name: formData.get("name"), phone: formData.get("phone"), email: formData.get("email"), points: parseInt(formData.get("points") as string) || 0 };
-        if (editingItem && isValidUUID(editingItem.id)) await supabase.from('clients').update(data).eq('id', editingItem.id);
-        else await supabase.from('clients').insert([data]);
+        const data = { 
+          name: formData.get("name"), 
+          phone: formData.get("phone"), 
+          email: formData.get("email"), 
+          points: parseInt(formData.get("points") as string) || 0 
+        };
+        // Si tiene ID y es un UUID válido (se registró vía web), lo actualizamos
+        if (editingItem && isValidUUID(editingItem.id)) {
+          await supabase.from('clients').update(data).eq('id', editingItem.id);
+        } else {
+          // Si lo creamos manualmente desde el panel (sin UUID de Auth), insertamos uno nuevo.
+          // NOTA: Para que funcione la creación manual, la tabla 'clients' debe permitir IDs generados (gen_random_uuid()) 
+          // O no exigir que estén amarrados a auth.users si se crean manualmente.
+          await supabase.from('clients').insert([data]);
+        }
       }
 
       if (modalType === "CHAIR") {
@@ -680,7 +690,12 @@ function AdminDashboardContent() {
                   <tbody className="divide-y divide-zinc-800/50">
                     {clients.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()) || c.phone.includes(searchQuery)).map(c => (
                       <tr key={c.id} className="hover:bg-zinc-800/20 transition-colors group">
-                        <td className="px-8 py-5"><p className="font-black text-white text-base">{c.name}</p></td>
+                        <td className="px-8 py-5">
+                          <div className="flex flex-col">
+                            <span className="font-black text-white text-base">{c.name}</span>
+                            <span className="text-xs text-zinc-500 font-medium flex items-center gap-1 mt-1"><Mail size={12}/> {c.email || "Sin email registrado"}</span>
+                          </div>
+                        </td>
                         <td className="px-6 py-5"><p className="font-mono text-xs text-white flex items-center gap-2"><Smartphone size={14} className="text-zinc-500"/> {c.phone}</p></td>
                         <td className="px-6 py-5 text-center"><span className="bg-amber-500/10 border border-amber-500/30 text-amber-500 px-3 py-1.5 rounded-lg text-xs font-black shadow-sm">{c.points || 0} PTS</span></td>
                         <td className="px-8 py-5 text-right">
@@ -941,6 +956,21 @@ function AdminDashboardContent() {
                   </div>
                 )}
 
+                {/* --- FORMULARIO: CLIENTE (AÑADIDO Y CORREGIDO) --- */}
+                {modalType === "CLIENT" && (
+                  <>
+                    <InputField label="Nombre Completo" name="name" defaultValue={editingItem?.name || ""} required />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      <InputField label="Correo Electrónico" name="email" type="email" defaultValue={editingItem?.email || ""} required />
+                      <InputField label="Teléfono (WhatsApp)" name="phone" defaultValue={editingItem?.phone || ""} placeholder="+569..." required />
+                    </div>
+                    <div className="space-y-2">
+                      <InputField label="Puntos VIP Acumulados" name="points" type="number" defaultValue={editingItem?.points || 0} required />
+                      <p className="text-[10px] text-zinc-500 italic pl-2">Nota: 500pts = Plata, 1000pts = Oro, 2000pts = Emperador.</p>
+                    </div>
+                  </>
+                )}
+
                 {/* --- FORMULARIO: SERVICIO --- */}
                 {modalType === "SERVICE" && (
                   <>
@@ -967,6 +997,7 @@ function AdminDashboardContent() {
                     <div className="grid grid-cols-2 gap-5"><InputField label="Especialidad (Rol)" name="role" defaultValue={editingItem?.role || ""} required /><InputField label="Etiqueta Visual" name="tag" defaultValue={editingItem?.tag || ""} required /></div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      {/* FIX: Se quitó el disabled para poder editar el correo en todo momento */}
                       <InputField label="Email (Acceso)" name="email" type="email" defaultValue={editingItem?.email || ""} required={true} />
                       
                       <div className="space-y-2">
