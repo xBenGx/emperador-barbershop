@@ -3,16 +3,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { 
-  Disc, Volume2, VolumeX, Volume1, Music, 
+  Volume2, VolumeX, Volume1, Music, 
   Play, Pause, Square, SkipBack, SkipForward, ListMusic
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-// Sincronización con BD añadida
 import { createClient } from '@/utils/supabase/client';
 
-// ==========================================
-// LISTA DE REPRODUCCIÓN (Fallback)
-// ==========================================
 const DEFAULT_PLAYLIST = [
   { id: 1, title: "Emperador Vibe", src: "/vibe.mp3", duration: "3:45" },
   { id: 2, title: "Lofi Barber Chill", src: "/lofi.mp3", duration: "2:30" },
@@ -23,69 +19,47 @@ export default function AdvancedMusicPlayer() {
   const supabase = createClient();
   const pathname = usePathname();
 
-  // Referencias
   const audioRef = useRef<HTMLAudioElement>(null);
   const fadeInterval = useRef<NodeJS.Timeout | null>(null);
 
-  // Estados Base
   const [isPlaying, setIsPlaying] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [isPlaylistOpen, setIsPlaylistOpen] = useState(false);
   const [hasInteracted, setHasInteracted] = useState(false);
-  const [volume, setVolume] = useState(0.3); // 30% por defecto
+  const [volume, setVolume] = useState(0.3); 
   const [isMuted, setIsMuted] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   
-  // Estados del Reproductor
   const [playlist, setPlaylist] = useState(DEFAULT_PLAYLIST);
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
 
-  // 1. Inicialización: Carga LocalStorage y Supabase
   useEffect(() => {
     setIsMounted(true);
-    
-    // Recuperar preferencias locales de volumen
     const savedVolume = localStorage.getItem('emperador_volume');
     const savedMuted = localStorage.getItem('emperador_muted');
     if (savedVolume) setVolume(parseFloat(savedVolume));
     if (savedMuted === 'true') setIsMuted(true);
 
-    // Recuperar la música activa desde la base de datos
     const fetchMusicSettings = async () => {
       try {
-        const { data, error } = await supabase
-          .from('settings')
-          .select('value')
-          .eq('key', 'background_music')
-          .single();
-        
+        const { data, error } = await supabase.from('settings').select('value').eq('key', 'background_music').single();
         if (data && data.value && !error) {
-          // Si la BD devuelve una canción, la ponemos como la primera de la lista
           setPlaylist([{ id: 0, title: "Emperador Vibe (DB)", src: data.value, duration: "--:--" }, ...DEFAULT_PLAYLIST]);
         }
       } catch (err) {
         console.error("Usando playlist local por defecto.");
       }
     };
-
     fetchMusicSettings();
   }, [supabase]);
 
-  // 2. Aplicar volumen y mute al elemento de audio
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = isMuted ? 0 : volume;
-    }
+    if (audioRef.current) audioRef.current.volume = isMuted ? 0 : volume;
   }, [volume, isMuted, currentTrackIndex, playlist]);
 
-  // 3. Manejador de Autoplay Inteligente (Global en la página)
   useEffect(() => {
-    // Si estamos en la página de inicio, NO forzamos el autoplay aquí, 
-    // porque el app/page.tsx ya tiene su propio reproductor haciéndolo.
-    if (pathname === '/') return;
-
     const handleFirstInteraction = () => {
       if (!hasInteracted && audioRef.current && !isPlaying) {
         audioRef.current.volume = 0;
@@ -93,11 +67,8 @@ export default function AdvancedMusicPlayer() {
           setIsPlaying(true);
           setHasInteracted(true);
           fadeInAudio(isMuted ? 0 : volume);
-        }).catch(() => {
-          console.log("Autoplay bloqueado por el navegador.");
-        });
+        }).catch(() => console.log("Autoplay bloqueado."));
       }
-      
       document.removeEventListener('click', handleFirstInteraction);
       document.removeEventListener('scroll', handleFirstInteraction);
       document.removeEventListener('keydown', handleFirstInteraction);
@@ -112,16 +83,14 @@ export default function AdvancedMusicPlayer() {
       document.removeEventListener('scroll', handleFirstInteraction);
       document.removeEventListener('keydown', handleFirstInteraction);
     };
-  }, [hasInteracted, volume, isMuted, isPlaying, pathname]);
+  }, [hasInteracted, volume, isMuted, isPlaying]);
 
-  // Actualizar tiempo actual
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
-
     const updateTime = () => setCurrentTime(audio.currentTime);
     const updateDuration = () => setDuration(audio.duration);
-    const handleEnded = () => nextTrack(); // Pasar a la siguiente al terminar
+    const handleEnded = () => nextTrack();
 
     audio.addEventListener('timeupdate', updateTime);
     audio.addEventListener('loadedmetadata', updateDuration);
@@ -134,16 +103,11 @@ export default function AdvancedMusicPlayer() {
     };
   }, [currentTrackIndex]);
 
-  // ==========================================
-  // LÓGICA DE FADE IN / FADE OUT
-  // ==========================================
   const fadeInAudio = (targetVolume: number) => {
     if (!audioRef.current) return;
     if (fadeInterval.current) clearInterval(fadeInterval.current);
-    
     let vol = 0;
     audioRef.current.volume = vol;
-    
     fadeInterval.current = setInterval(() => {
       vol += 0.05;
       if (vol >= targetVolume) {
@@ -158,9 +122,7 @@ export default function AdvancedMusicPlayer() {
   const fadeOutAudioAndPause = () => {
     if (!audioRef.current) return;
     if (fadeInterval.current) clearInterval(fadeInterval.current);
-    
     let vol = audioRef.current.volume;
-    
     fadeInterval.current = setInterval(() => {
       vol -= 0.05;
       if (vol <= 0) {
@@ -176,12 +138,8 @@ export default function AdvancedMusicPlayer() {
     }, 50);
   };
 
-  // ==========================================
-  // CONTROLES DE USUARIO
-  // ==========================================
   const togglePlay = () => {
     if (!audioRef.current) return;
-
     if (isPlaying) {
       fadeOutAudioAndPause();
     } else {
@@ -197,7 +155,7 @@ export default function AdvancedMusicPlayer() {
     fadeOutAudioAndPause();
     setTimeout(() => {
         if(audioRef.current) audioRef.current.currentTime = 0;
-    }, 500); // Esperar a que termine el fadeout
+    }, 500); 
   };
 
   const nextTrack = () => {
@@ -266,9 +224,8 @@ export default function AdvancedMusicPlayer() {
       return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
   };
 
-  // EVITAR ERRORES DE HIDRATACIÓN Y SOLUCIONAR EL DOBLE REPRODUCTOR
   if (!isMounted) return null; 
-  if (pathname === '/') return null; // <--- LA SOLUCIÓN DEFINITIVA
+  // ELIMINADO: if (pathname === '/') return null; <- ESTO ERA EL ERROR
 
   const VolumeIcon = isMuted || volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
   const currentTrack = playlist[currentTrackIndex];
@@ -277,7 +234,6 @@ export default function AdvancedMusicPlayer() {
     <>
       <audio ref={audioRef} src={currentTrack.src} loop={false} preload="auto" />
 
-      {/* Contenedor Flotante Principal */}
       <motion.div
         initial={{ y: 100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -287,7 +243,7 @@ export default function AdvancedMusicPlayer() {
             setIsHovered(false);
             setIsPlaylistOpen(false);
         }}
-        className="fixed bottom-6 left-6 md:bottom-10 md:left-10 z-[100] flex flex-col-reverse items-start gap-2"
+        className="fixed bottom-6 left-6 md:bottom-10 md:left-10 z-[200] flex flex-col-reverse items-start gap-2"
       >
         <motion.div 
           layout
@@ -295,22 +251,17 @@ export default function AdvancedMusicPlayer() {
             isHovered ? 'pr-6' : 'pr-1'
           }`}
         >
-          {/* Botón Principal (Vinilo) */}
+          {/* BOTÓN CÍRCULO EXACTO COMO TU IMAGEN */}
           <button 
             onClick={togglePlay}
-            className="relative flex items-center justify-center w-14 h-14 bg-black rounded-full border border-zinc-800 shrink-0 group hover:border-amber-500 transition-colors m-1 z-10 focus:outline-none"
+            className="relative flex items-center justify-center w-14 h-14 bg-[#050505] rounded-full border-[2px] border-[#1a1a1a] shrink-0 group hover:border-amber-500/50 transition-colors m-1 z-10 focus:outline-none shadow-lg"
           >
-            <Disc 
-              size={28} 
-              className={`text-amber-500 transition-all ${isPlaying ? 'animate-[spin_4s_linear_infinite]' : 'opacity-60'}`} 
-            />
-            <div className="absolute w-2.5 h-2.5 bg-zinc-900 rounded-full border border-zinc-700"></div>
-            {isPlaying && (
-              <div className="absolute inset-0 bg-amber-500/10 rounded-full blur-md animate-pulse"></div>
-            )}
+            {/* Anillo Naranja */}
+            <div className={`absolute w-7 h-7 rounded-full border-[3px] border-amber-500 ${isPlaying ? 'animate-[spin_4s_linear_infinite]' : 'opacity-90'}`}></div>
+            {/* Centro Oscuro */}
+            <div className="absolute w-2.5 h-2.5 bg-[#1a1a1a] rounded-full z-20"></div>
           </button>
 
-          {/* Panel Expandible (Estilo Winamp/Retro) */}
           <AnimatePresence>
             {isHovered && (
               <motion.div
@@ -320,7 +271,6 @@ export default function AdvancedMusicPlayer() {
                 className="flex items-center gap-4 overflow-hidden whitespace-nowrap"
               >
                 
-                {/* Controles de Reproducción */}
                 <div className="flex items-center gap-1.5 bg-black/50 px-3 py-1.5 rounded-full border border-zinc-800">
                     <button onClick={prevTrack} className="text-zinc-400 hover:text-amber-500 transition-colors p-1"><SkipBack size={14} /></button>
                     <button onClick={stopPlayback} className="text-zinc-400 hover:text-amber-500 transition-colors p-1"><Square size={12} fill="currentColor" /></button>
@@ -330,10 +280,7 @@ export default function AdvancedMusicPlayer() {
                     <button onClick={nextTrack} className="text-zinc-400 hover:text-amber-500 transition-colors p-1"><SkipForward size={14} /></button>
                 </div>
 
-                {/* Pantalla LED / Info del Track */}
                 <div className="flex flex-col justify-center bg-[#050505] px-3 py-1 rounded-lg border border-zinc-800/80 min-w-[120px] relative overflow-hidden group/screen cursor-pointer" onClick={() => setIsPlaylistOpen(!isPlaylistOpen)}>
-                  
-                  {/* Decoración Retro */}
                   <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-amber-500/30 to-transparent"></div>
 
                   <div className="flex items-center justify-between gap-2 mb-0.5">
@@ -354,7 +301,6 @@ export default function AdvancedMusicPlayer() {
                     <ListMusic size={10} className="text-zinc-600 group-hover/screen:text-amber-500 transition-colors" />
                   </div>
                   
-                  {/* Barra de Progreso */}
                   <div className="flex items-center gap-2">
                       <span className="text-[8px] font-mono text-zinc-500">{formatTime(currentTime)}</span>
                       <input 
@@ -370,7 +316,6 @@ export default function AdvancedMusicPlayer() {
 
                 <div className="w-px h-8 bg-zinc-800 mx-1"></div>
 
-                {/* Controles de Volumen */}
                 <div className="flex items-center gap-2 group/volume bg-black/50 px-3 py-1.5 rounded-full border border-zinc-800">
                   <button onClick={toggleMute} className="text-zinc-400 hover:text-amber-500 transition-colors focus:outline-none p-1">
                     <VolumeIcon size={14} />
@@ -395,7 +340,6 @@ export default function AdvancedMusicPlayer() {
           </AnimatePresence>
         </motion.div>
 
-        {/* Playlist Desplegable (Estilo Winamp) */}
         <AnimatePresence>
             {isHovered && isPlaylistOpen && (
                 <motion.div 
@@ -433,7 +377,6 @@ export default function AdvancedMusicPlayer() {
                 </motion.div>
             )}
         </AnimatePresence>
-
       </motion.div>
     </>
   );
