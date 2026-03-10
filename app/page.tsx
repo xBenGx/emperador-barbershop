@@ -11,8 +11,7 @@ import {
   Minus, Plus, CheckCircle, ShieldCheck, 
   MessageSquare, Heart, MessageCircle, ExternalLink, 
   Lock, LayoutGrid, Clapperboard, Sparkles,
-  UserCircle, Briefcase, KeyRound, ShoppingCart, Disc, Volume2, VolumeX, Volume1, Music,
-  PlayCircle
+  UserCircle, Briefcase, KeyRound, ShoppingCart, Volume2, VolumeX
 } from "lucide-react";
 
 import { createClient } from "@/utils/supabase/client";
@@ -94,7 +93,6 @@ const DistributedVideo = ({ src, onUnmute, className }: { src: string, onUnmute:
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isMuted, setIsMuted] = useState(true);
 
-  // FIX APLICADO: Forzar políticas de autoplay para asegurar que mesadepool.mp4 inicie
   useEffect(() => {
     if (videoRef.current) {
       videoRef.current.defaultMuted = true;
@@ -128,7 +126,6 @@ const DistributedVideo = ({ src, onUnmute, className }: { src: string, onUnmute:
         preload="auto"
         className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105"
       />
-      {/* Botón flotante para el audio (Transparente cristal) */}
       <button 
         onClick={toggleMute}
         className="absolute bottom-4 right-4 z-50 w-12 h-12 flex items-center justify-center bg-black/60 hover:bg-amber-500 text-white hover:text-black border border-white/20 hover:border-amber-400 rounded-full backdrop-blur-md transition-all duration-300 shadow-[0_0_15px_rgba(0,0,0,0.5)] cursor-pointer pointer-events-auto group-hover:scale-110"
@@ -187,121 +184,9 @@ export default function UltimateEmperadorLanding() {
   const { scrollY } = useScroll();
   const yHero = useTransform(scrollY, [0, 1000], [0, 400]);
 
-  // ============================================================================
-  // REPRODUCTOR DE MÚSICA AVANZADO
-  // ============================================================================
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const fadeInterval = useRef<NodeJS.Timeout | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isMusicHovered, setIsMusicHovered] = useState(false);
-  const [hasInteracted, setHasInteracted] = useState(false);
-  const [volume, setVolume] = useState(0.3); 
-  const [isMuted, setIsMuted] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
-  const [musicSrc, setMusicSrc] = useState("/vibe.mp3");
-
-  useEffect(() => {
-    setIsMounted(true);
-    const savedVolume = localStorage.getItem('emperador_volume');
-    const savedMuted = localStorage.getItem('emperador_muted');
-    if (savedVolume) setVolume(parseFloat(savedVolume));
-    if (savedMuted === 'true') setIsMuted(true);
-  }, []);
-
-  useEffect(() => {
-    if (audioRef.current) audioRef.current.volume = isMuted ? 0 : volume;
-  }, [volume, isMuted]);
-
-  const fadeInAudio = (targetVolume: number) => {
-    if (!audioRef.current) return;
-    if (fadeInterval.current) clearInterval(fadeInterval.current);
-    let vol = 0;
-    audioRef.current.volume = vol;
-    fadeInterval.current = setInterval(() => {
-      vol += 0.05;
-      if (vol >= targetVolume) {
-        if (audioRef.current) audioRef.current.volume = targetVolume;
-        if (fadeInterval.current) clearInterval(fadeInterval.current);
-      } else {
-        if (audioRef.current) audioRef.current.volume = vol;
-      }
-    }, 100);
-  };
-
-  const fadeOutAudioAndPause = () => {
-    if (!audioRef.current) return;
-    if (fadeInterval.current) clearInterval(fadeInterval.current);
-    let vol = audioRef.current.volume;
-    fadeInterval.current = setInterval(() => {
-      vol -= 0.05;
-      if (vol <= 0) {
-        if (audioRef.current) {
-          audioRef.current.volume = 0;
-          audioRef.current.pause();
-        }
-        setIsPlaying(false);
-        if (fadeInterval.current) clearInterval(fadeInterval.current);
-      } else {
-        if (audioRef.current) audioRef.current.volume = vol;
-      }
-    }, 50);
-  };
-
-  useEffect(() => {
-    const handleInteraction = () => {
-      if (!hasInteracted && audioRef.current && !isPlaying) {
-        audioRef.current.volume = 0;
-        audioRef.current.play().then(() => {
-          setIsPlaying(true);
-          setHasInteracted(true);
-          fadeInAudio(isMuted ? 0 : volume);
-        }).catch(() => console.log("Autoplay bloqueado."));
-      }
-      document.removeEventListener('click', handleInteraction);
-      document.removeEventListener('scroll', handleInteraction);
-    };
-    document.addEventListener('click', handleInteraction);
-    document.addEventListener('scroll', handleInteraction, { once: true });
-    return () => {
-      document.removeEventListener('click', handleInteraction);
-      document.removeEventListener('scroll', handleInteraction);
-    };
-  }, [hasInteracted, volume, isMuted, isPlaying]);
-
-  const togglePlay = () => {
-    if (!audioRef.current) return;
-    if (isPlaying) {
-      fadeOutAudioAndPause();
-    } else {
-      audioRef.current.play();
-      fadeInAudio(isMuted ? 0 : volume);
-      setIsPlaying(true);
-    }
-    setHasInteracted(true);
-  };
-
-  const toggleMute = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const newMutedState = !isMuted;
-    setIsMuted(newMutedState);
-    localStorage.setItem('emperador_muted', newMutedState.toString());
-  };
-
-  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newVolume = parseFloat(e.target.value);
-    setVolume(newVolume);
-    if (newVolume > 0 && isMuted) {
-      setIsMuted(false);
-      localStorage.setItem('emperador_muted', 'false');
-    }
-    localStorage.setItem('emperador_volume', newVolume.toString());
-  };
-
-  // CONTROL INTELIGENTE DE AUDIO: Se llama cuando el usuario activa el audio en CUALQUIER video distribuido
+  // CONTROL DE AUDIO PARA VIDEOS EN BUCLE
   const handleGlobalReelUnmute = (activeVideo: HTMLVideoElement) => {
-    if (isPlaying) {
-      fadeOutAudioAndPause();
-    }
+    // Si tienes lógica para pausar la música global (del MusicPlayer global), podrías emitir un evento aquí.
     const allVideos = document.querySelectorAll('video');
     allVideos.forEach(vid => {
       if (vid !== activeVideo) {
@@ -321,9 +206,6 @@ export default function UltimateEmperadorLanding() {
   useEffect(() => {
     async function fetchAdminData() {
       try {
-        const { data: dbSettings } = await supabase.from('settings').select('*').eq('key', 'background_music').single();
-        if (dbSettings?.value) setMusicSrc(dbSettings.value);
-
         const { data: dbHero } = await supabase.from('HeroSlides').select('*').order('order_index', { ascending: true });
         if (dbHero?.length) {
           setHeroSlides(dbHero); 
@@ -350,55 +232,12 @@ export default function UltimateEmperadorLanding() {
     fetchAdminData();
   }, [supabase]);
 
-  const VolumeIcon = isMuted || volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
   const currentSlideData = heroSlides[currentHeroSlide];
 
   return (
     <main className="bg-[#050505] min-h-screen font-sans selection:bg-amber-500 selection:text-black overflow-x-hidden relative -mt-24 md:-mt-28">
       
-      <audio ref={audioRef} src={musicSrc} loop preload="auto" />
       <div className="fixed inset-0 z-0 pointer-events-none bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:32px_32px]"></div>
-      
-      {/* MÚSICA FLOTANTE */}
-      {isMounted && (
-        <motion.div
-          initial={{ y: 100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ type: "spring", stiffness: 100, damping: 20, delay: 1 }}
-          onMouseEnter={() => setIsMusicHovered(true)} onMouseLeave={() => setIsMusicHovered(false)}
-          className="fixed bottom-6 left-6 md:bottom-10 md:left-10 z-[100] flex items-center"
-        >
-          <motion.div layout className={`flex items-center bg-[#050505]/90 backdrop-blur-xl border border-zinc-800 rounded-full shadow-[0_10px_40px_rgba(0,0,0,0.8)] transition-all duration-500 overflow-hidden ${isMusicHovered ? 'pr-6' : 'pr-1'}`}>
-            <button onClick={togglePlay} className="relative flex items-center justify-center w-14 h-14 bg-black rounded-full border border-zinc-800 shrink-0 group hover:border-amber-500 transition-colors m-1 z-10 focus:outline-none">
-              <Disc size={28} className={`text-amber-500 transition-all ${isPlaying ? 'animate-[spin_4s_linear_infinite]' : 'opacity-60'}`} />
-              <div className="absolute w-2.5 h-2.5 bg-zinc-900 rounded-full border border-zinc-700"></div>
-              {isPlaying && <div className="absolute inset-0 bg-amber-500/10 rounded-full blur-md animate-pulse"></div>}
-            </button>
-
-            <AnimatePresence>
-              {isMusicHovered && (
-                <motion.div initial={{ width: 0, opacity: 0, paddingLeft: 0 }} animate={{ width: "auto", opacity: 1, paddingLeft: 12 }} exit={{ width: 0, opacity: 0, paddingLeft: 0 }} className="flex items-center gap-4 overflow-hidden whitespace-nowrap">
-                  <div className="flex flex-col justify-center">
-                    <div className="flex items-center gap-2">
-                      <Music size={12} className="text-amber-500" />
-                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white">Emperador Vibe</p>
-                    </div>
-                    <div className="flex items-end gap-1 h-3 mt-1.5 opacity-80">
-                      {[1, 2, 3, 4, 5].map((bar) => (
-                        <motion.div key={bar} animate={isPlaying ? { height: ["4px", "12px", "4px", "8px"] } : { height: "2px" }} transition={{ repeat: Infinity, duration: 0.8 + (bar * 0.1), ease: "easeInOut" }} className={`w-1 rounded-t-sm ${isPlaying ? 'bg-amber-500' : 'bg-zinc-700'}`} />
-                      ))}
-                      <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest ml-2">Vol. 1</span>
-                    </div>
-                  </div>
-                  <div className="w-px h-8 bg-zinc-800 mx-2"></div>
-                  <div className="flex items-center gap-2 group/volume">
-                    <button onClick={toggleMute} className="text-zinc-400 hover:text-amber-500 transition-colors focus:outline-none p-1"><VolumeIcon size={16} /></button>
-                    <input type="range" min="0" max="1" step="0.01" value={isMuted ? 0 : volume} onChange={handleVolumeChange} className="w-16 md:w-20 h-1 bg-zinc-800 rounded-full appearance-none cursor-pointer accent-amber-500 hover:bg-zinc-700 transition-colors [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-amber-500 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:hover:scale-125 transition-transform" />
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.div>
-        </motion.div>
-      )}
 
       {/* BOTÓN AGENDAR FLOTANTE */}
       <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 2, type: "spring", stiffness: 100 }} className="fixed bottom-6 right-6 md:bottom-10 md:right-10 z-[100]">
@@ -409,7 +248,7 @@ export default function UltimateEmperadorLanding() {
       </motion.div>
 
       {/* ========================================================================= */}
-      {/* 1. HERO GLOBAL DINÁMICO (FIX APLICADO: Cero Filtros, Texto Limpio sin cortes) */}
+      {/* 1. HERO GLOBAL DINÁMICO */}
       {/* ========================================================================= */}
       <section className="relative w-full h-[100dvh] flex flex-col justify-center overflow-hidden bg-[#050505]">
         <AnimatePresence>
@@ -417,7 +256,6 @@ export default function UltimateEmperadorLanding() {
             
             <div className="w-full h-full relative flex flex-col justify-center items-center">
               <motion.div style={{ y: yHero }} className="absolute inset-0 w-full h-full z-0">
-                {/* FIX APLICADO: IMAGEN SIN FILTROS OSCUROS y sin gradiente encima */}
                 <MediaRenderer 
                   type={currentSlideData?.media_type || 'image'} 
                   url={currentSlideData?.media_url || 'https://images.unsplash.com/photo-1599351431202-1e0f0137899a?q=80&w=2000&auto=format&fit=crop'} 
@@ -431,13 +269,11 @@ export default function UltimateEmperadorLanding() {
 
         <div className="relative z-10 w-full max-w-[1400px] mx-auto px-6 text-center pt-[150px] md:pt-[220px] pointer-events-none flex flex-col justify-center h-full">
           {currentSlideData?.type !== 'promo' ? (
-            /* FIX APLICADO: Eliminado fondo oscuro bg-black/30 del contenedor de texto */
             <motion.div initial="hidden" animate="visible" variants={staggerContainer} className="pointer-events-auto inline-block self-center">
               <motion.div variants={popUp} className="mb-6 inline-flex items-center gap-2 bg-amber-500 text-black px-6 py-2 rounded-full text-[10px] md:text-xs font-black uppercase tracking-[0.4em] shadow-[0_4px_15px_rgba(217,119,6,0.4)]">
                 <MapPin size={14} /> Peña 666, Piso 2 • Curicó
               </motion.div>
               
-              {/* FIX APLICADO: Eliminado overflow-hidden que cortaba el texto y modificado leading a leading-none con padding inferior */}
               <div className="mb-2">
                 <motion.h2 variants={textReveal} className="text-[12vw] lg:text-[10rem] font-serif font-black text-white leading-none tracking-tighter uppercase drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)] pb-4">
                   EMPERADOR
@@ -464,7 +300,6 @@ export default function UltimateEmperadorLanding() {
               </motion.div>
             </motion.div>
           ) : (
-            /* RENDER PROMOCIONAL */
             <motion.div initial="hidden" animate="visible" variants={staggerContainer} className="bg-black/50 backdrop-blur-xl p-10 md:p-20 rounded-[3rem] border border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] inline-flex flex-col items-center pointer-events-auto self-center">
               <motion.div variants={popUp} className="mb-6 inline-flex items-center gap-2 bg-zinc-900 border border-zinc-700 px-6 py-2 rounded-full text-[10px] md:text-xs font-black text-white uppercase tracking-[0.4em] shadow-xl">
                 {currentSlideData.tag || 'EMPERADOR STORE'}
@@ -490,7 +325,6 @@ export default function UltimateEmperadorLanding() {
           )}
         </div>
 
-        {/* Indicadores de Paginación */}
         <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex gap-4 z-50">
           {[...Array(totalSlides)].map((_, idx) => (
             <button key={idx} onClick={() => setCurrentHeroSlide(idx)} className={`h-2 rounded-full transition-all duration-500 ${currentHeroSlide === idx ? 'bg-amber-500 w-12 shadow-[0_0_10px_rgba(217,119,6,0.8)]' : 'bg-white/50 hover:bg-amber-500 w-4 cursor-pointer'}`} aria-label={`Ir al slide ${idx + 1}`} />
@@ -514,16 +348,14 @@ export default function UltimateEmperadorLanding() {
       </div>
 
       {/* ========================================================================= */}
-      {/* 2. LA EXPERIENCIA (VIDEO presentacion.mp4 EN FONDO Y EN CAJA VERTICAL) */}
+      {/* 2. LA EXPERIENCIA */}
       {/* ========================================================================= */}
       <section className="py-24 md:py-32 relative border-b border-zinc-900 overflow-hidden min-h-screen flex items-center">
-        {/* FONDO: Video vivo, difuminado levemente para que la caja principal destaque */}
         <div className="absolute inset-0 z-0">
           <video src="/presentacion.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover blur-xl opacity-60 scale-110" />
         </div>
         
         <div className="max-w-[1400px] w-full mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center relative z-10">
-           {/* TEXTO CON PANEL DIFUMINADO */}
            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={staggerContainer} className="bg-black/60 backdrop-blur-xl p-10 md:p-12 rounded-[2rem] border border-white/10 shadow-2xl">
               <motion.h2 variants={fadeUp} className="text-amber-500 font-black text-sm uppercase tracking-[0.4em] mb-4">La Experiencia</motion.h2>
               <motion.h3 variants={fadeUp} className="text-5xl md:text-7xl font-serif font-black text-white uppercase tracking-tighter leading-[0.9] mb-6">
@@ -534,7 +366,6 @@ export default function UltimateEmperadorLanding() {
               </motion.p>
            </motion.div>
            
-           {/* RECUADRO VERTICAL GIGANTE (VIDEO PRINCIPAL) */}
            <motion.div initial={{ opacity: 0, y: 50 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 1 }} className="flex justify-center lg:justify-end">
               <DistributedVideo 
                  src="/presentacion.mp4" 
@@ -546,7 +377,7 @@ export default function UltimateEmperadorLanding() {
       </section>
 
       {/* ========================================================================= */}
-      {/* 3. EQUIPO DE TRABAJO (TEAM EMPERADOR) */}
+      {/* 3. EQUIPO DE TRABAJO */}
       {/* ========================================================================= */}
       <section id="squad" className="py-24 md:py-32 bg-[#050505] relative overflow-hidden border-b border-zinc-900">
         <div className="max-w-[1400px] mx-auto px-6 relative z-10">
@@ -579,10 +410,9 @@ export default function UltimateEmperadorLanding() {
       </section>
 
       {/* ========================================================================= */}
-      {/* 4. SERVICIOS DESTACADOS (VIDEO cortes.mp4 EN FONDO Y EN CAJA HORIZONTAL) */}
+      {/* 4. SERVICIOS DESTACADOS */}
       {/* ========================================================================= */}
       <section id="servicios" className="py-24 md:py-32 relative border-b border-zinc-900 overflow-hidden">
-        {/* FONDO: cortes.mp4 vivo y brillante */}
         <div className="absolute inset-0 z-0">
           <video src="/cortes.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover blur-lg opacity-40 scale-105" />
         </div>
@@ -597,7 +427,6 @@ export default function UltimateEmperadorLanding() {
                </motion.p>
              </div>
              
-             {/* RECUADRO HORIZONTAL (VIDEO PRINCIPAL SERVICIOS) */}
              <motion.div initial={{ opacity: 0, scale: 0.9 }} whileInView={{ opacity: 1, scale: 1 }} className="w-full lg:w-[500px] h-[300px] shrink-0">
                <DistributedVideo src="/cortes.mp4" onUnmute={handleGlobalReelUnmute} className="w-full h-full rounded-[2rem] shadow-[0_0_50px_rgba(0,0,0,0.8)] border-[4px] border-zinc-800" />
              </motion.div>
@@ -639,10 +468,9 @@ export default function UltimateEmperadorLanding() {
       </section>
 
       {/* ========================================================================= */}
-      {/* 5. VIP ROOM (VIDEO mesadepool.mp4 EN FONDO Y EN CAJA GIGANTE) */}
+      {/* 5. VIP ROOM */}
       {/* ========================================================================= */}
       <section id="flow" className="py-24 md:py-32 relative border-b border-zinc-900 overflow-hidden">
-        {/* FONDO: mesadepool.mp4 */}
         <div className="absolute inset-0 z-0">
           <video src="/mesadepool.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover blur-lg opacity-40 scale-105" />
         </div>
@@ -668,7 +496,6 @@ export default function UltimateEmperadorLanding() {
             </motion.div>
           </motion.div>
           
-          {/* CAJA DE VIDEO GIGANTE (VIP) */}
           <motion.div initial={{ opacity: 0, x: 50 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 1 }} className="relative h-[450px] md:h-[700px] w-full">
              <DistributedVideo 
                src="/mesadepool.mp4" 
@@ -680,10 +507,9 @@ export default function UltimateEmperadorLanding() {
       </section>
 
       {/* ========================================================================= */}
-      {/* 6. EL SALÓN (VIDEO: barberia.mp4) */}
+      {/* 6. EL SALÓN */}
       {/* ========================================================================= */}
       <section className="py-24 md:py-32 relative border-b border-zinc-900 overflow-hidden">
-        {/* FONDO: barberia.mp4 */}
         <div className="absolute inset-0 z-0">
           <video src="/barberia.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover blur-lg opacity-40 scale-105" />
         </div>
@@ -695,7 +521,6 @@ export default function UltimateEmperadorLanding() {
            </div>
         </div>
         
-        {/* CAJA HORIZONTAL GIGANTE PARA SALON */}
         <div className="max-w-[1200px] mx-auto px-6 relative z-10">
            <DistributedVideo 
               src="/barberia.mp4" 
@@ -706,17 +531,14 @@ export default function UltimateEmperadorLanding() {
       </section>
 
       {/* ========================================================================= */}
-      {/* 7. INSTAGRAM (ENLACE DIRECTO Y EXPLICITO AL PERFIL) - FIX APLICADO */}
+      {/* 7. INSTAGRAM (SOLO RECULLO ESTÁTICO DE ENLACE) */}
       {/* ========================================================================= */}
       <section id="instagram" className="py-24 md:py-32 bg-[#0a0a0a] relative overflow-hidden border-b border-zinc-900 flex justify-center">
-         {/* Fondo decorativo oscuro */}
          <div className="absolute inset-0 opacity-20 pointer-events-none">
            <Image src="https://images.unsplash.com/photo-1593702275687-f8b402bf1fb5?q=80&w=2000&auto=format&fit=crop" fill className="object-cover blur-3xl scale-110" alt="Insta Background" unoptimized />
          </div>
          
          <div className="w-full max-w-[450px] px-4 relative z-10">
-            
-            {/* CABECERA EXTERIOR (Abrir App) */}
             <a href="https://www.instagram.com/emperador_barbershop/?hl=es" target="_blank" rel="noopener noreferrer" className="flex justify-between items-center mb-4 text-white font-bold text-sm px-2 group cursor-pointer">
               <div className="flex items-center gap-2">
                 <div className="bg-gradient-to-tr from-[#fdf497] via-[#fd5949] to-[#d6249f] rounded-[0.4rem] p-0.5 group-hover:scale-110 transition-transform">
@@ -729,17 +551,13 @@ export default function UltimateEmperadorLanding() {
               </span>
             </a>
 
-            {/* TARJETA BLANCA (Diseño IDÉNTICO a tu captura) */}
             <div className="bg-white rounded-[1.5rem] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] hover:shadow-[0_20px_50px_rgba(214,36,159,0.3)] transition-shadow duration-500 cursor-pointer">
-               
-               {/* Click principal lleva al perfil */}
                <a href="https://www.instagram.com/emperador_barbershop/?hl=es" target="_blank" rel="noopener noreferrer" className="block p-5 md:p-6 relative group">
                   <div className="absolute top-5 right-5 group-hover:scale-110 transition-transform">
                      <Instagram size={28} className="text-[#d6249f]" />
                   </div>
 
                   <div className="flex items-center gap-4">
-                     {/* Borde Instagram en el Logo */}
                      <div className="shrink-0 w-[70px] h-[70px] md:w-[84px] md:h-[84px] rounded-full bg-gradient-to-tr from-[#fdf497] via-[#fd5949] to-[#d6249f] p-[3px] shadow-sm group-hover:scale-105 transition-transform">
                         <div className="w-full h-full bg-white rounded-full p-[2px]">
                            <div className="w-full h-full relative rounded-full overflow-hidden border border-gray-100 bg-black flex items-center justify-center">
@@ -751,7 +569,6 @@ export default function UltimateEmperadorLanding() {
                         <h3 className="font-bold text-base md:text-lg leading-none mb-1 group-hover:text-[#d6249f] transition-colors">emperador_barbershop</h3>
                         <p className="text-zinc-600 text-[13px] md:text-sm mb-1">Emperador BarberShop</p>
                         
-                        {/* FIX APLICADO: Datos actualizados y en fila como en la app real */}
                         <div className="flex items-center gap-3 mt-1">
                            <p className="text-zinc-800 text-[12px] md:text-[13px]"><span className="font-bold">84</span> publicaciones</p>
                            <p className="text-zinc-800 text-[12px] md:text-[13px]"><span className="font-bold">1039</span> seguidores</p>
@@ -761,7 +578,6 @@ export default function UltimateEmperadorLanding() {
                   </div>
                </a>
 
-               {/* GRID DE FOTOS EXACTO (Se usan fotos estáticas y un render puro <Image> para garantizar que NO se vean blancas) */}
                <div className="grid grid-cols-3 gap-0.5 bg-gray-200">
                   {reels.map((post) => (
                     <a 
