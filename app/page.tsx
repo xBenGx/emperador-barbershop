@@ -77,6 +77,15 @@ const FALLBACK_FAQS = [
   { id: "f4", q: "¿Puedo comprar productos online?", a: "Sí, contamos con una tienda integrada donde puedes adquirir ceras, pomadas y máquinas profesionales." },
 ];
 
+const INSTA_REELS = [
+  { id: "i1", likes: "12.4k", comments: "145", type: "image", media_url: "https://images.unsplash.com/photo-1593702275687-f8b402bf1fb5?q=80&w=600&h=600&auto=format&fit=crop" },
+  { id: "i2", likes: "8.2k", comments: "98", type: "image", media_url: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=600&h=600&auto=format&fit=crop" },
+  { id: "i3", likes: "15.1k", comments: "230", type: "image", media_url: "https://images.unsplash.com/photo-1605497788044-5a32c7078486?q=80&w=600&h=600&auto=format&fit=crop" },
+  { id: "i4", likes: "20.5k", comments: "314", type: "reel", media_url: "https://images.unsplash.com/photo-1621607512214-68297480165e?q=80&w=600&h=600&auto=format&fit=crop" },
+  { id: "i5", likes: "9.8k", comments: "112", type: "image", media_url: "https://images.unsplash.com/photo-1585747860715-2ba37e788b70?q=80&w=600&h=600&auto=format&fit=crop" },
+  { id: "i6", likes: "18.3k", comments: "289", type: "reel", media_url: "https://images.unsplash.com/photo-1595152772835-219674b2a8a6?q=80&w=600&h=600&auto=format&fit=crop" },
+];
+
 // ============================================================================
 // COMPONENTES REUTILIZABLES E INTELIGENTES
 // ============================================================================
@@ -193,6 +202,7 @@ export default function UltimateEmperadorLanding() {
   const [team, setTeam] = useState<any[]>(FALLBACK_TEAM);
   const [services, setServices] = useState<any[]>(FALLBACK_SERVICES);
   const [faqs, setFaqs] = useState<any[]>(FALLBACK_FAQS);
+  const [reels, setReels] = useState<any[]>(INSTA_REELS);
 
   const [currentHeroSlide, setCurrentHeroSlide] = useState(0);
   const totalSlides = heroSlides.length > 0 ? heroSlides.length : 1;
@@ -246,6 +256,9 @@ export default function UltimateEmperadorLanding() {
 
         const { data: dbFaqs } = await supabase.from('Faqs').select('*');
         if (dbFaqs?.length) setFaqs(dbFaqs);
+        
+        const { data: dbReels } = await supabase.from('InstagramReels').select('*').order('created_at', { ascending: false });
+        if (dbReels?.length) setReels(dbReels);
 
       } catch (error) {
         console.log("Usando datos por defecto.");
@@ -259,20 +272,22 @@ export default function UltimateEmperadorLanding() {
   return (
     <main className="bg-[#050505] min-h-screen font-sans selection:bg-amber-500 selection:text-black overflow-x-hidden relative -mt-24 md:-mt-28">
       
-      {/* RENDERIZAMOS TU REPRODUCTOR DE MÚSICA GLOBAL */}
-      <div className="relative z-[150]">
+      {/* ========================================================================= */}
+      {/* REPRODUCTOR DE MÚSICA - ANCLADO COMO CÍRCULO EN LA ESQUINA INFERIOR IZQ. */}
+      {/* ========================================================================= */}
+      <div className="fixed bottom-6 left-6 md:bottom-10 md:left-10 z-[200] flex items-center justify-center">
          <MusicPlayer />
       </div>
 
-      <div className="fixed inset-0 z-0 pointer-events-none bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:32px_32px]"></div>
-
-      {/* BOTÓN AGENDAR FLOTANTE */}
+      {/* BOTÓN AGENDAR FLOTANTE - ANCLADO EN LA ESQUINA INFERIOR DER. */}
       <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 2, type: "spring", stiffness: 100 }} className="fixed bottom-6 right-6 md:bottom-10 md:right-10 z-[100]">
         <Link href="/reservar" className="relative flex items-center justify-center w-16 h-16 md:w-20 md:h-20 bg-amber-500 rounded-full shadow-[0_0_30px_rgba(217,119,6,0.8)] hover:scale-110 transition-transform group border-2 border-amber-300">
           <motion.div animate={{ scale: [1, 1.3, 1], opacity: [0.6, 0, 0] }} transition={{ repeat: Infinity, duration: 1.5 }} className="absolute inset-0 rounded-full bg-amber-500"></motion.div>
           <Scissors size={28} className="text-black relative z-10 group-hover:rotate-180 transition-transform duration-500" />
         </Link>
       </motion.div>
+
+      <div className="fixed inset-0 z-0 pointer-events-none bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:32px_32px]"></div>
 
       {/* ========================================================================= */}
       {/* 1. HERO GLOBAL DINÁMICO (Sincronizado con Admin) */}
@@ -561,59 +576,81 @@ export default function UltimateEmperadorLanding() {
       </section>
 
       {/* ========================================================================= */}
-      {/* 7. INSTAGRAM (LINK PREVIEW DEFINITIVO Y PROFESIONAL) */}
+      {/* 7. INSTAGRAM (TARJETA BLANCA IDÉNTICA A LA VISTA PREVIA ORIGINAL) */}
       {/* ========================================================================= */}
-      <section id="instagram" className="py-24 md:py-32 bg-[#050505] relative overflow-hidden border-b border-zinc-900 flex justify-center items-center">
-         <div className="max-w-[1400px] w-full mx-auto px-6 relative z-10 flex flex-col items-center">
-            
-            <div className="text-center mb-12">
-               <h2 className="text-amber-500 font-black text-sm uppercase tracking-[0.4em] mb-4">Redes Sociales</h2>
-               <h3 className="text-4xl md:text-7xl font-serif font-black text-white uppercase tracking-tighter">SÍGUENOS.</h3>
-            </div>
-            
-            {/* LINK PREVIEW MODERNO */}
-            <motion.a 
-               href="https://www.instagram.com/emperador_barbershop/?hl=es" 
-               target="_blank" 
-               rel="noopener noreferrer"
-               whileHover={{ y: -10 }}
-               className="block w-full max-w-[500px] bg-zinc-900/80 backdrop-blur-xl border border-zinc-800 rounded-3xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] hover:shadow-[0_20px_50px_rgba(217,119,6,0.3)] hover:border-amber-500/50 transition-all duration-500 group"
-            >
-               {/* Área de Imagen / Cabecera */}
-               <div className="relative w-full h-[250px] bg-black overflow-hidden flex items-center justify-center">
-                  <Image src="https://images.unsplash.com/photo-1593702275687-f8b402bf1fb5?q=80&w=1000&auto=format&fit=crop" fill className="object-cover opacity-50 group-hover:scale-105 transition-transform duration-700" alt="Emperador Preview Cover" unoptimized />
-                  
-                  {/* Foto de Perfil Central */}
-                  <div className="relative z-10 w-24 h-24 rounded-full bg-gradient-to-tr from-[#fdf497] via-[#fd5949] to-[#d6249f] p-1 shadow-2xl group-hover:scale-110 transition-transform duration-500">
-                     <div className="w-full h-full bg-black rounded-full p-1 border-2 border-white/20">
-                        <Image src="/logo.png" fill className="object-contain p-2" alt="Logo" />
+      <section id="instagram" className="py-24 md:py-32 bg-[#0a0a0a] relative overflow-hidden border-b border-zinc-900 flex justify-center">
+         <div className="absolute inset-0 opacity-20 pointer-events-none">
+           <Image src="https://images.unsplash.com/photo-1593702275687-f8b402bf1fb5?q=80&w=2000&auto=format&fit=crop" fill className="object-cover blur-3xl scale-110" alt="Insta Background" unoptimized />
+         </div>
+         
+         <div className="w-full max-w-[450px] px-4 relative z-10">
+            <a href="https://www.instagram.com/emperador_barbershop/?hl=es" target="_blank" rel="noopener noreferrer" className="flex justify-between items-center mb-4 text-white font-bold text-sm px-2 group cursor-pointer">
+              <div className="flex items-center gap-2">
+                <div className="bg-gradient-to-tr from-[#fdf497] via-[#fd5949] to-[#d6249f] rounded-[0.4rem] p-0.5 group-hover:scale-110 transition-transform">
+                  <Instagram size={18} className="text-white" />
+                </div>
+                <span className="tracking-wide group-hover:text-amber-500 transition-colors">@emperador_barbershop</span>
+              </div>
+              <span className="text-[10px] md:text-xs uppercase font-black tracking-widest text-zinc-400 group-hover:text-white transition-colors">
+                ABRIR APP ↗
+              </span>
+            </a>
+
+            {/* AQUÍ ESTÁ LA TARJETA BLANCA EXACTA */}
+            <div className="bg-white rounded-[1.5rem] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] hover:shadow-[0_20px_50px_rgba(214,36,159,0.3)] transition-shadow duration-500 cursor-pointer">
+               <a href="https://www.instagram.com/emperador_barbershop/?hl=es" target="_blank" rel="noopener noreferrer" className="block p-5 md:p-6 relative group">
+                  <div className="absolute top-5 right-5 group-hover:scale-110 transition-transform">
+                     <Instagram size={28} className="text-[#d6249f]" />
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                     <div className="shrink-0 w-[70px] h-[70px] md:w-[84px] md:h-[84px] rounded-full bg-gradient-to-tr from-[#fdf497] via-[#fd5949] to-[#d6249f] p-[3px] shadow-sm group-hover:scale-105 transition-transform">
+                        <div className="w-full h-full bg-white rounded-full p-[2px]">
+                           <div className="w-full h-full relative rounded-full overflow-hidden border border-gray-100 bg-black flex items-center justify-center">
+                             <Image src="/logo.png" fill className="object-cover p-1" alt="Emperador Logo Instagram" />
+                           </div>
+                        </div>
+                     </div>
+                     <div className="text-black flex flex-col justify-center">
+                        <h3 className="font-bold text-base md:text-lg leading-none mb-1 group-hover:text-[#d6249f] transition-colors">emperador_barbershop</h3>
+                        <p className="text-zinc-600 text-[13px] md:text-sm mb-1">Emperador BarberShop</p>
+                        
+                        <div className="flex items-center gap-3 mt-1">
+                           <p className="text-zinc-800 text-[12px] md:text-[13px]"><span className="font-bold">84</span> publicaciones</p>
+                           <p className="text-zinc-800 text-[12px] md:text-[13px]"><span className="font-bold">1039</span> seguidores</p>
+                        </div>
+                        <p className="text-zinc-800 text-[12px] md:text-[13px] mt-0.5"><span className="font-bold">488</span> seguidos</p>
                      </div>
                   </div>
-                  
-                  {/* Icono de Instagram flotante */}
-                  <div className="absolute top-4 right-4 bg-black/60 backdrop-blur-md rounded-full p-2 text-white border border-white/10 group-hover:bg-amber-500 group-hover:text-black transition-colors">
-                     <Instagram size={20} />
-                  </div>
+               </a>
+
+               <div className="grid grid-cols-3 gap-0.5 bg-gray-200">
+                  {reels.map((post) => (
+                    <a 
+                      key={post.id} 
+                      href="https://www.instagram.com/emperador_barbershop/?hl=es" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="relative aspect-square bg-white overflow-hidden group block"
+                    >
+                       <Image 
+                         src={post.media_url} 
+                         alt="Insta Post" 
+                         fill
+                         className="object-cover group-hover:scale-105 transition-transform duration-500" 
+                         unoptimized
+                       />
+                       <div className="absolute top-2 right-2 text-white drop-shadow-md">
+                          {post.type === 'reel' ? <Clapperboard size={14} fill="currentColor" /> : null}
+                       </div>
+                       <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 backdrop-blur-sm">
+                          <div className="flex items-center gap-1 text-white font-bold text-xs"><Heart fill="currentColor" size={12} /> {post.likes}</div>
+                          <div className="flex items-center gap-1 text-white font-bold text-xs"><MessageCircle fill="currentColor" size={12} /> {post.comments}</div>
+                       </div>
+                    </a>
+                  ))}
                </div>
-               
-               {/* Área de Textos del Preview */}
-               <div className="p-6 md:p-8 border-t border-zinc-800 bg-gradient-to-b from-zinc-900 to-black relative">
-                  <p className="text-zinc-500 text-xs font-black uppercase tracking-[0.2em] mb-2 flex items-center gap-2">
-                     <ExternalLink size={12} /> instagram.com
-                  </p>
-                  <h4 className="text-2xl font-black text-white mb-2 group-hover:text-amber-500 transition-colors">
-                     Emperador BarberShop (@emperador_barbershop)
-                  </h4>
-                  <p className="text-zinc-400 font-medium leading-relaxed text-sm mb-6">
-                     84 posts • 1,039 followers • 488 following. La barbería no es un trámite, es un ritual. Disfruta de la mejor experiencia de grooming en Curicó.
-                  </p>
-                  
-                  <div className="w-full py-4 bg-amber-500 text-black font-black uppercase text-sm tracking-[0.2em] rounded-xl flex justify-center items-center gap-3 group-hover:bg-white transition-colors">
-                     Visitar Perfil <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                  </div>
-               </div>
-            </motion.a>
-            
+            </div>
          </div>
       </section>
 
