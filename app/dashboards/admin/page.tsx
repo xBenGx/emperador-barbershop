@@ -15,7 +15,7 @@ import {
   Package, Boxes, BadgePercent, BarChart3, ShoppingBag,
   Disc, Music, UploadCloud, Volume2, VolumeX, Volume1,
   MessageCircle, CalendarDays, KeyRound, Smartphone, ShieldAlert, XCircle,
-  LogOut, RefreshCw, Lock, Video, Star, HelpCircle, Instagram, Heart, Link2, RotateCcw, Mail
+  LogOut, RefreshCw, Lock, Video, Star, HelpCircle, Instagram, Heart, Link2, RotateCcw, Mail, Type
 } from "lucide-react";
 
 import * as LucideIcons from "lucide-react";
@@ -24,7 +24,7 @@ import * as LucideIcons from "lucide-react";
 // TIPADOS REALES EXTENDIDOS
 // ============================================================================
 type TabType = "RESUMEN" | "CITAS" | "SILLONES" | "USUARIOS" | "CLIENTES" | "SERVICIOS" | "INVENTARIO" | "WEB_HOME" | "MUSICA";
-type ModalType = "SERVICE" | "BARBER" | "PRODUCT" | "CLIENT" | "CHAIR" | "HERO_SLIDE" | "STORE_PROMO" | "REEL" | "REVIEW" | "FAQ" | null;
+type ModalType = "SERVICE" | "BARBER" | "PRODUCT" | "CLIENT" | "CHAIR" | "ASSIGN_CHAIR" | "HERO_SLIDE" | "STORE_PROMO" | "REEL" | "REVIEW" | "FAQ" | "WEB_TEXTS" | null;
 
 interface Barber { id: string; name: string; email?: string; phone?: string; status: "ACTIVE" | "INACTIVE"; cutsToday: number; role: string; tag: string; img: string; }
 interface Service { id: string; name: string; desc: string; price: string | number; time: string; duration?: number; iconName: string; }
@@ -54,6 +54,34 @@ interface Review { id: string; name: string; text: string; rating: number; }
 interface Faq { id: string; q: string; a: string; }
 
 // ============================================================================
+// DATA MAESTRA (FALLBACKS TEXTOS WEB)
+// ============================================================================
+const FALLBACK_PAGE_CONTENT = {
+  hero_subtitle: "Peña 666, Piso 2 • Curicó",
+  hero_title_1: "EMPERADOR",
+  hero_title_2: "BARBERSHOP",
+  hero_desc: "La barbería no es un trámite, es un ritual. Disfruta de la mejor experiencia de grooming, atención premium, PS5 y mesa de Pool.",
+  hero_btn_1: "Asegura tu Trono",
+  hero_btn_2: "Ver Trabajos",
+  exp_tag: "La Experiencia",
+  exp_title: "MÁS QUE UN CORTE, UN RITUAL.",
+  exp_desc: "Nuestra administradora te cuenta por qué Emperador Barbershop ha redefinido el estándar de grooming masculino en Curicó. Atención premium, instalaciones de primer nivel y un resultado impecable garantizado.",
+  team_tag: "Conoce a los Maestros",
+  team_title: "TEAM EMPERADOR.",
+  services_tag: "Lo Más Pedido",
+  services_title: "SERVICIOS.",
+  services_desc: "Técnicas de vanguardia y productos premium para garantizar un resultado de nivel imperial.",
+  vip_tag: "El Club Privado",
+  vip_title: "EL VIP ES PARA TODOS.",
+  vip_desc: "La espera aburrida es del pasado. Hemos transformado nuestro salón en un santuario. Llega temprano a tu cita, es un privilegio.",
+  salon_tag: "Instalaciones Premium",
+  salon_title: "NUESTRO SALÓN.",
+  faq_tag: "Resolviendo Dudas",
+  faq_title: "AYUDA.",
+  faq_desc: "Todo lo que necesitas saber antes de asegurar tu trono."
+};
+
+// ============================================================================
 // FUNCIONES DE APOYO Y FORMATEO
 // ============================================================================
 const DynamicIcon = ({ name, size = 24, className = "" }: { name: string, size?: number, className?: string }) => {
@@ -67,7 +95,6 @@ const formatMoney = (amount: number | string) => {
   return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(numericAmount);
 };
 
-// FIX: La función que faltaba y hacía que Vercel fallara. ¡No la borres!
 const isValidUUID = (uuid: string | undefined | null) => {
   if (!uuid) return false;
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid);
@@ -96,8 +123,9 @@ function AdminDashboardContent() {
   const [clients, setClients] = useState<Client[]>([]); 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [musicUrl, setMusicUrl] = useState<string>("");
-
-  // Estados de la Web (Landing Page)
+  
+  // Textos y Landing Page
+  const [pageContent, setPageContent] = useState(FALLBACK_PAGE_CONTENT);
   const [heroSlides, setHeroSlides] = useState<HeroSlide[]>([]);
   const [storePromos, setStorePromos] = useState<StorePromo[]>([]);
   const [reels, setReels] = useState<Reel[]>([]);
@@ -123,7 +151,7 @@ function AdminDashboardContent() {
   }, [searchParams]);
 
   // ============================================================================
-  // ESCUDO DE SEGURIDAD Y CARGA DE DATOS
+  // ESCUDO DE SEGURIDAD Y CARGA DE DATOS (CONECTADO A SETTINGS GENERAL)
   // ============================================================================
   const verifyAdminAndFetchData = useCallback(async () => {
     setIsFetching(true);
@@ -149,7 +177,7 @@ function AdminDashboardContent() {
         supabase.from('inventory').select('*').order('created_at', { ascending: false }),
         supabase.from('clients').select('*').order('created_at', { ascending: false }),
         supabase.from('chairs').select('*').order('name', { ascending: true }),
-        supabase.from('settings').select('*').eq('key', 'background_music').single(),
+        supabase.from('settings').select('*'), // TRAE TODA LA CONFIGURACIÓN
         supabase.from('Appointments').select(`id, date, time, status, notes, client_name, client_phone, barber_name, service_name, client:client_id (id, name, phone), barber:barber_id (id, name, email), service:service_id (id, name, price)`).order('date', { ascending: false }).order('time', { ascending: false }),
         supabase.from('HeroSlides').select('*').order('order_index', { ascending: true }),
         supabase.from('StorePromos').select('*').order('created_at', { ascending: false }),
@@ -161,7 +189,20 @@ function AdminDashboardContent() {
       if (dbBarbers.data) setBarbers(dbBarbers.data);
       if (dbServices.data) setServices(dbServices.data);
       if (dbChairs.data) setChairs(dbChairs.data);
-      if (dbSettings.data) setMusicUrl(dbSettings.data.value);
+      
+      // SINCRONIZACIÓN DE TEXTOS Y MÚSICA
+      if (dbSettings.data) {
+        const contentUpdates = { ...FALLBACK_PAGE_CONTENT };
+        dbSettings.data.forEach(setting => {
+          if (setting.key === 'background_music') {
+             setMusicUrl(setting.value);
+          } else if (Object.keys(contentUpdates).includes(setting.key)) {
+             // @ts-ignore
+             contentUpdates[setting.key] = setting.value;
+          }
+        });
+        setPageContent(contentUpdates);
+      }
       
       if (dbHero.data) setHeroSlides(dbHero.data);
       if (dbPromos.data) setStorePromos(dbPromos.data);
@@ -210,6 +251,7 @@ function AdminDashboardContent() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'HeroSlides' }, verifyAdminAndFetchData)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'StorePromos' }, verifyAdminAndFetchData)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'InstagramReels' }, verifyAdminAndFetchData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'settings' }, verifyAdminAndFetchData)
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [verifyAdminAndFetchData, supabase]);
@@ -297,6 +339,22 @@ function AdminDashboardContent() {
     setImagePreview(item?.img || item?.image_url || item?.media_url || null);
     setSelectedImage(null);
     setModalType(type);
+  };
+
+  // ============================================================================
+  // SILLONES: ACCIÓN RÁPIDA DE LIBERAR (MOBILE FRIENDLY)
+  // ============================================================================
+  const handleReleaseChair = async (chairId: string) => {
+    if (!window.confirm("¿Seguro que deseas liberar este sillón? El barbero actual será desasignado.")) return;
+    setIsLoading(true);
+    try {
+      await supabase.from('chairs').update({ status: 'FREE', current_barber_id: null }).eq('id', chairId);
+      verifyAdminAndFetchData();
+    } catch (error: any) {
+      alert(`Error al liberar: ${error.message}`);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // ============================================================================
@@ -393,16 +451,9 @@ function AdminDashboardContent() {
         } catch (apiError) {
           console.warn("Fallo API Auth. Activando Modo Rescate Local...");
           
-          // MODO RESCATE: Si es un usuario fantasma y la API falla, forzamos la actualización local
           if (editingItem && editingItem.id) {
              const { error: fallbackErr } = await supabase.from('Barbers').update({
-               name: payload.name,
-               email: payload.email,
-               phone: payload.phone,
-               role: payload.role,
-               tag: payload.tag,
-               status: payload.status,
-               img: payload.img
+               name: payload.name, email: payload.email, phone: payload.phone, role: payload.role, tag: payload.tag, status: payload.status, img: payload.img
              }).eq('id', editingItem.id);
              
              if (fallbackErr) throw new Error("No se pudo actualizar localmente: " + fallbackErr.message);
@@ -416,12 +467,7 @@ function AdminDashboardContent() {
 
       if (modalType === "SERVICE") {
          const data = { 
-           name: formData.get("name") as string, 
-           price: parseFloat(formData.get("price") as string), 
-           time: formData.get("time") as string, 
-           duration: parseInt(formData.get("duration") as string) || 45, 
-           desc: formData.get("desc") as string, 
-           iconName: (formData.get("iconName") as string) || "Scissors" 
+           name: formData.get("name") as string, price: parseFloat(formData.get("price") as string), time: formData.get("time") as string, duration: parseInt(formData.get("duration") as string) || 45, desc: formData.get("desc") as string, iconName: (formData.get("iconName") as string) || "Scissors" 
          };
          if (editingItem && isValidUUID(editingItem.id)) await supabase.from('Services').update(data).eq('id', editingItem.id);
          else await supabase.from('Services').insert([data]);
@@ -434,23 +480,21 @@ function AdminDashboardContent() {
       }
 
       if (modalType === "CLIENT") {
-        const data = { 
-          name: formData.get("name"), 
-          phone: formData.get("phone"), 
-          email: formData.get("email"), 
-          points: parseInt(formData.get("points") as string) || 0 
-        };
-        if (editingItem && isValidUUID(editingItem.id)) {
-          await supabase.from('clients').update(data).eq('id', editingItem.id);
-        } else {
-          await supabase.from('clients').insert([data]);
-        }
+        const data = { name: formData.get("name"), phone: formData.get("phone"), email: formData.get("email"), points: parseInt(formData.get("points") as string) || 0 };
+        if (editingItem && isValidUUID(editingItem.id)) await supabase.from('clients').update(data).eq('id', editingItem.id);
+        else await supabase.from('clients').insert([data]);
       }
 
       if (modalType === "CHAIR") {
         const data = { name: formData.get("name"), status: formData.get("status"), current_barber_id: formData.get("barber_id") || null, payment_due_date: formData.get("payment_due_date") || null };
         if (editingItem && isValidUUID(editingItem.id)) await supabase.from('chairs').update(data).eq('id', editingItem.id);
         else await supabase.from('chairs').insert([data]);
+      }
+
+      if (modalType === "ASSIGN_CHAIR") {
+        const barberId = formData.get("barber_id");
+        const data = { status: "OCCUPIED", current_barber_id: barberId || null };
+        await supabase.from('chairs').update(data).eq('id', editingItem.id);
       }
 
       if (modalType === "HERO_SLIDE") {
@@ -485,6 +529,18 @@ function AdminDashboardContent() {
         const data = { q: formData.get("q"), a: formData.get("a") };
         if (editingItem && isValidUUID(editingItem.id)) await supabase.from('Faqs').update(data).eq('id', editingItem.id);
         else await supabase.from('Faqs').insert([data]);
+      }
+
+      if (modalType === "WEB_TEXTS") {
+        const updates = [];
+        for (const key of Object.keys(FALLBACK_PAGE_CONTENT)) {
+           const val = formData.get(key);
+           if (val !== null && val !== undefined) {
+               updates.push({ key, value: val as string });
+           }
+        }
+        const { error } = await supabase.from('settings').upsert(updates, { onConflict: 'key' });
+        if (error) throw error;
       }
 
       setModalType(null);
@@ -670,7 +726,7 @@ function AdminDashboardContent() {
             </motion.div>
           )}
 
-          {/* --- TAB: SILLONES --- */}
+          {/* --- TAB: SILLONES (AHORA CON BOTONES DE ACCIÓN RÁPIDA) --- */}
           {activeTab === "SILLONES" && (
             <motion.div key="sillones" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
               <div className="flex justify-between items-center mb-6">
@@ -684,22 +740,34 @@ function AdminDashboardContent() {
                 {chairs.map(chair => {
                   const assignedBarber = barbers.find(b => b.id === chair.current_barber_id);
                   return (
-                    <div key={chair.id} className={`p-8 rounded-[2rem] border relative overflow-hidden transition-all duration-500 group ${chair.status === 'OCCUPIED' ? 'bg-zinc-900/80 border-amber-500/40 shadow-[0_0_30px_rgba(217,119,6,0.1)]' : 'bg-zinc-950 border-zinc-800'}`}>
-                      <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={() => openModal("CHAIR", chair)} className="p-2 bg-black text-zinc-400 hover:text-amber-500 rounded-lg"><Edit3 size={14}/></button></div>
-                      <div className="flex justify-between items-start mb-6">
-                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${chair.status === 'OCCUPIED' ? 'bg-amber-500 text-black shadow-lg' : 'bg-zinc-900 text-zinc-600'}`}><Armchair size={28} /></div>
-                        <span className={`px-3 py-1 rounded-md text-[9px] font-black uppercase tracking-widest ${chair.status === 'OCCUPIED' ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30' : 'bg-zinc-800 text-zinc-500'}`}>{chair.status === 'OCCUPIED' ? 'Arrendado' : 'Disponible'}</span>
-                      </div>
-                      <h3 className="text-xl font-black text-white mb-4 tracking-tight">{chair.name}</h3>
-                      {chair.status === 'OCCUPIED' ? (
-                        <div className="space-y-4">
-                          <div className="bg-black/50 border border-zinc-800/50 p-4 rounded-xl">
-                            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1 flex items-center gap-1"><UserCircle2 size={12}/> Barbero Asignado</p>
-                            <p className="text-white font-bold text-sm truncate">{assignedBarber ? assignedBarber.name : "Sin asignar"}</p>
-                          </div>
-                          {chair.payment_due_date && <div className="flex items-center gap-2 text-xs font-bold text-amber-500 bg-amber-500/10 p-3 rounded-xl border border-amber-500/20"><CalendarDays size={16} /> Pago: {new Date(chair.payment_due_date).toLocaleDateString('es-CL')}</div>}
+                    <div key={chair.id} className={`p-6 rounded-[2rem] border relative overflow-hidden transition-all duration-500 group flex flex-col justify-between ${chair.status === 'OCCUPIED' ? 'bg-zinc-900/80 border-amber-500/40 shadow-[0_0_30px_rgba(217,119,6,0.1)]' : 'bg-zinc-950 border-zinc-800'}`}>
+                      <div>
+                        <div className="flex justify-between items-start mb-6">
+                          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${chair.status === 'OCCUPIED' ? 'bg-amber-500 text-black shadow-lg' : 'bg-zinc-900 text-zinc-600'}`}><Armchair size={28} /></div>
+                          <span className={`px-3 py-1 rounded-md text-[9px] font-black uppercase tracking-widest ${chair.status === 'OCCUPIED' ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30' : 'bg-zinc-800 text-zinc-500'}`}>{chair.status === 'OCCUPIED' ? 'Arrendado' : 'Disponible'}</span>
                         </div>
-                      ) : (<p className="text-zinc-600 text-sm font-medium">Estación libre lista para arriendo.</p>)}
+                        <h3 className="text-xl font-black text-white mb-4 tracking-tight">{chair.name}</h3>
+                        {chair.status === 'OCCUPIED' ? (
+                          <div className="space-y-4">
+                            <div className="bg-black/50 border border-zinc-800/50 p-4 rounded-xl">
+                              <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1 flex items-center gap-1"><UserCircle2 size={12}/> Barbero Asignado</p>
+                              <p className="text-white font-bold text-sm truncate">{assignedBarber ? assignedBarber.name : "Sin asignar"}</p>
+                            </div>
+                            {chair.payment_due_date && <div className="flex items-center gap-2 text-xs font-bold text-amber-500 bg-amber-500/10 p-3 rounded-xl border border-amber-500/20"><CalendarDays size={16} /> Pago: {new Date(chair.payment_due_date).toLocaleDateString('es-CL')}</div>}
+                          </div>
+                        ) : (<p className="text-zinc-600 text-sm font-medium">Estación libre lista para arriendo.</p>)}
+                      </div>
+                      
+                      {/* BOTONERA ACCIÓN RÁPIDA (Fácil para celular) */}
+                      <div className="mt-6 pt-6 border-t border-zinc-800/80 flex gap-2">
+                        {chair.status === 'OCCUPIED' ? (
+                          <button onClick={() => handleReleaseChair(chair.id)} className="flex-1 py-2.5 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all">Liberar</button>
+                        ) : (
+                          <button onClick={() => openModal("ASSIGN_CHAIR", chair)} className="flex-1 py-2.5 bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-amber-500 hover:text-black transition-all">Asignar</button>
+                        )}
+                        <button onClick={() => openModal("CHAIR", chair)} className="px-4 py-2.5 bg-zinc-900 border border-zinc-800 text-zinc-400 rounded-xl hover:text-white transition-all" title="Editar Detalles Completos"><Edit3 size={16}/></button>
+                        <button onClick={() => handleDelete('chairs', chair.id)} className="px-4 py-2.5 bg-zinc-900 border border-zinc-800 text-zinc-400 rounded-xl hover:text-red-500 transition-all" title="Eliminar Sillón"><Trash2 size={16}/></button>
+                      </div>
                     </div>
                   );
                 })}
@@ -829,6 +897,17 @@ function AdminDashboardContent() {
               
               <div className="flex justify-end">
                 <button onClick={handleResetSection} className="flex items-center gap-2 px-4 py-2 bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-colors"><RotateCcw size={14}/> Recargar Web</button>
+              </div>
+
+              {/* BLOQUE NUEVO: Editor de Textos de la Página (Landing) */}
+              <div className="p-8 bg-zinc-900/50 border border-zinc-800 rounded-3xl mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 shadow-xl">
+                 <div>
+                    <h3 className="text-2xl font-bold text-white flex items-center gap-2"><Type className="text-amber-500"/> Textos Generales de la Web</h3>
+                    <p className="text-sm text-zinc-500 mt-1">Modifica todos los títulos, descripciones y botones de tu página de inicio en tiempo real.</p>
+                 </div>
+                 <button onClick={() => openModal("WEB_TEXTS", pageContent)} className="w-full md:w-auto px-8 py-4 bg-amber-500 text-black font-black text-xs uppercase tracking-widest rounded-xl hover:scale-105 transition-all shadow-[0_0_20px_rgba(217,119,6,0.3)] flex items-center justify-center gap-2">
+                    <Edit3 size={16}/> Editar Textos Web
+                 </button>
               </div>
 
               {/* Hero / Portada */}
@@ -969,7 +1048,7 @@ function AdminDashboardContent() {
           <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setModalType(null)} className="absolute inset-0 bg-black/90 backdrop-blur-sm" />
             
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-[#0a0a0a] border border-zinc-800 rounded-[3rem] p-8 md:p-12 w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar z-10">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-[#0a0a0a] border border-zinc-800 rounded-[3rem] p-8 md:p-12 w-full max-w-3xl shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar z-10">
               <button onClick={() => setModalType(null)} className="absolute top-8 right-8 text-zinc-500 hover:text-white bg-zinc-900 p-2 rounded-full"><X size={20}/></button>
               
               <div className="mb-8">
@@ -992,6 +1071,82 @@ function AdminDashboardContent() {
                       <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"><UploadCloud className="text-white" size={32} /></div>
                     </div>
                     <input type="file" accept="image/*,video/mp4" className="hidden" ref={fileInputRef} onChange={handleImageChange} />
+                  </div>
+                )}
+
+                {/* --- FORMULARIO: TEXTOS DE LA WEB (NUEVO) --- */}
+                {modalType === "WEB_TEXTS" && (
+                  <div className="space-y-10">
+                     {/* Portada */}
+                     <div>
+                       <h4 className="text-amber-500 font-black uppercase tracking-widest text-xs mb-4 border-b border-zinc-800 pb-2">1. Hero (Portada)</h4>
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                         <InputField label="Subtítulo Superior (Ubicación)" name="hero_subtitle" defaultValue={editingItem?.hero_subtitle} />
+                         <InputField label="Título Línea 1" name="hero_title_1" defaultValue={editingItem?.hero_title_1} />
+                         <InputField label="Título Línea 2" name="hero_title_2" defaultValue={editingItem?.hero_title_2} />
+                         <InputField label="Texto Botón Primario" name="hero_btn_1" defaultValue={editingItem?.hero_btn_1} />
+                         <InputField label="Texto Botón Secundario" name="hero_btn_2" defaultValue={editingItem?.hero_btn_2} />
+                         <TextAreaField label="Descripción de Portada" name="hero_desc" defaultValue={editingItem?.hero_desc} rows={2} />
+                       </div>
+                     </div>
+
+                     {/* La Experiencia */}
+                     <div>
+                       <h4 className="text-amber-500 font-black uppercase tracking-widest text-xs mb-4 border-b border-zinc-800 pb-2">2. La Experiencia</h4>
+                       <div className="grid grid-cols-1 gap-4">
+                         <InputField label="Etiqueta Superior (Tag)" name="exp_tag" defaultValue={editingItem?.exp_tag} />
+                         <InputField label="Título Principal" name="exp_title" defaultValue={editingItem?.exp_title} />
+                         <TextAreaField label="Párrafo Descriptivo" name="exp_desc" defaultValue={editingItem?.exp_desc} rows={3} />
+                       </div>
+                     </div>
+
+                     {/* El Equipo */}
+                     <div>
+                       <h4 className="text-amber-500 font-black uppercase tracking-widest text-xs mb-4 border-b border-zinc-800 pb-2">3. El Equipo</h4>
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                         <InputField label="Etiqueta Superior" name="team_tag" defaultValue={editingItem?.team_tag} />
+                         <InputField label="Título Principal" name="team_title" defaultValue={editingItem?.team_title} />
+                       </div>
+                     </div>
+
+                     {/* Servicios */}
+                     <div>
+                       <h4 className="text-amber-500 font-black uppercase tracking-widest text-xs mb-4 border-b border-zinc-800 pb-2">4. Servicios</h4>
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                         <InputField label="Etiqueta Superior" name="services_tag" defaultValue={editingItem?.services_tag} />
+                         <InputField label="Título Principal" name="services_title" defaultValue={editingItem?.services_title} />
+                         <TextAreaField label="Descripción Breve" name="services_desc" defaultValue={editingItem?.services_desc} rows={2} />
+                       </div>
+                     </div>
+
+                     {/* VIP Room */}
+                     <div>
+                       <h4 className="text-amber-500 font-black uppercase tracking-widest text-xs mb-4 border-b border-zinc-800 pb-2">5. VIP Room</h4>
+                       <div className="grid grid-cols-1 gap-4">
+                         <InputField label="Etiqueta Superior" name="vip_tag" defaultValue={editingItem?.vip_tag} />
+                         <InputField label="Título Principal" name="vip_title" defaultValue={editingItem?.vip_title} />
+                         <TextAreaField label="Párrafo Descriptivo" name="vip_desc" defaultValue={editingItem?.vip_desc} rows={2} />
+                       </div>
+                     </div>
+
+                     {/* El Salón */}
+                     <div>
+                       <h4 className="text-amber-500 font-black uppercase tracking-widest text-xs mb-4 border-b border-zinc-800 pb-2">6. El Salón</h4>
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                         <InputField label="Etiqueta Superior" name="salon_tag" defaultValue={editingItem?.salon_tag} />
+                         <InputField label="Título Principal" name="salon_title" defaultValue={editingItem?.salon_title} />
+                       </div>
+                     </div>
+
+                     {/* FAQ */}
+                     <div>
+                       <h4 className="text-amber-500 font-black uppercase tracking-widest text-xs mb-4 border-b border-zinc-800 pb-2">7. Preguntas (FAQ)</h4>
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                         <InputField label="Etiqueta Superior" name="faq_tag" defaultValue={editingItem?.faq_tag} />
+                         <InputField label="Título Principal" name="faq_title" defaultValue={editingItem?.faq_title} />
+                         <TextAreaField label="Descripción Breve" name="faq_desc" defaultValue={editingItem?.faq_desc} rows={2} />
+                       </div>
+                     </div>
                   </div>
                 )}
 
@@ -1022,10 +1177,7 @@ function AdminDashboardContent() {
                       <InputField label="Etiqueta Visual (Ej: 60 Min)" name="time" defaultValue={editingItem?.time || ""} required />
                       <InputField label="Minutos Reales (Agenda)" name="duration" type="number" defaultValue={editingItem?.duration || 60} required />
                     </div>
-                    <div className="space-y-2">
-                      <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest pl-2">Descripción</label>
-                      <textarea name="desc" defaultValue={editingItem?.desc || ""} required className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white outline-none focus:border-amber-500 transition-colors" rows={3} />
-                    </div>
+                    <TextAreaField label="Descripción" name="desc" defaultValue={editingItem?.desc || ""} required rows={3} />
                   </>
                 )}
 
@@ -1072,6 +1224,20 @@ function AdminDashboardContent() {
                   </>
                 )}
 
+                {/* ASIGNACIÓN RÁPIDA DE SILLÓN */}
+                {modalType === "ASSIGN_CHAIR" && (
+                  <>
+                    <h4 className="text-xl font-bold text-white text-center mb-4">Sillón: <span className="text-amber-500">{editingItem?.name}</span></h4>
+                    <div className="space-y-2">
+                       <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2 pl-2">Asignar a Barbero</label>
+                       <select name="barber_id" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white font-bold" required>
+                         <option value="">Seleccione al Barbero...</option>
+                         {barbers.map(b => <option key={b.id} value={b.id}>{b.name} - {b.role}</option>)}
+                       </select>
+                    </div>
+                  </>
+                )}
+
                 {modalType === "PRODUCT" && (
                   <>
                     <div className="grid grid-cols-2 gap-5"><InputField label="Nombre" name="name" defaultValue={editingItem?.name || ""} required /><InputField label="Categoría" name="category" defaultValue={editingItem?.category || ""} required /></div>
@@ -1099,11 +1265,11 @@ function AdminDashboardContent() {
                 )}
 
                 {modalType === "REVIEW" && (
-                  <><InputField label="Nombre Cliente" name="name" defaultValue={editingItem?.name || ""} required /><InputField label="Estrellas (1-5)" name="rating" type="number" defaultValue={editingItem?.rating || 5} required /><div className="space-y-2"><label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest pl-2">Testimonio</label><textarea name="text" defaultValue={editingItem?.text || ""} className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white outline-none" rows={3} required></textarea></div></>
+                  <><InputField label="Nombre Cliente" name="name" defaultValue={editingItem?.name || ""} required /><InputField label="Estrellas (1-5)" name="rating" type="number" defaultValue={editingItem?.rating || 5} required /><TextAreaField label="Testimonio" name="text" defaultValue={editingItem?.text || ""} rows={3} required/></>
                 )}
 
                 {modalType === "FAQ" && (
-                  <><InputField label="Pregunta" name="q" defaultValue={editingItem?.q || ""} required /><div className="space-y-2"><label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest pl-2">Respuesta</label><textarea name="a" defaultValue={editingItem?.a || ""} className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white outline-none" rows={4} required></textarea></div></>
+                  <><InputField label="Pregunta" name="q" defaultValue={editingItem?.q || ""} required /><TextAreaField label="Respuesta" name="a" defaultValue={editingItem?.a || ""} rows={4} required/></>
                 )}
 
                 <div className="pt-8 border-t border-zinc-800 mt-8">
@@ -1128,6 +1294,15 @@ function InputField({ label, name, type = "text", defaultValue, required = false
     <div className="space-y-2">
       <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest pl-2">{label}</label>
       <input name={name} type={type} defaultValue={defaultValue} required={required} placeholder={placeholder} disabled={disabled} className={`w-full rounded-2xl px-6 py-4 text-white focus:border-amber-500 outline-none transition-all placeholder:text-zinc-700 ${disabled ? 'bg-zinc-950/50 border border-zinc-800/50 text-zinc-500 cursor-not-allowed' : 'bg-zinc-950 border border-zinc-800 shadow-inner'}`} />
+    </div>
+  );
+}
+
+function TextAreaField({ label, name, defaultValue, rows = 3, required = false }: any) {
+  return (
+    <div className="space-y-2 col-span-full">
+      <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest pl-2">{label}</label>
+      <textarea name={name} defaultValue={defaultValue} required={required} className="w-full rounded-2xl px-6 py-4 text-white focus:border-amber-500 outline-none transition-all placeholder:text-zinc-700 bg-zinc-950 border border-zinc-800 shadow-inner" rows={rows} />
     </div>
   );
 }
