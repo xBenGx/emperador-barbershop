@@ -8,18 +8,11 @@ import * as LucideIcons from "lucide-react";
 import { 
   Gamepad2, MapPin, Instagram, ChevronRight, 
   Crown, Star, Scissors, Zap, Flame, Crosshair,
-  Minus, Plus, CheckCircle, ShieldCheck, 
-  MessageSquare, Heart, MessageCircle, ExternalLink, 
-  Lock, LayoutGrid, Clapperboard, Sparkles,
-  UserCircle, Briefcase, KeyRound, ShoppingCart, Volume2, VolumeX
+  Minus, Plus, Clapperboard, Heart, MessageCircle,
+  ShoppingCart, Volume2, VolumeX
 } from "lucide-react";
 
 import { createClient } from "@/utils/supabase/client";
-
-// ============================================================================
-// IMPORTACIÓN DE TU REPRODUCTOR DE MÚSICA GLOBAL
-// ============================================================================
-import MusicPlayer from "@/components/MusicPlayer";
 
 // ============================================================================
 // DATA MAESTRA (FALLBACKS Y TEXTOS POR DEFECTO PARA EL PANEL ADMIN)
@@ -197,7 +190,6 @@ export default function UltimateEmperadorLanding() {
 
   // Estados Dinámicos de Textos para sincronizar con el panel Admin
   const [pageContent, setPageContent] = useState(FALLBACK_PAGE_CONTENT);
-
   const [heroSlides, setHeroSlides] = useState<any[]>(FALLBACK_HERO_SLIDES);
   const [team, setTeam] = useState<any[]>(FALLBACK_TEAM);
   const [services, setServices] = useState<any[]>(FALLBACK_SERVICES);
@@ -210,7 +202,7 @@ export default function UltimateEmperadorLanding() {
   const { scrollY } = useScroll();
   const yHero = useTransform(scrollY, [0, 1000], [0, 400]);
 
-  // CONTROL DE AUDIO PARA VIDEOS EN BUCLE
+  // CONTROL DE AUDIO PARA VIDEOS EN BUCLE (Previene que suenen 2 videos a la vez)
   const handleGlobalReelUnmute = (activeVideo: HTMLVideoElement) => {
     const allVideos = document.querySelectorAll('video');
     allVideos.forEach(vid => {
@@ -261,7 +253,7 @@ export default function UltimateEmperadorLanding() {
         if (dbReels?.length) setReels(dbReels);
 
       } catch (error) {
-        console.log("Usando datos por defecto.");
+        console.log("Usando datos de respaldo locales.");
       }
     }
     fetchAdminData();
@@ -272,13 +264,6 @@ export default function UltimateEmperadorLanding() {
   return (
     <main className="bg-[#050505] min-h-screen font-sans selection:bg-amber-500 selection:text-black overflow-x-hidden relative -mt-24 md:-mt-28">
       
-      {/* ========================================================================= */}
-      {/* REPRODUCTOR DE MÚSICA - ANCLADO COMO CÍRCULO EN LA ESQUINA INFERIOR IZQ. */}
-      {/* ========================================================================= */}
-      <div className="fixed bottom-6 left-6 md:bottom-10 md:left-10 z-[200] flex items-center justify-center">
-         <MusicPlayer />
-      </div>
-
       {/* BOTÓN AGENDAR FLOTANTE - ANCLADO EN LA ESQUINA INFERIOR DER. */}
       <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 2, type: "spring", stiffness: 100 }} className="fixed bottom-6 right-6 md:bottom-10 md:right-10 z-[100]">
         <Link href="/reservar" className="relative flex items-center justify-center w-16 h-16 md:w-20 md:h-20 bg-amber-500 rounded-full shadow-[0_0_30px_rgba(217,119,6,0.8)] hover:scale-110 transition-transform group border-2 border-amber-300">
@@ -596,7 +581,7 @@ export default function UltimateEmperadorLanding() {
               </span>
             </a>
 
-            {/* AQUÍ ESTÁ LA TARJETA BLANCA EXACTA */}
+            {/* TARJETA BLANCA */}
             <div className="bg-white rounded-[1.5rem] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] hover:shadow-[0_20px_50px_rgba(214,36,159,0.3)] transition-shadow duration-500 cursor-pointer">
                <a href="https://www.instagram.com/emperador_barbershop/?hl=es" target="_blank" rel="noopener noreferrer" className="block p-5 md:p-6 relative group">
                   <div className="absolute top-5 right-5 group-hover:scale-110 transition-transform">
