@@ -38,57 +38,54 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // 2. Lógica estricta de redirección según roles
+  // 2. Lógica estricta de redirección según roles (Validación por Email)
   if (user && (isAdminRoute || isBarberRoute || isClientRoute)) {
-    let userRole = user.user_metadata?.app_role;
-    const userEmail = user.email?.toLowerCase().trim() || '';
+    const userEmail = user.email?.toLowerCase().trim() || ''
+    let userRole = user.user_metadata?.app_role
 
-    // 🔥 MODO DIOS: Correos de los fundadores/dueños. 
-    // Ignoran cualquier caché o bloqueo de la base de datos.
+    // 🔥 MODO DIOS (ACCESO TOTAL POR EMAIL)
+    // Esto evita que el middleware te saque si hay errores de sincronización de ID
     const masterAdmins = ["balfaroy.trnet@gmail.com", "lunacesar4493@gmail.com"];
 
     if (masterAdmins.includes(userEmail)) {
       userRole = 'ADMIN';
     } else {
-      // 🛡️ BLINDAJE EXTRA: Revisamos en la base de datos por EMAIL, no por ID.
-      // Primero verificamos si es ADMIN
-      const { data: adminProfile } = await supabase
-        .from('User')
-        .select('role')
+      // 🛡️ BLINDAJE: Si no es Master, buscamos en DB por EMAIL (No por ID)
+      // Primero revisamos si es barbero
+      const { data: barberData } = await supabase
+        .from('Barbers')
+        .select('id')
         .ilike('email', userEmail)
         .single();
-
-      if (adminProfile?.role === 'ADMIN') {
-        userRole = 'ADMIN';
+      
+      if (barberData) {
+        userRole = 'BARBER';
       } else {
-        // Si no es admin, vemos si es barbero
-        const { data: isBarber } = await supabase
-          .from('Barbers')
-          .select('id')
+        // Si no es barbero, revisamos la tabla User para ver si es ADMIN
+        const { data: userProfile } = await supabase
+          .from('User')
+          .select('role')
           .ilike('email', userEmail)
           .single();
-          
-        if (isBarber) {
-          userRole = 'BARBER';
-        } else {
-          // Si no es ninguno, es cliente normal
-          userRole = userRole || 'CLIENT';
-        }
+        
+        userRole = userProfile?.role || 'CLIENT';
       }
     }
 
-    // Regla 1: Zona Admin
+    // --- REGLAS DE TRÁFICO ---
+
+    // Regla 1: Zona Admin (Solo entra si userRole es ADMIN)
     if (isAdminRoute && userRole !== 'ADMIN') {
       const fallbackUrl = userRole === 'BARBER' ? '/dashboards/barber' : '/dashboards/client/book'
       return NextResponse.redirect(new URL(fallbackUrl, request.url))
     }
 
-    // Regla 2: Zona Barbero
+    // Regla 2: Zona Barbero (Entra si es BARBER o ADMIN)
     if (isBarberRoute && userRole !== 'BARBER' && userRole !== 'ADMIN') {
       return NextResponse.redirect(new URL('/dashboards/client/book', request.url))
     }
 
-    // Regla 3: Zona Cliente (Saca a los barberos de aquí para que vayan a su estación)
+    // Regla 3: Zona Cliente (Si es Barbero, mándalo a su estación)
     if (isClientRoute && userRole === 'BARBER') {
       return NextResponse.redirect(new URL('/dashboards/barber', request.url))
     }
