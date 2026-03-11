@@ -16,7 +16,7 @@ import {
   LayoutDashboard, MessageCircle, Crown, UserCircle2,
   Armchair, Boxes, Music, Disc, Volume2, VolumeX, Volume1,
   UploadCloud, Package, Tag, UserPlus, Plus, X, Save,
-  Image as ImageIcon, Smartphone, ShieldAlert, LogOut
+  Image as ImageIcon, Smartphone, ShieldAlert, LogOut, BellRing
 } from "lucide-react";
 
 // ============================================================================
@@ -51,7 +51,7 @@ interface Chair { id: string; name: string; status: string; payment_due_date?: s
 interface Schedule { id: string; day_of_week: string; is_active: boolean; start_time: string; end_time: string; break_start: string; break_end: string; }
 
 // ============================================================================
-// UTILIDADES
+// UTILIDADES Y CONSTANTES
 // ============================================================================
 const formatMoney = (amount: number | string) => {
   const numericAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
@@ -108,12 +108,22 @@ export default function BarberDashboard() {
   const [isAppLoading, setIsAppLoading] = useState(true);
   const [authError, setAuthError] = useState(false);
   const [selectedDateFilter, setSelectedDateFilter] = useState<string>(TODAY_DATE);
+  const [newApptNotification, setNewApptNotification] = useState(false);
   
   // Modales
   const [modalType, setModalType] = useState<ModalType>(null);
   const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null);
   const [copySuccess, setCopySuccess] = useState(false);
   const [currentHour, setCurrentHour] = useState("");
+
+  // Reproductor de Notificación (Alerta Sonora)
+  const playNotificationSound = () => {
+    try {
+      const audio = new Audio('/notification.mp3'); // Puedes añadir un archivo mp3 corto en tu carpeta public/
+      audio.volume = 0.5;
+      audio.play().catch(e => console.log("Audio de notificación silenciado por el navegador."));
+    } catch (error) {}
+  };
 
   // Reloj en tiempo real
   useEffect(() => {
@@ -168,7 +178,6 @@ export default function BarberDashboard() {
 
       if (rawAppts && !apptError) {
         const mappedAppts: Appointment[] = rawAppts.map((a: any) => {
-          // Si el join no trajo el servicio (por datos antiguos), lo forzamos manual
           const matchedService = a.service || allServices?.find(s => s.id === a.service_id);
           return {
             ...a,
@@ -212,19 +221,39 @@ export default function BarberDashboard() {
     }
   }, [supabase, router]);
 
+  // ============================================================================
+  // SUSCRIPCIÓN EN TIEMPO REAL (REALTIME) CON FILTRO ESPECÍFICO
+  // ============================================================================
   useEffect(() => {
     loadDashboardData();
     let channel: any;
+    
     const setupRealtime = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      // Canal global para cualquier cambio en citas (sin filtro para forzar recarga)
-      channel = supabase.channel('barber-sync-station')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'Appointments' }, () => {
+      
+      // Creamos un canal exclusivo para este barbero
+      channel = supabase.channel(`barber-sync-${user.id}`)
+        .on('postgres_changes', { 
+            event: '*', 
+            schema: 'public', 
+            table: 'Appointments',
+            filter: `barber_id=eq.${user.id}` // ¡MAGIA! Solo escucha sus propias citas
+        }, (payload) => {
+           console.log("Evento en tiempo real detectado:", payload);
+           
+           // Si es una cita nueva, alertamos
+           if (payload.eventType === 'INSERT') {
+             playNotificationSound();
+             setNewApptNotification(true);
+             setTimeout(() => setNewApptNotification(false), 5000);
+           }
+           
            loadDashboardData();
         })
         .subscribe();
     };
+    
     setupRealtime();
     return () => { if (channel) supabase.removeChannel(channel); };
   }, [loadDashboardData, supabase]);
@@ -276,7 +305,7 @@ export default function BarberDashboard() {
           time: time,
           status: 'BLOCKED',
           barber_id: barber?.id,
-          barber_name: barber?.name, // Reforzamos el guardado del nombre
+          barber_name: barber?.name, 
         });
       }
       loadDashboardData();
@@ -352,7 +381,7 @@ export default function BarberDashboard() {
   // Status Badges (Hechos más vibrantes y claros)
   const getStatusBadge = (status: AppointmentStatus) => {
     const badges = {
-      PENDING: <span className="px-3 py-1 bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1 shadow-sm"><Clock size={12}/> Pendiente</span>,
+      PENDING: <span className="px-3 py-1 bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1 shadow-sm animate-pulse"><Clock size={12}/> Nueva</span>,
       CONFIRMED: <span className="px-3 py-1 bg-blue-500/20 text-blue-400 border border-blue-500/40 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1 shadow-sm"><CheckCircle2 size={12}/> Confirmado</span>,
       COMPLETED: <span className="px-3 py-1 bg-green-500/20 text-green-400 border border-green-500/40 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1 shadow-sm"><Check size={12}/> Terminado</span>,
       CANCELLED: <span className="px-3 py-1 bg-red-500/20 text-red-400 border border-red-500/40 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1 shadow-sm"><XCircle size={12}/> Cancelado</span>,
@@ -385,6 +414,15 @@ export default function BarberDashboard() {
   return (
     <div className="max-w-[1600px] mx-auto pb-20 pt-8 px-6 md:px-10 relative">
       
+      {/* ALERTA FLOTANTE CUANDO ENTRA NUEVA CITA EN VIVO */}
+      <AnimatePresence>
+        {newApptNotification && (
+          <motion.div initial={{ y: -100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -100, opacity: 0 }} className="fixed top-6 left-1/2 -translate-x-1/2 z-[200] bg-amber-500 text-black px-6 py-4 rounded-2xl font-black uppercase tracking-widest text-sm shadow-[0_10px_40px_rgba(217,119,6,0.6)] flex items-center gap-3 border border-amber-300">
+            <BellRing size={20} className="animate-bounce" /> ¡Nueva Reserva Recibida!
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* OCULTAR SIDEBAR (CSS INYECTADO) */}
       <style dangerouslySetInnerHTML={{__html: `
         aside, nav[class*="sidebar" i], [class*="SideBar" i], [class*="Sidebar" i], #sidebar {
@@ -395,7 +433,7 @@ export default function BarberDashboard() {
           padding-left: 0 !important;
           width: 100% !important;
           max-width: 100% !important;
-          background-color: #0a0a0a !important; /* Fondo general un poco más claro */
+          background-color: #0a0a0a !important;
         }
       `}} />
 
@@ -412,7 +450,7 @@ export default function BarberDashboard() {
            <div>
              <h1 className="text-4xl md:text-5xl font-black text-white tracking-tighter uppercase font-serif flex items-center gap-3">
                Hola, <span className="text-amber-500">{barber?.name?.split(' ')[0] || 'Maestro'}</span>
-               {isFetching && <Loader2 className="animate-spin text-zinc-400" size={20} />}
+               {isFetching && <Loader2 className="animate-spin text-amber-500" size={20} />}
              </h1>
              <p className="text-zinc-300 mt-1 flex items-center gap-2 font-medium text-sm">
                <CalendarDays size={16} className="text-amber-500" />
@@ -481,8 +519,8 @@ export default function BarberDashboard() {
                 if (nextAppt) {
                   return (
                     <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-8 relative z-10">
-                      <div className="flex items-center gap-6 bg-black/40 p-6 rounded-3xl border border-zinc-700/50 backdrop-blur-md w-full lg:w-auto">
-                        <div className="w-24 h-24 bg-amber-500 text-black rounded-[2rem] flex flex-col items-center justify-center font-black leading-none shadow-[0_10px_30px_rgba(217,119,6,0.5)]">
+                      <div className="flex items-center gap-6 bg-black/40 p-6 rounded-3xl border border-zinc-700/50 backdrop-blur-md w-full lg:w-auto shadow-inner">
+                        <div className="w-24 h-24 bg-amber-500 text-black rounded-[2rem] flex flex-col items-center justify-center font-black leading-none shadow-[0_10px_30px_rgba(217,119,6,0.5)] border border-amber-400">
                           <span className="text-3xl">{nextAppt.time.split(':')[0]}</span>
                           <span className="text-sm">{nextAppt.time.split(':')[1]}</span>
                         </div>
@@ -494,7 +532,7 @@ export default function BarberDashboard() {
                       </div>
                       <div className="flex gap-3 w-full lg:w-auto">
                          {nextAppt.status === 'PENDING' && (
-                           <button onClick={() => handleUpdateStatus(nextAppt.id, "CONFIRMED")} disabled={isLoading} className="flex-1 lg:flex-none px-8 py-5 bg-blue-500 text-white font-black uppercase text-xs tracking-widest rounded-2xl hover:bg-blue-400 transition-all shadow-[0_10px_20px_rgba(59,130,246,0.3)] border border-blue-400">Confirmar</button>
+                           <button onClick={() => handleUpdateStatus(nextAppt.id, "CONFIRMED")} disabled={isLoading} className="flex-1 lg:flex-none px-8 py-5 bg-blue-500 text-white font-black uppercase text-xs tracking-widest rounded-2xl hover:bg-blue-400 transition-all shadow-[0_10px_20px_rgba(59,130,246,0.3)] border border-blue-400">Confirmar Llegada</button>
                          )}
                          <button onClick={() => handleUpdateStatus(nextAppt.id, "COMPLETED")} disabled={isLoading} className="flex-1 lg:flex-none px-8 py-5 bg-green-500 text-black font-black uppercase text-xs tracking-widest rounded-2xl hover:bg-green-400 transition-all shadow-[0_10px_20px_rgba(34,197,94,0.4)] border border-green-400">Completar & Cobrar</button>
                       </div>
@@ -550,7 +588,7 @@ export default function BarberDashboard() {
                           <div className={`w-1 h-full my-2 rounded-full group-last:hidden ${appAtThisTime.status === 'COMPLETED' ? 'bg-green-500/40' : 'bg-amber-500/40'}`}></div>
                         </div>
                         
-                        <div className={`flex-1 bg-zinc-800/80 border-2 hover:border-amber-500 rounded-3xl p-6 mb-6 shadow-lg transition-colors relative overflow-hidden ${appAtThisTime.status === 'COMPLETED' ? 'border-green-500/60 bg-green-500/5' : 'border-zinc-600'}`}>
+                        <div className={`flex-1 border-2 hover:border-amber-500 rounded-3xl p-6 mb-6 shadow-lg transition-colors relative overflow-hidden ${appAtThisTime.status === 'COMPLETED' ? 'border-green-500/60 bg-green-500/5' : appAtThisTime.status === 'PENDING' ? 'border-amber-500/80 bg-amber-500/5' : 'border-zinc-600 bg-zinc-800/80'}`}>
                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
                              <div>
                                <div className="flex items-center gap-3 mb-2">
@@ -560,6 +598,7 @@ export default function BarberDashboard() {
                                <p className="text-base font-bold text-zinc-300 flex items-center gap-2">
                                  <Scissors size={16} className="text-amber-500"/> {appAtThisTime.service?.name || appAtThisTime.service_name || 'Servicio General'} • <span className="text-white bg-zinc-900 px-2 py-0.5 rounded-md border border-zinc-700">{formatMoney(appAtThisTime.service?.price as number)}</span>
                                </p>
+                               {appAtThisTime.notes && <p className="text-xs text-zinc-400 mt-2 font-mono break-words">{appAtThisTime.notes}</p>}
                              </div>
                            </div>
 
@@ -691,7 +730,7 @@ export default function BarberDashboard() {
           </motion.div>
         )}
 
-        {/* --- TAB 4: FINANZAS Y COMISIONES (ARREGLADO CON JOIN) --- */}
+        {/* --- TAB 4: FINANZAS Y COMISIONES --- */}
         {activeTab === "FINANZAS" && (
           <motion.div key="finanzas" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
