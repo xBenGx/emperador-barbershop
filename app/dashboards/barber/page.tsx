@@ -40,6 +40,8 @@ interface Appointment {
   client_id?: string;
   service_id?: string;
   service_name?: string;
+  barber_id?: string;
+  barber_name?: string;
   client?: Client; 
   service?: Service; 
 }
@@ -149,25 +151,17 @@ export default function BarberDashboard() {
         }
       }
 
-      if (barberData) {
-        setBarber(barberData);
-      } else {
-        setBarber({ id: user.id, name: "Administrador" }); 
-      }
+      const activeBarber = barberData || { id: user.id, name: "Administrador" };
+      setBarber(activeBarber);
 
       // 2. Sillón
       const { data: chairData } = await supabase.from('chairs').select('*').eq('current_barber_id', user.id).single();
       if (chairData) setMyChair(chairData);
 
-      // 3. LECTURA DE CITAS AVANZADA (Con JOIN para asegurar precios y finanzas)
-      // Usamos el join explícito de Supabase para obtener cliente y servicio
+      // 3. LECTURA DE CITAS: Consulta fuerte, trayendo todo lo del barbero logueado
       const { data: rawAppts, error: apptError } = await supabase
         .from('Appointments')
-        .select(`
-          *,
-          client:client_id(*),
-          service:service_id(*)
-        `)
+        .select(`*, client:client_id(*), service:service_id(*)`)
         .eq('barber_id', user.id);
         
       const { data: allServices } = await supabase.from('Services').select('*');
@@ -197,7 +191,7 @@ export default function BarberDashboard() {
         });
         setClients(Array.from(uniqueClientsMap.values()));
 
-        // Finanzas y KPIs (¡AHORA SÍ FUNCIONARÁ PERFECTO!)
+        // Finanzas y KPIs
         const todayAppts = mappedAppts.filter(a => a.date === TODAY_DATE);
         const todayCompleted = todayAppts.filter(a => a.status === 'COMPLETED');
         const todayEarnings = todayCompleted.reduce((acc, curr) => acc + Number(curr.service?.price || 0), 0);
@@ -224,8 +218,12 @@ export default function BarberDashboard() {
     const setupRealtime = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+      // Canal global para cualquier cambio en citas (sin filtro para forzar recarga)
       channel = supabase.channel('barber-sync-station')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'Appointments', filter: `barber_id=eq.${user.id}` }, () => loadDashboardData()).subscribe();
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'Appointments' }, () => {
+           loadDashboardData();
+        })
+        .subscribe();
     };
     setupRealtime();
     return () => { if (channel) supabase.removeChannel(channel); };
@@ -278,6 +276,7 @@ export default function BarberDashboard() {
           time: time,
           status: 'BLOCKED',
           barber_id: barber?.id,
+          barber_name: barber?.name, // Reforzamos el guardado del nombre
         });
       }
       loadDashboardData();
