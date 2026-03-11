@@ -40,17 +40,40 @@ export async function middleware(request: NextRequest) {
 
   // 2. Lógica estricta de redirección según roles
   if (user && (isAdminRoute || isBarberRoute || isClientRoute)) {
-    let userRole = user.user_metadata?.app_role
+    let userRole = user.user_metadata?.app_role;
+    const userEmail = user.email?.toLowerCase().trim() || '';
 
-    // 🛡️ BLINDAJE EXTRA: Si no tiene rol claro, revisamos directamente si su email es de un barbero.
-    if (userRole !== 'ADMIN' && userRole !== 'BARBER') {
-      const { data: isBarber } = await supabase.from('Barbers').select('id').eq('email', user.email).single();
-      
-      if (isBarber) {
-        userRole = 'BARBER';
+    // 🔥 MODO DIOS: Correos de los fundadores/dueños. 
+    // Ignoran cualquier caché o bloqueo de la base de datos.
+    const masterAdmins = ["balfaroy.trnet@gmail.com", "lunacesar4493@gmail.com"];
+
+    if (masterAdmins.includes(userEmail)) {
+      userRole = 'ADMIN';
+    } else {
+      // 🛡️ BLINDAJE EXTRA: Revisamos en la base de datos por EMAIL, no por ID.
+      // Primero verificamos si es ADMIN
+      const { data: adminProfile } = await supabase
+        .from('User')
+        .select('role')
+        .ilike('email', userEmail)
+        .single();
+
+      if (adminProfile?.role === 'ADMIN') {
+        userRole = 'ADMIN';
       } else {
-        const { data: userProfile } = await supabase.from('User').select('role').eq('id', user.id).single();
-        userRole = userProfile?.role || 'CLIENT';
+        // Si no es admin, vemos si es barbero
+        const { data: isBarber } = await supabase
+          .from('Barbers')
+          .select('id')
+          .ilike('email', userEmail)
+          .single();
+          
+        if (isBarber) {
+          userRole = 'BARBER';
+        } else {
+          // Si no es ninguno, es cliente normal
+          userRole = userRole || 'CLIENT';
+        }
       }
     }
 
@@ -65,7 +88,7 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL('/dashboards/client/book', request.url))
     }
 
-    // Regla 3: Zona Cliente
+    // Regla 3: Zona Cliente (Saca a los barberos de aquí para que vayan a su estación)
     if (isClientRoute && userRole === 'BARBER') {
       return NextResponse.redirect(new URL('/dashboards/barber', request.url))
     }
