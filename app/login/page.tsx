@@ -57,7 +57,7 @@ function LoginContent() {
 
       const userId = authData.user.id;
 
-      // 2. 🛡️ SUPER BLINDAJE (Búsqueda Infalible por Email)
+      // 2. 🛡️ SUPER BLINDAJE Y FUENTE DE LA VERDAD (Consulta Directa a DB)
       let finalRole = "CLIENT"; // Asumimos cliente por defecto
 
       // Buscamos DIRECTAMENTE en la tabla Barbers usando el email exacto
@@ -70,13 +70,14 @@ function LoginContent() {
       if (barberCheck) {
         // ¡Existe en la tabla Barbers! Lo forzamos a Barbero.
         finalRole = "BARBER"; 
-        // Auto-reparación silenciosa del token de sesión para el middleware
         await supabase.auth.updateUser({ data: { app_role: 'BARBER' } });
       } else {
-        // Si no es barbero, revisamos si es ADMIN
+        // Si no es barbero, revisamos la tabla User PÚBLICA (esta es la fuente de la verdad para ADMIN)
         const { data: adminCheck } = await supabase.from("User").select("role").eq("id", userId).single();
         if (adminCheck?.role === "ADMIN") {
           finalRole = "ADMIN";
+          // Actualizamos el token local por si estaba pegado en CLIENT
+          await supabase.auth.updateUser({ data: { app_role: 'ADMIN' } });
         }
       }
 
@@ -108,13 +109,13 @@ function LoginContent() {
         }
       }
 
-      // Fallback de seguridad general
-      if (finalRole === "CLIENT") {
-        router.push("/dashboards/client/book");
+      // Fallback de seguridad general si por alguna razón no seleccionó portal
+      if (finalRole === "ADMIN") {
+        router.push("/dashboards/admin");
       } else if (finalRole === "BARBER") {
         router.push("/dashboards/barber");
-      } else if (finalRole === "ADMIN") {
-        router.push("/dashboards/admin");
+      } else {
+        router.push("/dashboards/client/book");
       }
 
       router.refresh();
@@ -176,8 +177,8 @@ function LoginContent() {
             className="relative z-10 w-full max-w-6xl mx-auto flex flex-col items-center"
           >
             <div className="text-center mb-16">
-              <span className="text-amber-500 font-black text-[10px] uppercase tracking-[0.5em] mb-4 block italic">Emperador Management System</span>
-              <h1 className="text-5xl md:text-7xl font-black text-white uppercase tracking-tighter mb-4 font-serif italic">
+              <span className="text-amber-500 font-black text-[10px] uppercase tracking-[0.5em] mb-4 block">Emperador Management System</span>
+              <h1 className="text-5xl md:text-7xl font-black text-white uppercase tracking-tighter mb-4 font-serif">
                 SISTEMA DE <span className="text-amber-500">ACCESOS</span>
               </h1>
               <p className="text-zinc-500 text-lg font-medium">Selecciona tu credencial para continuar</p>
