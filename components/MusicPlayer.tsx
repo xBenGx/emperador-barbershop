@@ -12,7 +12,7 @@ import { createClient } from '@/utils/supabase/client';
 import Image from 'next/image';
 
 // ============================================================================
-// PLAYLIST DE RESERVA (FALLBACK) EN CASO DE QUE LA DB ESTÉ VACÍA
+// PLAYLIST DE RESERVA (FALLBACK)
 // ============================================================================
 const DEFAULT_PLAYLIST = [
   { id: "1", title: "Emperador Vibe", artist: "Emperador", src: "/vibe.mp3", cover_url: "", duration: "3:45" },
@@ -44,7 +44,6 @@ export default function AdvancedMusicPlayer() {
   const [isMuted, setIsMuted] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   
-  // Estados de la lista y reproducción
   const [playlist, setPlaylist] = useState<PlaylistItem[]>(DEFAULT_PLAYLIST);
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
@@ -68,30 +67,36 @@ export default function AdvancedMusicPlayer() {
           .eq('is_active', true)
           .order('created_at', { ascending: false });
 
-        if (data && data.length > 0 && !error) {
+        if (error) {
+           console.error("Error de permisos RLS o de red:", error);
+           throw error;
+        }
+
+        if (data && data.length > 0) {
           const dbPlaylist = data.map((song: any) => ({
             id: song.id,
             title: song.title,
-            artist: song.artist || "Emperador",
+            artist: song.artist || "Emperador Barbershop",
             src: song.url,
             cover_url: song.cover_url,
-            duration: "--:--" // Se actualizará al cargar el audio
+            duration: "--:--" // Se actualizará al cargar los metadatos
           }));
           setPlaylist(dbPlaylist);
-          // Prevenir índice fuera de rango si la lista se reduce
+          // Si el índice actual se sale de rango (ej. borraste canciones), reseteamos a 0
           setCurrentTrackIndex(prev => prev >= dbPlaylist.length ? 0 : prev);
         } else {
           setPlaylist(DEFAULT_PLAYLIST);
         }
       } catch (err) {
-        console.error("Usando playlist local por defecto.", err);
+        console.error("Fallback activado. Usando playlist local por defecto.", err);
         setPlaylist(DEFAULT_PLAYLIST);
       }
     };
 
+    // Primera carga
     fetchPlaylist();
 
-    // Suscripción en tiempo real a la tabla 'Songs'
+    // Suscripción al canal de Supabase para cambios en tiempo real
     const channel = supabase.channel('public:Songs')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'Songs' }, fetchPlaylist)
       .subscribe();
@@ -106,7 +111,6 @@ export default function AdvancedMusicPlayer() {
     if (audioRef.current) audioRef.current.volume = isMuted ? 0 : volume;
   }, [volume, isMuted, currentTrackIndex, playlist]);
 
-  // Autoplay interceptor y desbloqueo
   useEffect(() => {
     const handleFirstInteraction = () => {
       if (!hasInteracted && audioRef.current && !isPlaying) {
@@ -115,7 +119,7 @@ export default function AdvancedMusicPlayer() {
           setIsPlaying(true);
           setHasInteracted(true);
           fadeInAudio(isMuted ? 0 : volume);
-        }).catch(() => console.log("Autoplay bloqueado. Requiere acción manual."));
+        }).catch(() => console.log("Autoplay bloqueado por el navegador. Esperando click manual."));
       }
       document.removeEventListener('click', handleFirstInteraction);
       document.removeEventListener('scroll', handleFirstInteraction);
@@ -133,13 +137,22 @@ export default function AdvancedMusicPlayer() {
     };
   }, [hasInteracted, volume, isMuted, isPlaying]);
 
-  // Listeners del Audio HTML5
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
     
     const updateTime = () => setCurrentTime(audio.currentTime);
-    const updateDuration = () => setDuration(audio.duration);
+    const updateDuration = () => {
+      setDuration(audio.duration);
+      // Actualizar visualmente la duración en la playlist
+      setPlaylist(prev => {
+         const newPlaylist = [...prev];
+         if(newPlaylist[currentTrackIndex]) {
+             newPlaylist[currentTrackIndex].duration = formatTime(audio.duration);
+         }
+         return newPlaylist;
+      });
+    };
     const handleEnded = () => nextTrack();
 
     audio.addEventListener('timeupdate', updateTime);
@@ -283,12 +296,20 @@ export default function AdvancedMusicPlayer() {
   if (!isMounted) return null; 
 
   const VolumeIcon = isMuted || volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
-  // Seguridad: Obtener track de manera segura para evitar crasheos si la DB está cargando
   const currentTrack = playlist[currentTrackIndex] || playlist[0];
 
   return (
     <>
-      <audio ref={audioRef} src={currentTrack.src} loop={false} preload="auto" />
+      <audio 
+        ref={audioRef} 
+        src={currentTrack?.src} 
+        loop={false} 
+        preload="auto" 
+        onError={() => {
+          console.error(`Error reproduciendo el archivo: ${currentTrack?.src}. Saltando a la siguiente pista.`);
+          nextTrack(); // Auto-skip si el archivo mp3 está roto o borrado
+        }}
+      />
 
       <motion.div
         initial={{ y: 100, opacity: 0 }}
@@ -313,7 +334,7 @@ export default function AdvancedMusicPlayer() {
             className="relative flex items-center justify-center w-14 h-14 bg-[#050505] rounded-full border-[2px] border-[#1a1a1a] shrink-0 group hover:border-amber-500/50 transition-colors m-1 z-10 focus:outline-none shadow-lg overflow-hidden"
           >
             {/* Si tiene portada, mostrarla difuminada de fondo */}
-            {currentTrack.cover_url && (
+            {currentTrack?.cover_url && (
               <Image src={currentTrack.cover_url} alt="Cover" fill className="object-cover opacity-20 group-hover:opacity-40 transition-opacity" unoptimized />
             )}
 
@@ -359,10 +380,10 @@ export default function AdvancedMusicPlayer() {
                         )}
                         <div className="flex flex-col">
                           <p className="text-[9px] font-black uppercase tracking-widest text-amber-500/90 truncate max-w-[80px]">
-                              {currentTrack.title}
+                              {currentTrack?.title}
                           </p>
                           <p className="text-[7px] text-zinc-500 uppercase font-bold truncate max-w-[80px]">
-                              {currentTrack.artist}
+                              {currentTrack?.artist}
                           </p>
                         </div>
                     </div>
