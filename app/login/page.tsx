@@ -13,7 +13,7 @@ import Link from "next/link";
 type PortalType = "CLIENTE" | "BARBERO" | "ADMIN" | null;
 
 // ============================================================================
-// COMPONENTE CONTENIDO DE LOGIN (Lógica de Redirección con MODO DIOS)
+// COMPONENTE CONTENIDO DE LOGIN (Lógica de Redirección Infalible por Email)
 // ============================================================================
 function LoginContent() {
   const router = useRouter();
@@ -39,7 +39,7 @@ function LoginContent() {
     setError(null);
 
     const formData = new FormData(e.currentTarget);
-    const email = (formData.get("email") as string).toLowerCase().trim();
+    const email = formData.get("email") as string;
     const password = formData.get("password") as string;
 
     try {
@@ -55,26 +55,19 @@ function LoginContent() {
           : authError.message);
       }
 
-      // 2. 🛡️ SUPER BLINDAJE Y MODO DIOS (MASTERS OVERRIDE)
+      // 2. 🛡️ SUPER BLINDAJE: BÚSQUEDA EXCLUSIVA POR EMAIL (Evita fallos de ID)
       let isAdmin = false;
       let isBarber = false;
 
-      // 🔥 MODO DIOS: Accesos Fundadores (Ignoran bloqueos de RLS de Supabase)
-      const masterAdmins = ["balfaroy.trnet@gmail.com", "lunacesar4493@gmail.com"];
-      
-      if (masterAdmins.includes(email)) {
+      // Verificamos si es ADMIN buscando su EMAIL exacto en la tabla User (ilike ignora mayúsculas/minúsculas)
+      const { data: adminCheck } = await supabase
+        .from("User")
+        .select("role")
+        .ilike("email", email)
+        .single();
+        
+      if (adminCheck?.role === "ADMIN") {
         isAdmin = true;
-      } else {
-        // Verificamos si es ADMIN buscando en DB para el resto de mortales
-        const { data: adminCheck } = await supabase
-          .from("User")
-          .select("role")
-          .ilike("email", email)
-          .single();
-          
-        if (adminCheck?.role === "ADMIN") {
-          isAdmin = true;
-        }
       }
 
       // Verificamos si es BARBERO buscando su EMAIL exacto en la tabla Barbers
@@ -91,6 +84,7 @@ function LoginContent() {
       // 3. 🔒 VALIDACIÓN DE SEGURIDAD Y REDIRECCIÓN CRÍTICA
       if (portal === "ADMIN") {
         if (isAdmin) {
+          // Inyectamos el rol en los metadatos de sesión por si un middleware lo pide
           await supabase.auth.updateUser({ data: { app_role: 'ADMIN' } });
           return router.push("/dashboards/admin");
         } else {
@@ -186,6 +180,7 @@ function LoginContent() {
           >
             <div className="text-center mb-16">
               <span className="text-amber-500 font-black text-[10px] uppercase tracking-[0.5em] mb-4 block">Emperador Management System</span>
+              {/* TÍTULO RECTO (Sin italic) */}
               <h1 className="text-5xl md:text-7xl font-black text-white uppercase tracking-tighter mb-4 font-serif">
                 SISTEMA DE <span className="text-amber-500">ACCESOS</span>
               </h1>
@@ -230,6 +225,7 @@ function LoginContent() {
             </button>
 
             <div className="text-center mb-10">
+              {/* TÍTULO RECTO (Sin italic) */}
               <h2 className="text-4xl font-serif font-black text-white uppercase tracking-tighter leading-none mb-3">
                 {portal} <span className="text-amber-500">LOGIN</span>
               </h2>
