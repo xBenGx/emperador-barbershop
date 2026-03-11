@@ -15,7 +15,7 @@ import {
   Package, Boxes, BadgePercent, BarChart3, ShoppingBag,
   Disc, Music, UploadCloud, Volume2, VolumeX, Volume1,
   MessageCircle, CalendarDays, KeyRound, Smartphone, ShieldAlert, XCircle,
-  LogOut, RefreshCw, Lock, Video, Star, HelpCircle, Instagram, Heart, Link2, RotateCcw, Mail, Type
+  LogOut, RefreshCw, Lock, Video, Star, HelpCircle, Instagram, Heart, Link2, RotateCcw, Mail, Type, Play, Pause
 } from "lucide-react";
 
 import * as LucideIcons from "lucide-react";
@@ -24,7 +24,7 @@ import * as LucideIcons from "lucide-react";
 // TIPADOS REALES EXTENDIDOS
 // ============================================================================
 type TabType = "RESUMEN" | "CITAS" | "SILLONES" | "USUARIOS" | "CLIENTES" | "SERVICIOS" | "INVENTARIO" | "WEB_HOME" | "MUSICA";
-type ModalType = "SERVICE" | "BARBER" | "PRODUCT" | "CLIENT" | "CHAIR" | "ASSIGN_CHAIR" | "HERO_SLIDE" | "STORE_PROMO" | "REEL" | "REVIEW" | "FAQ" | "WEB_TEXTS" | null;
+type ModalType = "SERVICE" | "BARBER" | "PRODUCT" | "CLIENT" | "CHAIR" | "ASSIGN_CHAIR" | "HERO_SLIDE" | "STORE_PROMO" | "REEL" | "REVIEW" | "FAQ" | "WEB_TEXTS" | "SONG" | null;
 
 interface Barber { id: string; name: string; email?: string; phone?: string; status: "ACTIVE" | "INACTIVE"; cutsToday: number; role: string; tag: string; img: string; }
 interface Service { id: string; name: string; desc: string; price: string | number; time: string; duration?: number; iconName: string; }
@@ -52,6 +52,7 @@ interface StorePromo { id: string; tag: string; title_left: string; subtitle_lef
 interface Reel { id: string; type: string; media_type: string; media_url: string; likes: string; comments: string; link: string; }
 interface Review { id: string; name: string; text: string; rating: number; }
 interface Faq { id: string; q: string; a: string; }
+interface Song { id: string; title: string; artist: string; url: string; cover_url: string; is_active: boolean; created_at: string; }
 
 // ============================================================================
 // DATA MAESTRA (FALLBACKS TEXTOS WEB)
@@ -122,7 +123,7 @@ function AdminDashboardContent() {
   const [chairs, setChairs] = useState<Chair[]>([]); 
   const [clients, setClients] = useState<Client[]>([]); 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [musicUrl, setMusicUrl] = useState<string>("");
+  const [songs, setSongs] = useState<Song[]>([]);
   
   // Textos y Landing Page
   const [pageContent, setPageContent] = useState(FALLBACK_PAGE_CONTENT);
@@ -140,10 +141,12 @@ function AdminDashboardContent() {
   const [editingItem, setEditingItem] = useState<any>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const musicInputRef = useRef<HTMLInputElement>(null);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [isUploadingMusic, setIsUploadingMusic] = useState(false);
+  
+  // Reproductor Interno de Vista Previa (Música)
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [playingSongId, setPlayingSongId] = useState<string | null>(null);
 
   useEffect(() => {
     const tab = searchParams.get("tab") as TabType;
@@ -170,7 +173,7 @@ function AdminDashboardContent() {
 
       const [
         dbBarbers, dbServices, dbInventory, dbClients, dbChairs, dbSettings, dbAppts,
-        dbHero, dbPromos, dbReels, dbReviews, dbFaqs
+        dbHero, dbPromos, dbReels, dbReviews, dbFaqs, dbSongs
       ] = await Promise.all([
         supabase.from('Barbers').select('*').order('created_at', { ascending: false }),
         supabase.from('Services').select('*').order('price', { ascending: true }),
@@ -183,20 +186,20 @@ function AdminDashboardContent() {
         supabase.from('StorePromos').select('*').order('created_at', { ascending: false }),
         supabase.from('InstagramReels').select('*').order('created_at', { ascending: false }),
         supabase.from('Reviews').select('*').order('created_at', { ascending: false }),
-        supabase.from('Faqs').select('*').order('created_at', { ascending: true })
+        supabase.from('Faqs').select('*').order('created_at', { ascending: true }),
+        supabase.from('Songs').select('*').order('created_at', { ascending: false }) // Lista de reproducción
       ]);
 
       if (dbBarbers.data) setBarbers(dbBarbers.data);
       if (dbServices.data) setServices(dbServices.data);
       if (dbChairs.data) setChairs(dbChairs.data);
+      if (dbSongs.data) setSongs(dbSongs.data);
       
-      // SINCRONIZACIÓN DE TEXTOS Y MÚSICA
+      // SINCRONIZACIÓN DE TEXTOS WEB
       if (dbSettings.data) {
         const contentUpdates = { ...FALLBACK_PAGE_CONTENT };
         dbSettings.data.forEach(setting => {
-          if (setting.key === 'background_music') {
-             setMusicUrl(setting.value);
-          } else if (Object.keys(contentUpdates).includes(setting.key)) {
+          if (Object.keys(contentUpdates).includes(setting.key)) {
              // @ts-ignore
              contentUpdates[setting.key] = setting.value;
           }
@@ -252,19 +255,10 @@ function AdminDashboardContent() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'StorePromos' }, verifyAdminAndFetchData)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'InstagramReels' }, verifyAdminAndFetchData)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'settings' }, verifyAdminAndFetchData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'Songs' }, verifyAdminAndFetchData)
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [verifyAdminAndFetchData, supabase]);
-
-  // Autoguardado de Música
-  useEffect(() => {
-    if (musicUrl && !isFetching) {
-      const timer = setTimeout(async () => {
-        await supabase.from('settings').upsert({ key: 'background_music', value: musicUrl });
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [musicUrl, isFetching, supabase]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -294,6 +288,19 @@ function AdminDashboardContent() {
     setTimeout(() => setCopiedId(null), 2500);
   };
 
+  const togglePreviewAudio = (song: Song) => {
+    if (playingSongId === song.id) {
+      previewAudioRef.current?.pause();
+      setPlayingSongId(null);
+    } else {
+      if (previewAudioRef.current) {
+        previewAudioRef.current.src = song.url;
+        previewAudioRef.current.play();
+        setPlayingSongId(song.id);
+      }
+    }
+  };
+
   if (authError) {
     return (
       <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center text-red-500 gap-4">
@@ -314,29 +321,9 @@ function AdminDashboardContent() {
     }
   };
 
-  const handleMusicUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setIsUploadingMusic(true);
-      try {
-        const fileExt = e.target.files[0].name.split('.').pop();
-        const fileName = `vibe_${Date.now()}.${fileExt}`;
-        const { error: uploadError } = await supabase.storage.from('music').upload(fileName, e.target.files[0]);
-        if (uploadError) throw uploadError;
-        
-        const { data: publicUrlData } = supabase.storage.from('music').getPublicUrl(fileName);
-        setMusicUrl(publicUrlData.publicUrl);
-        alert("¡Música subida correctamente! Se ha autoguardado.");
-      } catch (error: any) {
-        alert(`Error: ${error.message}`);
-      } finally {
-        setIsUploadingMusic(false);
-      }
-    }
-  };
-
   const openModal = (type: ModalType, item: any = null) => {
     setEditingItem(item);
-    setImagePreview(item?.img || item?.image_url || item?.media_url || null);
+    setImagePreview(item?.img || item?.image_url || item?.media_url || item?.cover_url || null);
     setSelectedImage(null);
     setModalType(type);
   };
@@ -367,7 +354,6 @@ function AdminDashboardContent() {
       const cleanId = id.trim();
 
       if (table === 'Barbers') {
-        // 1. Intentamos borrar mediante la API (Borrado oficial en Auth)
         try {
           await fetch('/api/admin/delete-barber', {
             method: 'POST',
@@ -378,13 +364,11 @@ function AdminDashboardContent() {
           console.warn("Auth API no respondió, forzando limpieza manual..."); 
         }
 
-        // 2. FORZADO: Limpiamos dependencias directo en la DB local por si falla el API
         await supabase.from('barber_schedules').delete().eq('barber_id', cleanId);
         await supabase.from('Appointments').delete().eq('barber_id', cleanId);
         await supabase.from('User').delete().eq('id', cleanId);
       }
 
-      // 3. Ejecución Final: Borramos la entidad de la tabla solicitada
       const { error } = await supabase.from(table).delete().eq('id', cleanId);
       
       if (error) {
@@ -408,10 +392,10 @@ function AdminDashboardContent() {
     const formData = new FormData(e.currentTarget);
     
     try {
-      let mediaUrl = editingItem?.img || editingItem?.image_url || editingItem?.media_url || ""; 
+      let mediaUrl = editingItem?.img || editingItem?.image_url || editingItem?.media_url || editingItem?.cover_url || ""; 
       let mediaType = editingItem?.media_type || "image";
 
-      if (selectedImage) {
+      if (selectedImage && modalType !== "SONG") {
         const bucket = modalType === "BARBER" ? 'barber-profiles' : 'media';
         const fileExt = selectedImage.name.split('.').pop()?.toLowerCase();
         mediaType = (fileExt === 'mp4' || fileExt === 'mov' || fileExt === 'webm') ? 'video' : 'image';
@@ -419,6 +403,49 @@ function AdminDashboardContent() {
         const fileName = `${mediaType}_${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
         const { error } = await supabase.storage.from(bucket).upload(fileName, selectedImage);
         if (!error) mediaUrl = supabase.storage.from(bucket).getPublicUrl(fileName).data.publicUrl;
+      }
+
+      // ==================================
+      // BLOQUE ESPECÍFICO PARA CANCIONES
+      // ==================================
+      if (modalType === "SONG") {
+        let finalAudioUrl = editingItem?.url || "";
+        let finalCoverUrl = editingItem?.cover_url || "";
+
+        // Validación y Subida de Archivo MP3
+        const audioFile = formData.get("audio_file") as File;
+        if (audioFile && audioFile.size > 0) {
+            // Verificar explícitamente formato mp3
+            if (!audioFile.name.toLowerCase().endsWith('.mp3') && audioFile.type !== 'audio/mpeg') {
+                throw new Error("El archivo de audio debe ser estrictamente formato .mp3 para evitar problemas en móviles.");
+            }
+            const fileName = `track_${Date.now()}_${Math.random().toString(36).substring(2)}.mp3`;
+            const { error: audioErr } = await supabase.storage.from('music').upload(fileName, audioFile);
+            if (audioErr) throw new Error("Error subiendo audio: " + audioErr.message);
+            finalAudioUrl = supabase.storage.from('music').getPublicUrl(fileName).data.publicUrl;
+        }
+
+        // Subida de Portada de la canción
+        const coverFile = formData.get("cover_file") as File;
+        if (coverFile && coverFile.size > 0) {
+            const fileName = `cover_${Date.now()}_${Math.random().toString(36).substring(2)}.${coverFile.name.split('.').pop()}`;
+            const { error: coverErr } = await supabase.storage.from('media').upload(fileName, coverFile);
+            if (coverErr) throw new Error("Error subiendo portada: " + coverErr.message);
+            finalCoverUrl = supabase.storage.from('media').getPublicUrl(fileName).data.publicUrl;
+        }
+
+        if (!finalAudioUrl) throw new Error("Es obligatorio adjuntar un archivo MP3.");
+
+        const data = {
+            title: formData.get("title"),
+            artist: formData.get("artist"),
+            url: finalAudioUrl,
+            cover_url: finalCoverUrl,
+            is_active: formData.get("is_active") === "true"
+        };
+
+        if (editingItem && isValidUUID(editingItem.id)) await supabase.from('Songs').update(data).eq('id', editingItem.id);
+        else await supabase.from('Songs').insert([data]);
       }
 
       if (modalType === "BARBER") {
@@ -622,7 +649,7 @@ function AdminDashboardContent() {
             { id: "SERVICIOS", icon: <Scissors size={18}/> },
             { id: "INVENTARIO", icon: <Boxes size={18}/> },
             { id: "WEB_HOME", icon: <LayoutDashboard size={18}/> },
-            { id: "MUSICA", icon: <Music size={18}/> }
+            { id: "MUSICA", icon: <Disc size={18}/> }
           ].map((tab) => (
             <button
               key={tab.id}
@@ -726,7 +753,7 @@ function AdminDashboardContent() {
             </motion.div>
           )}
 
-          {/* --- TAB: SILLONES (AHORA CON BOTONES DE ACCIÓN RÁPIDA) --- */}
+          {/* --- TAB: SILLONES --- */}
           {activeTab === "SILLONES" && (
             <motion.div key="sillones" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
               <div className="flex justify-between items-center mb-6">
@@ -758,14 +785,14 @@ function AdminDashboardContent() {
                         ) : (<p className="text-zinc-600 text-sm font-medium">Estación libre lista para arriendo.</p>)}
                       </div>
                       
-                      {/* BOTONERA ACCIÓN RÁPIDA (Fácil para celular) */}
+                      {/* BOTONERA ACCIÓN RÁPIDA */}
                       <div className="mt-6 pt-6 border-t border-zinc-800/80 flex gap-2">
                         {chair.status === 'OCCUPIED' ? (
                           <button onClick={() => handleReleaseChair(chair.id)} className="flex-1 py-2.5 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all">Liberar</button>
                         ) : (
                           <button onClick={() => openModal("ASSIGN_CHAIR", chair)} className="flex-1 py-2.5 bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-amber-500 hover:text-black transition-all">Asignar</button>
                         )}
-                        <button onClick={() => openModal("CHAIR", chair)} className="px-4 py-2.5 bg-zinc-900 border border-zinc-800 text-zinc-400 rounded-xl hover:text-white transition-all" title="Editar Detalles Completos"><Edit3 size={16}/></button>
+                        <button onClick={() => openModal("CHAIR", chair)} className="px-4 py-2.5 bg-zinc-900 border border-zinc-800 text-zinc-400 rounded-xl hover:text-white transition-all" title="Editar Detalles"><Edit3 size={16}/></button>
                         <button onClick={() => handleDelete('chairs', chair.id)} className="px-4 py-2.5 bg-zinc-900 border border-zinc-800 text-zinc-400 rounded-xl hover:text-red-500 transition-all" title="Eliminar Sillón"><Trash2 size={16}/></button>
                       </div>
                     </div>
@@ -899,7 +926,7 @@ function AdminDashboardContent() {
                 <button onClick={handleResetSection} className="flex items-center gap-2 px-4 py-2 bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-colors"><RotateCcw size={14}/> Recargar Web</button>
               </div>
 
-              {/* BLOQUE NUEVO: Editor de Textos de la Página (Landing) */}
+              {/* Editor de Textos de la Página (Landing) */}
               <div className="p-8 bg-zinc-900/50 border border-zinc-800 rounded-3xl mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 shadow-xl">
                  <div>
                     <h3 className="text-2xl font-bold text-white flex items-center gap-2"><Type className="text-amber-500"/> Textos Generales de la Web</h3>
@@ -1015,25 +1042,102 @@ function AdminDashboardContent() {
             </motion.div>
           )}
 
-          {/* --- TAB: MUSICA --- */}
+          {/* --- TAB: MUSICA (NUEVO ESTILO SPOTIFY) --- */}
           {activeTab === "MUSICA" && (
             <motion.div key="musica" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-white">Reproductor de Música Global</h2>
-                <button onClick={handleResetSection} className="flex items-center gap-2 px-4 py-2 bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-colors"><RotateCcw size={14}/> Recargar Estado</button>
+              
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+                <div>
+                  <h2 className="text-2xl font-bold text-white flex items-center gap-3"><Disc className="text-amber-500" /> Gestor Musical Emperador</h2>
+                  <p className="text-zinc-500 text-sm mt-1">Sube tus archivos <strong className="text-white">.MP3</strong> y administra tu lista de reproducción.</p>
+                </div>
+                <div className="flex gap-4">
+                  <button onClick={handleResetSection} className="flex items-center gap-2 px-4 py-2 bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-colors"><RotateCcw size={14}/> Refrescar</button>
+                  <button onClick={() => openModal("SONG", null)} className="flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-400 text-black font-black text-xs uppercase tracking-widest rounded-xl transition-all shadow-[0_0_20px_rgba(217,119,6,0.3)]">
+                    <Plus size={16} /> Subir Canción MP3
+                  </button>
+                </div>
               </div>
-              <div className="bg-zinc-900/40 border border-zinc-800 rounded-[2.5rem] p-10 max-w-4xl shadow-xl">
-                 <label className="text-xs font-black text-zinc-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                   Enlace del Audio MP3 
-                   <span className="bg-green-500/10 border border-green-500/20 text-green-500 px-2 py-0.5 rounded-lg text-[9px] flex items-center gap-1"><Clock size={10}/> Autoguardado</span>
-                 </label>
-                 <div className="flex flex-col md:flex-row gap-4 mb-8">
-                   <input type="text" value={musicUrl} onChange={(e) => setMusicUrl(e.target.value)} className="flex-1 bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white focus:border-amber-500 outline-none" />
-                   <button onClick={() => musicInputRef.current?.click()} className="bg-zinc-800 hover:bg-zinc-700 text-white px-8 py-4 rounded-2xl font-black text-xs tracking-widest uppercase flex gap-3"><UploadCloud size={18} /> Subir MP3</button>
-                   <input type="file" accept="audio/*" className="hidden" ref={musicInputRef} onChange={handleMusicUpload} />
-                 </div>
-                 {musicUrl && <audio src={musicUrl} controls className="w-full mt-4" />}
+
+              {/* Tabla de Canciones Estilo Spotify */}
+              <div className="bg-zinc-900/40 border border-zinc-800 rounded-[2.5rem] overflow-hidden backdrop-blur-md">
+                <table className="w-full text-left text-sm text-zinc-400">
+                  <thead className="border-b border-zinc-800">
+                    <tr className="text-[10px] uppercase font-black tracking-[0.2em] text-zinc-500">
+                      <th className="px-8 py-6 w-16">#</th>
+                      <th className="px-6 py-6">Título y Artista</th>
+                      <th className="px-6 py-6 text-center">Estado Web</th>
+                      <th className="px-6 py-6 text-center">Agregado</th>
+                      <th className="px-8 py-6 text-right"><Clock size={16} className="inline"/></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-800/30">
+                    {songs.length === 0 ? (
+                      <tr><td colSpan={5} className="py-12 text-center text-zinc-500 font-bold uppercase tracking-widest text-xs">Aún no hay canciones en tu Playlist.</td></tr>
+                    ) : (
+                      songs.map((song, idx) => (
+                        <tr key={song.id} className="hover:bg-zinc-800/30 transition-colors group">
+                          
+                          {/* Columna Play/Pause y Número */}
+                          <td className="px-8 py-4">
+                            <div className="relative w-6 h-6 flex items-center justify-center cursor-pointer" onClick={() => togglePreviewAudio(song)}>
+                              {playingSongId === song.id ? (
+                                <Pause size={18} className="text-amber-500" />
+                              ) : (
+                                <>
+                                  <span className="group-hover:hidden text-zinc-500 font-medium text-base">{idx + 1}</span>
+                                  <Play size={18} className="hidden group-hover:block text-white" />
+                                </>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Título, Portada y Artista */}
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-4">
+                              <div className="w-12 h-12 bg-zinc-800 rounded-md relative overflow-hidden flex-shrink-0">
+                                {song.cover_url ? (
+                                  <Image src={song.cover_url} alt={song.title} fill className="object-cover" unoptimized />
+                                ) : (
+                                  <Music className="w-full h-full p-3 text-zinc-600" />
+                                )}
+                              </div>
+                              <div>
+                                <span className={`font-bold text-base block ${playingSongId === song.id ? 'text-amber-500' : 'text-white'}`}>{song.title}</span>
+                                <span className="text-xs text-zinc-400">{song.artist}</span>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Estado Activo/Oculto */}
+                          <td className="px-6 py-4 text-center">
+                            <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${song.is_active ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 'bg-zinc-800 text-zinc-500'}`}>
+                              {song.is_active ? 'Reproduciendo' : 'Oculta'}
+                            </span>
+                          </td>
+
+                          {/* Fecha */}
+                          <td className="px-6 py-4 text-center">
+                            <span className="text-xs font-medium text-zinc-500">{new Date(song.created_at).toLocaleDateString('es-CL')}</span>
+                          </td>
+
+                          {/* Acciones */}
+                          <td className="px-8 py-4 text-right">
+                            <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button onClick={() => openModal("SONG", song)} className="p-2 text-zinc-400 hover:text-white"><Edit3 size={18}/></button>
+                              <button onClick={() => handleDelete('Songs', song.id)} className="p-2 text-zinc-400 hover:text-red-500"><Trash2 size={18}/></button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
+              
+              {/* Elemento de audio invisible para la vista previa en el panel admin */}
+              <audio ref={previewAudioRef} onEnded={() => setPlayingSongId(null)} className="hidden" />
+              
             </motion.div>
           )}
 
@@ -1057,7 +1161,7 @@ function AdminDashboardContent() {
               
               <form onSubmit={handleSaveAction} className="space-y-6">
                 
-                {/* UPLOADER DE ARCHIVOS GENERAL */}
+                {/* UPLOADER DE ARCHIVOS GENERAL (Solo imágenes o video ligero) */}
                 {(modalType === "BARBER" || modalType === "PRODUCT" || modalType === "HERO_SLIDE" || modalType === "STORE_PROMO" || modalType === "REEL") && (
                   <div className="flex justify-center mb-8">
                     <div className={`relative rounded-[2.5rem] border-2 border-dashed border-zinc-700 bg-zinc-900/50 flex flex-col items-center justify-center overflow-hidden cursor-pointer hover:border-amber-500 group ${modalType === 'PRODUCT' ? 'w-full h-48' : 'w-36 h-36'}`} onClick={() => fileInputRef.current?.click()}>
@@ -1074,10 +1178,47 @@ function AdminDashboardContent() {
                   </div>
                 )}
 
-                {/* --- FORMULARIO: TEXTOS DE LA WEB (NUEVO) --- */}
+                {/* --- FORMULARIO: CANCIÓN (ESTILO SPOTIFY) --- */}
+                {modalType === "SONG" && (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      <InputField label="Título de la Canción" name="title" defaultValue={editingItem?.title || ""} required />
+                      <InputField label="Artista" name="artist" defaultValue={editingItem?.artist || "Emperador Barbershop"} required />
+                    </div>
+                    
+                    {/* Input exclusivo y validado para MP3 */}
+                    <div className="space-y-2 mt-4">
+                      <label className="block text-[10px] font-black text-amber-500 uppercase tracking-widest pl-2 flex items-center gap-1"><Disc size={12}/> Archivo de Audio Estricto (.MP3)</label>
+                      <input 
+                        type="file" 
+                        name="audio_file" 
+                        accept=".mp3,audio/mpeg,audio/mp3" 
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-amber-500 file:text-black hover:file:bg-amber-400 cursor-pointer" 
+                        required={!editingItem} 
+                      />
+                      <p className="text-zinc-500 text-[10px] pl-2">Formatos aceptados: Solo .mp3. Esto garantiza la compatibilidad en dispositivos iOS y Android.</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-4">
+                      <div className="space-y-2">
+                        <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest pl-2 flex items-center gap-1"><ImageIcon size={12}/> Portada (Opcional)</label>
+                        <input type="file" name="cover_file" accept="image/*" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-zinc-800 file:text-white hover:file:bg-zinc-700 cursor-pointer" />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest pl-2">Estado en la Web</label>
+                        <select name="is_active" defaultValue={editingItem?.is_active === false ? "false" : "true"} className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white font-bold outline-none focus:border-amber-500 transition-all">
+                          <option value="true">Activa (El reproductor web la tocará)</option>
+                          <option value="false">Oculta (Guardada sin reproducir)</option>
+                        </select>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* --- FORMULARIO: TEXTOS DE LA WEB --- */}
                 {modalType === "WEB_TEXTS" && (
                   <div className="space-y-10">
-                     {/* Portada */}
                      <div>
                        <h4 className="text-amber-500 font-black uppercase tracking-widest text-xs mb-4 border-b border-zinc-800 pb-2">1. Hero (Portada)</h4>
                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1090,7 +1231,6 @@ function AdminDashboardContent() {
                        </div>
                      </div>
 
-                     {/* La Experiencia */}
                      <div>
                        <h4 className="text-amber-500 font-black uppercase tracking-widest text-xs mb-4 border-b border-zinc-800 pb-2">2. La Experiencia</h4>
                        <div className="grid grid-cols-1 gap-4">
@@ -1100,7 +1240,6 @@ function AdminDashboardContent() {
                        </div>
                      </div>
 
-                     {/* El Equipo */}
                      <div>
                        <h4 className="text-amber-500 font-black uppercase tracking-widest text-xs mb-4 border-b border-zinc-800 pb-2">3. El Equipo</h4>
                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1109,7 +1248,6 @@ function AdminDashboardContent() {
                        </div>
                      </div>
 
-                     {/* Servicios */}
                      <div>
                        <h4 className="text-amber-500 font-black uppercase tracking-widest text-xs mb-4 border-b border-zinc-800 pb-2">4. Servicios</h4>
                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1119,7 +1257,6 @@ function AdminDashboardContent() {
                        </div>
                      </div>
 
-                     {/* VIP Room */}
                      <div>
                        <h4 className="text-amber-500 font-black uppercase tracking-widest text-xs mb-4 border-b border-zinc-800 pb-2">5. VIP Room</h4>
                        <div className="grid grid-cols-1 gap-4">
@@ -1129,7 +1266,6 @@ function AdminDashboardContent() {
                        </div>
                      </div>
 
-                     {/* El Salón */}
                      <div>
                        <h4 className="text-amber-500 font-black uppercase tracking-widest text-xs mb-4 border-b border-zinc-800 pb-2">6. El Salón</h4>
                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1138,7 +1274,6 @@ function AdminDashboardContent() {
                        </div>
                      </div>
 
-                     {/* FAQ */}
                      <div>
                        <h4 className="text-amber-500 font-black uppercase tracking-widest text-xs mb-4 border-b border-zinc-800 pb-2">7. Preguntas (FAQ)</h4>
                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1224,7 +1359,6 @@ function AdminDashboardContent() {
                   </>
                 )}
 
-                {/* ASIGNACIÓN RÁPIDA DE SILLÓN */}
                 {modalType === "ASSIGN_CHAIR" && (
                   <>
                     <h4 className="text-xl font-bold text-white text-center mb-4">Sillón: <span className="text-amber-500">{editingItem?.name}</span></h4>

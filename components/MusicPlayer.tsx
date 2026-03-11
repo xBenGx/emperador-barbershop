@@ -4,16 +4,30 @@ import React, { useState, useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { 
   Volume2, VolumeX, Volume1, Music, 
-  Play, Pause, Square, SkipBack, SkipForward, ListMusic
+  Play, Pause, Square, SkipBack, SkipForward, ListMusic,
+  Disc
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@/utils/supabase/client';
+import Image from 'next/image';
 
+// ============================================================================
+// PLAYLIST DE RESERVA (FALLBACK) EN CASO DE QUE LA DB ESTÉ VACÍA
+// ============================================================================
 const DEFAULT_PLAYLIST = [
-  { id: 1, title: "Emperador Vibe", src: "/vibe.mp3", duration: "3:45" },
-  { id: 2, title: "Lofi Barber Chill", src: "/lofi.mp3", duration: "2:30" },
-  { id: 3, title: "Urban Flow", src: "/urban.mp3", duration: "4:15" },
+  { id: "1", title: "Emperador Vibe", artist: "Emperador", src: "/vibe.mp3", cover_url: "", duration: "3:45" },
+  { id: "2", title: "Lofi Barber Chill", artist: "Beats", src: "/lofi.mp3", cover_url: "", duration: "2:30" },
+  { id: "3", title: "Urban Flow", artist: "Barber", src: "/urban.mp3", cover_url: "", duration: "4:15" },
 ];
+
+interface PlaylistItem {
+  id: string;
+  title: string;
+  artist: string;
+  src: string;
+  cover_url?: string;
+  duration?: string;
+}
 
 export default function AdvancedMusicPlayer() {
   const supabase = createClient();
@@ -30,11 +44,15 @@ export default function AdvancedMusicPlayer() {
   const [isMuted, setIsMuted] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   
-  const [playlist, setPlaylist] = useState(DEFAULT_PLAYLIST);
+  // Estados de la lista y reproducción
+  const [playlist, setPlaylist] = useState<PlaylistItem[]>(DEFAULT_PLAYLIST);
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
 
+  // ============================================================================
+  // CARGA Y SINCRONIZACIÓN CON SUPABASE (TIEMPO REAL)
+  // ============================================================================
   useEffect(() => {
     setIsMounted(true);
     const savedVolume = localStorage.getItem('emperador_volume');
@@ -42,23 +60,53 @@ export default function AdvancedMusicPlayer() {
     if (savedVolume) setVolume(parseFloat(savedVolume));
     if (savedMuted === 'true') setIsMuted(true);
 
-    const fetchMusicSettings = async () => {
+    const fetchPlaylist = async () => {
       try {
-        const { data, error } = await supabase.from('settings').select('value').eq('key', 'background_music').single();
-        if (data && data.value && !error) {
-          setPlaylist([{ id: 0, title: "Emperador Vibe (DB)", src: data.value, duration: "--:--" }, ...DEFAULT_PLAYLIST]);
+        const { data, error } = await supabase
+          .from('Songs')
+          .select('*')
+          .eq('is_active', true)
+          .order('created_at', { ascending: false });
+
+        if (data && data.length > 0 && !error) {
+          const dbPlaylist = data.map((song: any) => ({
+            id: song.id,
+            title: song.title,
+            artist: song.artist || "Emperador",
+            src: song.url,
+            cover_url: song.cover_url,
+            duration: "--:--" // Se actualizará al cargar el audio
+          }));
+          setPlaylist(dbPlaylist);
+          // Prevenir índice fuera de rango si la lista se reduce
+          setCurrentTrackIndex(prev => prev >= dbPlaylist.length ? 0 : prev);
+        } else {
+          setPlaylist(DEFAULT_PLAYLIST);
         }
       } catch (err) {
-        console.error("Usando playlist local por defecto.");
+        console.error("Usando playlist local por defecto.", err);
+        setPlaylist(DEFAULT_PLAYLIST);
       }
     };
-    fetchMusicSettings();
+
+    fetchPlaylist();
+
+    // Suscripción en tiempo real a la tabla 'Songs'
+    const channel = supabase.channel('public:Songs')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'Songs' }, fetchPlaylist)
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [supabase]);
 
+  // ============================================================================
+  // LÓGICA CORE DEL REPRODUCTOR
+  // ============================================================================
   useEffect(() => {
     if (audioRef.current) audioRef.current.volume = isMuted ? 0 : volume;
   }, [volume, isMuted, currentTrackIndex, playlist]);
 
+  // Autoplay interceptor y desbloqueo
   useEffect(() => {
     const handleFirstInteraction = () => {
       if (!hasInteracted && audioRef.current && !isPlaying) {
@@ -67,7 +115,7 @@ export default function AdvancedMusicPlayer() {
           setIsPlaying(true);
           setHasInteracted(true);
           fadeInAudio(isMuted ? 0 : volume);
-        }).catch(() => console.log("Autoplay bloqueado."));
+        }).catch(() => console.log("Autoplay bloqueado. Requiere acción manual."));
       }
       document.removeEventListener('click', handleFirstInteraction);
       document.removeEventListener('scroll', handleFirstInteraction);
@@ -85,9 +133,11 @@ export default function AdvancedMusicPlayer() {
     };
   }, [hasInteracted, volume, isMuted, isPlaying]);
 
+  // Listeners del Audio HTML5
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
+    
     const updateTime = () => setCurrentTime(audio.currentTime);
     const updateDuration = () => setDuration(audio.duration);
     const handleEnded = () => nextTrack();
@@ -103,6 +153,9 @@ export default function AdvancedMusicPlayer() {
     };
   }, [currentTrackIndex]);
 
+  // ============================================================================
+  // EFECTOS DE AUDIO (FADE IN / FADE OUT)
+  // ============================================================================
   const fadeInAudio = (targetVolume: number) => {
     if (!audioRef.current) return;
     if (fadeInterval.current) clearInterval(fadeInterval.current);
@@ -138,6 +191,9 @@ export default function AdvancedMusicPlayer() {
     }, 50);
   };
 
+  // ============================================================================
+  // CONTROLES DE REPRODUCCIÓN
+  // ============================================================================
   const togglePlay = () => {
     if (!audioRef.current) return;
     if (isPlaying) {
@@ -225,10 +281,10 @@ export default function AdvancedMusicPlayer() {
   };
 
   if (!isMounted) return null; 
-  // ELIMINADO: if (pathname === '/') return null; <- ESTO ERA EL ERROR
 
   const VolumeIcon = isMuted || volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
-  const currentTrack = playlist[currentTrackIndex];
+  // Seguridad: Obtener track de manera segura para evitar crasheos si la DB está cargando
+  const currentTrack = playlist[currentTrackIndex] || playlist[0];
 
   return (
     <>
@@ -251,11 +307,16 @@ export default function AdvancedMusicPlayer() {
             isHovered ? 'pr-6' : 'pr-1'
           }`}
         >
-          {/* BOTÓN CÍRCULO EXACTO COMO TU IMAGEN */}
+          {/* BOTÓN CÍRCULO PRINCIPAL */}
           <button 
             onClick={togglePlay}
-            className="relative flex items-center justify-center w-14 h-14 bg-[#050505] rounded-full border-[2px] border-[#1a1a1a] shrink-0 group hover:border-amber-500/50 transition-colors m-1 z-10 focus:outline-none shadow-lg"
+            className="relative flex items-center justify-center w-14 h-14 bg-[#050505] rounded-full border-[2px] border-[#1a1a1a] shrink-0 group hover:border-amber-500/50 transition-colors m-1 z-10 focus:outline-none shadow-lg overflow-hidden"
           >
+            {/* Si tiene portada, mostrarla difuminada de fondo */}
+            {currentTrack.cover_url && (
+              <Image src={currentTrack.cover_url} alt="Cover" fill className="object-cover opacity-20 group-hover:opacity-40 transition-opacity" unoptimized />
+            )}
+
             {/* Anillo Naranja */}
             <div className={`absolute w-7 h-7 rounded-full border-[3px] border-amber-500 ${isPlaying ? 'animate-[spin_4s_linear_infinite]' : 'opacity-90'}`}></div>
             {/* Centro Oscuro */}
@@ -271,6 +332,7 @@ export default function AdvancedMusicPlayer() {
                 className="flex items-center gap-4 overflow-hidden whitespace-nowrap"
               >
                 
+                {/* CONTROLES DE DIRECCIÓN */}
                 <div className="flex items-center gap-1.5 bg-black/50 px-3 py-1.5 rounded-full border border-zinc-800">
                     <button onClick={prevTrack} className="text-zinc-400 hover:text-amber-500 transition-colors p-1"><SkipBack size={14} /></button>
                     <button onClick={stopPlayback} className="text-zinc-400 hover:text-amber-500 transition-colors p-1"><Square size={12} fill="currentColor" /></button>
@@ -280,42 +342,49 @@ export default function AdvancedMusicPlayer() {
                     <button onClick={nextTrack} className="text-zinc-400 hover:text-amber-500 transition-colors p-1"><SkipForward size={14} /></button>
                 </div>
 
-                <div className="flex flex-col justify-center bg-[#050505] px-3 py-1 rounded-lg border border-zinc-800/80 min-w-[120px] relative overflow-hidden group/screen cursor-pointer" onClick={() => setIsPlaylistOpen(!isPlaylistOpen)}>
+                {/* TRACK INFO Y PROGRESO */}
+                <div className="flex flex-col justify-center bg-[#050505] px-3 py-1 rounded-lg border border-zinc-800/80 min-w-[140px] relative overflow-hidden group/screen cursor-pointer" onClick={() => setIsPlaylistOpen(!isPlaylistOpen)}>
                   <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-amber-500/30 to-transparent"></div>
 
                   <div className="flex items-center justify-between gap-2 mb-0.5">
-                    <div className="flex items-center gap-1.5 text-amber-500">
+                    <div className="flex items-center gap-1.5 text-amber-500 w-full">
                         {isPlaying ? (
-                             <div className="flex items-end gap-[1px] h-2">
+                             <div className="flex items-end gap-[1px] h-2 shrink-0">
                                 <motion.div animate={{ height: ["2px", "6px", "2px"] }} transition={{ repeat: Infinity, duration: 0.5 }} className="w-[2px] bg-amber-500" />
                                 <motion.div animate={{ height: ["2px", "8px", "2px"] }} transition={{ repeat: Infinity, duration: 0.7 }} className="w-[2px] bg-amber-500" />
                                 <motion.div animate={{ height: ["2px", "4px", "2px"] }} transition={{ repeat: Infinity, duration: 0.6 }} className="w-[2px] bg-amber-500" />
                              </div>
                         ) : (
-                            <Music size={10} />
+                            <Music size={10} className="shrink-0" />
                         )}
-                        <p className="text-[9px] font-black uppercase tracking-widest text-amber-500/90 truncate max-w-[70px]">
-                            {currentTrack.title}
-                        </p>
+                        <div className="flex flex-col">
+                          <p className="text-[9px] font-black uppercase tracking-widest text-amber-500/90 truncate max-w-[80px]">
+                              {currentTrack.title}
+                          </p>
+                          <p className="text-[7px] text-zinc-500 uppercase font-bold truncate max-w-[80px]">
+                              {currentTrack.artist}
+                          </p>
+                        </div>
                     </div>
-                    <ListMusic size={10} className="text-zinc-600 group-hover/screen:text-amber-500 transition-colors" />
+                    <ListMusic size={12} className="text-zinc-600 group-hover/screen:text-amber-500 transition-colors shrink-0" />
                   </div>
                   
-                  <div className="flex items-center gap-2">
-                      <span className="text-[8px] font-mono text-zinc-500">{formatTime(currentTime)}</span>
+                  <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[8px] font-mono text-zinc-500 shrink-0">{formatTime(currentTime)}</span>
                       <input 
                         type="range" 
                         min="0" 
                         max={duration || 100} 
                         value={currentTime} 
                         onChange={handleSeek}
-                        className="w-16 h-0.5 bg-zinc-800 appearance-none cursor-pointer accent-amber-500 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-1.5 [&::-webkit-slider-thumb]:h-1.5 [&::-webkit-slider-thumb]:bg-amber-500 [&::-webkit-slider-thumb]:rounded-none"
+                        className="w-full h-0.5 bg-zinc-800 appearance-none cursor-pointer accent-amber-500 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-1.5 [&::-webkit-slider-thumb]:h-1.5 [&::-webkit-slider-thumb]:bg-amber-500 [&::-webkit-slider-thumb]:rounded-none"
                       />
                   </div>
                 </div>
 
                 <div className="w-px h-8 bg-zinc-800 mx-1"></div>
 
+                {/* CONTROL DE VOLUMEN */}
                 <div className="flex items-center gap-2 group/volume bg-black/50 px-3 py-1.5 rounded-full border border-zinc-800">
                   <button onClick={toggleMute} className="text-zinc-400 hover:text-amber-500 transition-colors focus:outline-none p-1">
                     <VolumeIcon size={14} />
@@ -340,37 +409,57 @@ export default function AdvancedMusicPlayer() {
           </AnimatePresence>
         </motion.div>
 
+        {/* ============================================================================
+            PANEL DESPLEGABLE DE PLAYLIST
+            ============================================================================ */}
         <AnimatePresence>
             {isHovered && isPlaylistOpen && (
                 <motion.div 
                     initial={{ opacity: 0, y: 10, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    className="ml-2 w-[280px] bg-[#0a0a0a]/95 backdrop-blur-xl border border-zinc-800 rounded-xl p-3 shadow-2xl origin-bottom-left"
+                    className="ml-2 w-[300px] bg-[#0a0a0a]/95 backdrop-blur-xl border border-zinc-800 rounded-xl p-3 shadow-2xl origin-bottom-left max-h-[350px] overflow-y-auto custom-scrollbar"
                 >
-                    <div className="flex justify-between items-center mb-2 pb-2 border-b border-zinc-800">
-                        <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Playlist</span>
-                        <span className="text-[10px] font-mono text-amber-500">{playlist.length} TRACKS</span>
+                    <div className="flex justify-between items-center mb-3 pb-2 border-b border-zinc-800 sticky top-0 bg-[#0a0a0a]/90 z-10 backdrop-blur-sm">
+                        <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-1"><Disc size={12}/> Playlist</span>
+                        <span className="text-[10px] font-mono text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">{playlist.length} TRACKS</span>
                     </div>
+                    
                     <div className="space-y-1">
                         {playlist.map((track, idx) => (
                             <button 
-                                key={idx}
+                                key={track.id}
                                 onClick={() => {
                                     setCurrentTrackIndex(idx);
                                     if(!isPlaying) togglePlay();
                                 }}
-                                className={`w-full flex items-center justify-between p-2 rounded-md text-left transition-colors group ${currentTrackIndex === idx ? 'bg-amber-500/10 border border-amber-500/30' : 'hover:bg-zinc-900 border border-transparent'}`}
+                                className={`w-full flex items-center justify-between p-2 rounded-lg text-left transition-all group ${currentTrackIndex === idx ? 'bg-amber-500/10 border border-amber-500/30' : 'hover:bg-zinc-900 border border-transparent'}`}
                             >
-                                <div className="flex items-center gap-2 overflow-hidden">
-                                    <span className={`text-[10px] font-mono w-4 ${currentTrackIndex === idx ? 'text-amber-500' : 'text-zinc-600 group-hover:text-zinc-400'}`}>
-                                        {currentTrackIndex === idx && isPlaying ? <Play size={10} fill="currentColor"/> : (idx + 1).toString().padStart(2, '0')}
-                                    </span>
-                                    <span className={`text-xs truncate ${currentTrackIndex === idx ? 'text-amber-500 font-bold' : 'text-zinc-300 group-hover:text-white'}`}>
-                                        {track.title}
-                                    </span>
+                                <div className="flex items-center gap-3 overflow-hidden">
+                                    <div className={`relative w-8 h-8 rounded-md overflow-hidden bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0 ${currentTrackIndex === idx ? 'border-amber-500' : ''}`}>
+                                       {track.cover_url ? (
+                                         <Image src={track.cover_url} alt={track.title} fill className="object-cover" unoptimized />
+                                       ) : (
+                                         <Music size={12} className="text-zinc-600" />
+                                       )}
+                                       {currentTrackIndex === idx && isPlaying && (
+                                         <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                                            <Play size={12} className="text-amber-500" fill="currentColor"/>
+                                         </div>
+                                       )}
+                                    </div>
+                                    <div className="flex flex-col truncate">
+                                      <span className={`text-xs truncate ${currentTrackIndex === idx ? 'text-amber-500 font-bold' : 'text-zinc-300 group-hover:text-white'}`}>
+                                          {track.title}
+                                      </span>
+                                      <span className="text-[9px] text-zinc-500 uppercase tracking-widest font-bold truncate">
+                                          {track.artist}
+                                      </span>
+                                    </div>
                                 </div>
-                                <span className="text-[10px] font-mono text-zinc-500 shrink-0">{track.duration}</span>
+                                <span className={`text-[10px] font-mono shrink-0 pl-2 ${currentTrackIndex === idx ? 'text-amber-500' : 'text-zinc-600'}`}>
+                                  {track.duration}
+                                </span>
                             </button>
                         ))}
                     </div>
