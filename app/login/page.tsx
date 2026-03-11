@@ -13,7 +13,7 @@ import Link from "next/link";
 type PortalType = "CLIENTE" | "BARBERO" | "ADMIN" | null;
 
 // ============================================================================
-// COMPONENTE CONTENIDO DE LOGIN (Lógica de Redirección con Super Blindaje)
+// COMPONENTE CONTENIDO DE LOGIN (Lógica de Redirección Infalible por Email)
 // ============================================================================
 function LoginContent() {
   const router = useRouter();
@@ -44,7 +44,7 @@ function LoginContent() {
 
     try {
       // 1. Auth con Supabase (Iniciamos sesión)
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      const { error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -55,35 +55,37 @@ function LoginContent() {
           : authError.message);
       }
 
-      const userId = authData.user.id;
+      // 2. 🛡️ SUPER BLINDAJE: BÚSQUEDA EXCLUSIVA POR EMAIL (Evita fallos de ID)
+      let isAdmin = false;
+      let isBarber = false;
 
-      // 2. 🛡️ SUPER BLINDAJE Y FUENTE DE LA VERDAD (Consulta Directa a DB)
-      let finalRole = "CLIENT"; // Asumimos cliente por defecto
+      // Verificamos si es ADMIN buscando su EMAIL exacto en la tabla User (ilike ignora mayúsculas/minúsculas)
+      const { data: adminCheck } = await supabase
+        .from("User")
+        .select("role")
+        .ilike("email", email)
+        .single();
+        
+      if (adminCheck?.role === "ADMIN") {
+        isAdmin = true;
+      }
 
-      // Buscamos DIRECTAMENTE en la tabla Barbers usando el email exacto
+      // Verificamos si es BARBERO buscando su EMAIL exacto en la tabla Barbers
       const { data: barberCheck } = await supabase
         .from("Barbers")
         .select("id")
-        .eq("email", email)
+        .ilike("email", email)
         .single();
-      
+        
       if (barberCheck) {
-        // ¡Existe en la tabla Barbers! Lo forzamos a Barbero.
-        finalRole = "BARBER"; 
-        await supabase.auth.updateUser({ data: { app_role: 'BARBER' } });
-      } else {
-        // Si no es barbero, revisamos la tabla User PÚBLICA (esta es la fuente de la verdad para ADMIN)
-        const { data: adminCheck } = await supabase.from("User").select("role").eq("id", userId).single();
-        if (adminCheck?.role === "ADMIN") {
-          finalRole = "ADMIN";
-          // Actualizamos el token local por si estaba pegado en CLIENT
-          await supabase.auth.updateUser({ data: { app_role: 'ADMIN' } });
-        }
+        isBarber = true;
       }
 
       // 3. 🔒 VALIDACIÓN DE SEGURIDAD Y REDIRECCIÓN CRÍTICA
       if (portal === "ADMIN") {
-        if (finalRole === "ADMIN") {
+        if (isAdmin) {
+          // Inyectamos el rol en los metadatos de sesión por si un middleware lo pide
+          await supabase.auth.updateUser({ data: { app_role: 'ADMIN' } });
           return router.push("/dashboards/admin");
         } else {
           await supabase.auth.signOut();
@@ -92,7 +94,8 @@ function LoginContent() {
       }
 
       if (portal === "BARBERO") {
-        if (finalRole === "BARBER" || finalRole === "ADMIN") {
+        if (isBarber || isAdmin) {
+          await supabase.auth.updateUser({ data: { app_role: 'BARBER' } });
           return router.push("/dashboards/barber");
         } else {
           await supabase.auth.signOut();
@@ -101,20 +104,19 @@ function LoginContent() {
       }
 
       if (portal === "CLIENTE") {
-        if (finalRole === "CLIENT" || finalRole === "ADMIN") {
-          return router.push("/dashboards/client/book");
-        } else {
-          await supabase.auth.signOut();
-          throw new Error("Acceso denegado. Tu cuenta es exclusiva de Staff (Barbero).");
-        }
+        await supabase.auth.updateUser({ data: { app_role: 'CLIENT' } });
+        return router.push("/dashboards/client/book");
       }
 
-      // Fallback de seguridad general si por alguna razón no seleccionó portal
-      if (finalRole === "ADMIN") {
+      // Fallback de seguridad general si no seleccionó portal
+      if (isAdmin) {
+        await supabase.auth.updateUser({ data: { app_role: 'ADMIN' } });
         router.push("/dashboards/admin");
-      } else if (finalRole === "BARBER") {
+      } else if (isBarber) {
+        await supabase.auth.updateUser({ data: { app_role: 'BARBER' } });
         router.push("/dashboards/barber");
       } else {
+        await supabase.auth.updateUser({ data: { app_role: 'CLIENT' } });
         router.push("/dashboards/client/book");
       }
 
@@ -178,6 +180,7 @@ function LoginContent() {
           >
             <div className="text-center mb-16">
               <span className="text-amber-500 font-black text-[10px] uppercase tracking-[0.5em] mb-4 block">Emperador Management System</span>
+              {/* TÍTULO RECTO (Sin italic) */}
               <h1 className="text-5xl md:text-7xl font-black text-white uppercase tracking-tighter mb-4 font-serif">
                 SISTEMA DE <span className="text-amber-500">ACCESOS</span>
               </h1>
@@ -222,6 +225,7 @@ function LoginContent() {
             </button>
 
             <div className="text-center mb-10">
+              {/* TÍTULO RECTO (Sin italic) */}
               <h2 className="text-4xl font-serif font-black text-white uppercase tracking-tighter leading-none mb-3">
                 {portal} <span className="text-amber-500">LOGIN</span>
               </h2>
