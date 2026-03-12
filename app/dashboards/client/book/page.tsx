@@ -6,9 +6,11 @@ import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 
-// Importamos la Server Action segura que creamos en el Paso 3
+// Importamos la Server Action segura
 import { createAppointment } from "@/app/actions/appointment";
 
+// IMPORTACIONES DE ICONOS
+import * as LucideIcons from "lucide-react";
 import { 
   CalendarDays, Clock, Scissors, Star, ChevronRight, 
   ArrowLeft, CheckCircle2, Crown, Zap, History, Gift,
@@ -24,9 +26,15 @@ type BookingStep = 1 | 2 | 3 | 4;
 
 interface ClientProfile { id: string; name: string; phone: string; email: string; points: number; tier?: string; }
 interface Barber { id: string; name: string; role: string; img: string; tag: string; }
-interface Service { id: string; name: string; price: number; time: string; duration?: number; desc: string; }
+interface Service { id: string; name: string; price: number; time: string; duration?: number; desc: string; iconName?: string; order_index?: number; }
 interface Appointment { id: string; date: string; time: string; status: string; barber: Barber; service: Service; }
 interface VIPBenefit { id: string; tier_name: string; required_points: number; reward_desc: string; }
+
+// Componente Dinámico para renderizar iconos desde la BD
+const DynamicIcon = ({ name, size = 24, className = "" }: { name: string, size?: number, className?: string }) => {
+  const IconComponent = (LucideIcons as any)[name] || LucideIcons.Scissors;
+  return <IconComponent size={size} className={className} />;
+};
 
 // Intervalos exactos de 1 Hora
 const TIME_SLOTS = ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"];
@@ -72,7 +80,7 @@ function ClientDashboardContent() {
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [myAppointments, setMyAppointments] = useState<Appointment[]>([]);
-  const [vipBenefits, setVipBenefits] = useState<VIPBenefit[]>([]); // <--- Nuevo Estado Dinámico
+  const [vipBenefits, setVipBenefits] = useState<VIPBenefit[]>([]); 
   const [bookedSlots, setBookedSlots] = useState<string[]>([]); 
   const [isAppLoading, setIsAppLoading] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
