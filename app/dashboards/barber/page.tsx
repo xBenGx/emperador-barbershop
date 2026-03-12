@@ -115,7 +115,9 @@ export default function BarberDashboard() {
   const [modalType, setModalType] = useState<ModalType>(null);
   const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null);
   const [copySuccess, setCopySuccess] = useState(false);
-  const [currentHour, setCurrentHour] = useState("");
+  
+  // Reloj Mejorado (Día y Hora)
+  const [currentTime, setCurrentTime] = useState({ date: TODAY_DATE, hour: "00:00" });
 
   // Reproductor de Notificación (Alerta Sonora)
   const playNotificationSound = () => {
@@ -128,12 +130,15 @@ export default function BarberDashboard() {
 
   // Reloj en tiempo real
   useEffect(() => {
-    const updateHour = () => {
+    const updateTime = () => {
       const now = new Date();
-      setCurrentHour(`${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`);
+      setCurrentTime({
+        date: getLocalTodayDate(),
+        hour: `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`
+      });
     };
-    updateHour();
-    const interval = setInterval(updateHour, 60000); 
+    updateTime();
+    const interval = setInterval(updateTime, 60000); 
     return () => clearInterval(interval);
   }, []);
 
@@ -143,8 +148,8 @@ export default function BarberDashboard() {
   const loadDashboardData = useCallback(async () => {
     setIsFetching(true);
     try {
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      if (!user || authError) {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (!user || userError) {
         router.push('/login');
         return;
       }
@@ -173,24 +178,39 @@ export default function BarberDashboard() {
       const { data: rawAppts, error: apptError } = await supabase
         .from('Appointments')
         .select(`*, client:client_id(*), service:service_id(*)`)
-        .eq('barber_id', user.id);
+        .eq('barber_id', activeBarber.id);
+
+      if (apptError) {
+        console.error("Error leyendo citas de supabase:", apptError);
+      }
         
       const { data: allServices } = await supabase.from('Services').select('*');
 
       if (rawAppts && !apptError) {
         const mappedAppts: Appointment[] = rawAppts.map((a: any) => {
           const matchedService = a.service || allServices?.find(s => s.id === a.service_id);
+          
+          // LÓGICA BLINDADA DE FECHAS Y HORAS: Asegura formato YYYY-MM-DD y HH:mm
+          const safeDate = a.date ? String(a.date).substring(0, 10) : TODAY_DATE;
+          const safeTime = a.time ? String(a.time).substring(0, 5) : "00:00";
+
           return {
             ...a,
-            // CLAVE: Normalizamos la fecha de la DB para que el filtro de calendario funcione
-            date: a.date.includes('T') ? a.date.split('T')[0] : a.date,
+            date: safeDate,
+            time: safeTime,
             client: a.client || { id: a.client_id, name: a.client_name || 'Anónimo', phone: a.client_phone || '', email: '' },
-            service: matchedService || { name: a.service_name || 'Servicio General', price: 0, duration: 60 }
+            service: matchedService || { name: a.service_name || 'Servicio General', price: a.service_price || 0, duration: 60 }
           };
         });
 
-        // Filtrar y ordenar futuras asegurando que cuenta desde hoy
-        const futureAppts = mappedAppts.filter(a => a.date >= TODAY_DATE).sort((a,b) => a.time.localeCompare(b.time));
+        // Filtrar y ordenar futuras (Desde hoy hacia el infinito)
+        const futureAppts = mappedAppts.filter(a => a.date >= TODAY_DATE).sort((a,b) => {
+          if (a.date === b.date) {
+            return a.time.localeCompare(b.time);
+          }
+          return a.date.localeCompare(b.date);
+        });
+
         setAppointments(futureAppts);
         
         // Cargar y unificar clientes
@@ -241,7 +261,7 @@ export default function BarberDashboard() {
             event: '*', 
             schema: 'public', 
             table: 'Appointments',
-            filter: `barber_id=eq.${user.id}` // ¡MAGIA! Solo escucha sus propias citas
+            filter: `barber_id=eq.${user.id}` 
         }, (payload) => {
            console.log("Evento en tiempo real detectado:", payload);
            
@@ -502,7 +522,7 @@ export default function BarberDashboard() {
       <AnimatePresence mode="wait">
         
         {/* =================================================================== */}
-        {/* TAB 1: RESUMEN / PRÓXIMO CORTE */}
+        {/* TAB 1: RESUMEN / PRÓXIMO CORTE MEJORADO */}
         {/* =================================================================== */}
         {activeTab === "RESUMEN" && (
           <motion.div key="resumen" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-8">
@@ -515,9 +535,16 @@ export default function BarberDashboard() {
               </h3>
               
               {(() => {
+                // LÓGICA INFALIBLE: Muestra la próxima cita, incluso si es para mañana o en 3 días.
                 const nextAppt = appointments
-                  .filter(a => a.date === TODAY_DATE && (a.status === "CONFIRMED" || a.status === "PENDING") && a.time >= currentHour)
-                  .sort((a, b) => a.time.localeCompare(b.time))[0];
+                  .filter(a => 
+                    (a.status === "CONFIRMED" || a.status === "PENDING") &&
+                    (a.date > currentTime.date || (a.date === currentTime.date && a.time >= currentTime.hour))
+                  )
+                  .sort((a, b) => {
+                    if (a.date === b.date) return a.time.localeCompare(b.time);
+                    return a.date.localeCompare(b.date);
+                  })[0];
 
                 if (nextAppt) {
                   return (
@@ -530,7 +557,10 @@ export default function BarberDashboard() {
                         <div>
                           <h4 className="text-3xl font-black text-white uppercase tracking-tighter mb-1">{nextAppt.client?.name || nextAppt.client_name || 'Anónimo'}</h4>
                           <p className="text-zinc-200 font-bold flex items-center gap-2 text-lg"><Scissors size={18} className="text-amber-500"/> {nextAppt.service?.name}</p>
-                          {nextAppt.notes && <p className="text-amber-400 text-sm font-bold mt-2 bg-amber-500/20 inline-block px-3 py-1 rounded-md border border-amber-500/30">Nota: {nextAppt.notes}</p>}
+                          <p className="text-xs font-black uppercase tracking-widest text-zinc-400 mt-2 bg-zinc-900 px-3 py-1 rounded-md inline-block border border-zinc-800 shadow-inner">
+                            Para el {new Date(nextAppt.date + 'T00:00:00').toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric', month: 'short' })}
+                          </p>
+                          {nextAppt.notes && <p className="text-amber-400 text-xs font-bold mt-2 bg-amber-500/20 inline-block px-3 py-1 rounded-md border border-amber-500/30">Nota: {nextAppt.notes}</p>}
                         </div>
                       </div>
                       <div className="flex gap-3 w-full lg:w-auto">
@@ -575,12 +605,15 @@ export default function BarberDashboard() {
             </div>
 
             <div className="bg-zinc-900 border border-zinc-700 rounded-[3rem] p-6 md:p-10 shadow-2xl">
-              <h3 className="text-2xl font-black text-white mb-10 border-b border-zinc-700 pb-6 uppercase tracking-tighter">Mi Agenda</h3>
+              <h3 className="text-2xl font-black text-white mb-10 border-b border-zinc-700 pb-6 uppercase tracking-tighter flex justify-between items-center">
+                Mi Agenda
+                <span className="text-sm text-zinc-400 font-bold bg-zinc-800 px-4 py-2 rounded-xl border border-zinc-600">{new Date(selectedDateFilter + 'T00:00:00').toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
+              </h3>
               
               <div className="space-y-2">
                 {TIMELINE_SLOTS.map(time => {
                   const appAtThisTime = filteredAppointments.find(a => a.time.startsWith(time.split(':')[0]));
-                  const isPast = selectedDateFilter === TODAY_DATE && time < currentHour;
+                  const isPast = selectedDateFilter === currentTime.date && time < currentTime.hour;
                   const isBlocked = appAtThisTime?.status === 'BLOCKED' || (!appAtThisTime && isPast);
 
                   if (appAtThisTime && appAtThisTime.status !== 'BLOCKED') {
