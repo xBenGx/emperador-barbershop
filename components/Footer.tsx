@@ -106,7 +106,11 @@ export default function Footer() {
               </li>
               <li className="flex items-center gap-3 group">
                 <LucideIcons.Phone size={18} className="text-amber-500 shrink-0 group-hover:scale-110 transition-transform" />
-                <span>+56 9 1234 5678</span>
+                <span>+56 9 5924 8654</span>
+              </li>
+                            <li className="flex items-center gap-3 group">
+                <LucideIcons.Phone size={18} className="text-amber-500 shrink-0 group-hover:scale-110 transition-transform" />
+                <span>+56 9 4467 5964</span>
               </li>
             </ul>
           </div>
