@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
@@ -89,7 +89,8 @@ const DAYS_OF_WEEK = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sá
 // COMPONENTE PRINCIPAL DEL BARBERO
 // ============================================================================
 export default function BarberDashboard() {
-  const supabase = createClient();
+  // CLAVE: Evita que supabase se recree en cada render
+  const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
   
   // Estados Generales
@@ -181,12 +182,14 @@ export default function BarberDashboard() {
           const matchedService = a.service || allServices?.find(s => s.id === a.service_id);
           return {
             ...a,
+            // CLAVE: Normalizamos la fecha de la DB para que el filtro de calendario funcione
+            date: a.date.includes('T') ? a.date.split('T')[0] : a.date,
             client: a.client || { id: a.client_id, name: a.client_name || 'Anónimo', phone: a.client_phone || '', email: '' },
             service: matchedService || { name: a.service_name || 'Servicio General', price: 0, duration: 60 }
           };
         });
 
-        // Filtrar y ordenar futuras
+        // Filtrar y ordenar futuras asegurando que cuenta desde hoy
         const futureAppts = mappedAppts.filter(a => a.date >= TODAY_DATE).sort((a,b) => a.time.localeCompare(b.time));
         setAppointments(futureAppts);
         

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, Suspense, useCallback } from "react";
+import React, { useState, useEffect, Suspense, useCallback, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -104,7 +104,8 @@ const slideIn: Variants = {
 // COMPONENTE INTERNO (Lógica Principal)
 // ============================================================================
 function BookingEngineContent() {
-  const supabase = createClient();
+  // CLAVE: Memoizamos el cliente para evitar renders infinitos que rompen Realtime
+  const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
   const searchParams = useSearchParams();
   const barberParam = searchParams.get('barber'); 
@@ -170,38 +171,61 @@ function BookingEngineContent() {
     loadInitialData();
   }, [supabase, barberParam]);
 
-  // 2. Cargar horas ocupadas (Bloqueo de Calendario en Tiempo Real)
-  useEffect(() => {
-    const fetchBookedSlots = async () => {
-      if (booking.barber && booking.date) {
-        try {
-          const { data: rawAppts } = await supabase
-            .from('Appointments') 
-            .select('time, service_id')
-            .eq('barber_id', booking.barber.id)
-            .eq('date', booking.date.fullDate)
-            .neq('status', 'CANCELLED');
-            
-          const { data: srvs } = await supabase.from('Services').select('id, duration');
+  // 2. Extraemos la lógica de búsqueda de slots a un useCallback
+  const fetchBookedSlots = useCallback(async () => {
+    if (booking.barber && booking.date) {
+      try {
+        const { data: rawAppts } = await supabase
+          .from('Appointments') 
+          .select('time, service_id')
+          .eq('barber_id', booking.barber.id)
+          .eq('date', booking.date.fullDate)
+          .neq('status', 'CANCELLED');
+          
+        const { data: srvs } = await supabase.from('Services').select('id, duration');
 
-          if (rawAppts) {
-            const mappedSlots = rawAppts.map((a: any) => {
-              const srv = srvs?.find(s => s.id === a.service_id);
-              return {
-                time: a.time,
-                duration: srv?.duration || 60 
-              };
-            });
-            setBookedSlots(mappedSlots);
-          }
-        } catch (error) {
-          console.error("Error al leer slots ocupados:", error);
-          setBookedSlots([]);
+        if (rawAppts) {
+          const mappedSlots = rawAppts.map((a: any) => {
+            const srv = srvs?.find(s => s.id === a.service_id);
+            return {
+              time: a.time,
+              duration: srv?.duration || 60 
+            };
+          });
+          setBookedSlots(mappedSlots);
         }
+      } catch (error) {
+        console.error("Error al leer slots ocupados:", error);
+        setBookedSlots([]);
       }
-    };
-    fetchBookedSlots();
+    }
   }, [booking.barber, booking.date, supabase]);
+
+  // Cargar horas ocupadas al cambiar barbero o fecha
+  useEffect(() => {
+    fetchBookedSlots();
+  }, [fetchBookedSlots]);
+
+  // 3. NUEVO: REALTIME ANTI-COLISIONES PARA EL CLIENTE
+  // Si otro cliente toma la hora mientras este usuario mira el calendario, se bloquea automáticamente.
+  useEffect(() => {
+    if (!booking.barber || !booking.date) return;
+    
+    // Filtramos estrictamente por el barbero seleccionado
+    const channel = supabase.channel(`public:appts-client-${booking.barber.id}`)
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'Appointments',
+        filter: `barber_id=eq.${booking.barber.id}` 
+      }, () => {
+        // Al detectar un cambio en la tabla de este barbero, recargamos los slots
+        fetchBookedSlots();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [booking.barber, booking.date, fetchBookedSlots, supabase]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -210,7 +234,7 @@ function BookingEngineContent() {
   const nextStep = () => setStep((p) => Math.min(p + 1, 5));
   const prevStep = () => setStep((p) => Math.max(p - 1, 1));
 
-  // 3. MOTOR DE COLISIONES DE TIEMPO
+  // 4. MOTOR DE COLISIONES DE TIEMPO
   const isSlotUnavailable = useCallback((timeStr: string) => {
     if (!booking.date || !booking.service) return true;
 
@@ -239,7 +263,7 @@ function BookingEngineContent() {
   }, [booking.date, booking.service, bookedSlots]);
 
 
-  // 4. CONFIRMACIÓN FINAL USANDO LA SERVER ACTION
+  // 5. CONFIRMACIÓN FINAL USANDO LA SERVER ACTION
   const handleFinalConfirm = async () => {
     setIsConfirming(true);
     setAuthError(null);
