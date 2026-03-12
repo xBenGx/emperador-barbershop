@@ -80,7 +80,11 @@ const FALLBACK_PAGE_CONTENT = {
   salon_title: "NUESTRO SALÓN.",
   faq_tag: "Resolviendo Dudas",
   faq_title: "AYUDA.",
-  faq_desc: "Todo lo que necesitas saber antes de asegurar tu trono."
+  faq_desc: "Todo lo que necesitas saber antes de asegurar tu trono.",
+  video_experiencia: "/presentacion.mp4",
+  video_servicios: "/cortes.mp4",
+  video_vip: "/mesadepool.mp4",
+  video_salon: "/barberia.mp4"
 };
 
 // ============================================================================
@@ -535,7 +539,6 @@ function AdminDashboardContent() {
       }
 
       if (modalType === "CLIENT") {
-        // ACTUALIZACIÓN DE CLIENTE (Puntos ahora pueden ser forzados manualmente si el admin quiere)
         const data = { name: formData.get("name"), phone: formData.get("phone"), email: formData.get("email"), points: parseInt(formData.get("points") as string) || 0 };
         if (editingItem && isValidUUID(editingItem.id)) await supabase.from('clients').update(data).eq('id', editingItem.id);
         else await supabase.from('clients').insert([data]);
@@ -1241,7 +1244,7 @@ function AdminDashboardContent() {
                 </div>
                 <div className="flex gap-4">
                   <button onClick={handleResetSection} className="flex items-center gap-2 px-4 py-2 bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-colors"><RotateCcw size={14}/> Refrescar</button>
-                  <button onClick={() => openModal("SONG", null)} className="flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-400 text-black font-black text-xs uppercase tracking-widest rounded-xl transition-all shadow-[0_0_20px_rgba(217,119,6,0.3)]">
+                  <button onClick={() => openModal("SONG", null)} className="flex items-center gap-2 px-6 py-3 bg-amber-50 hover:bg-amber-400 text-black font-black text-xs uppercase tracking-widest rounded-xl transition-all shadow-[0_0_20px_rgba(217,119,6,0.3)]">
                     <Plus size={16} /> Subir Canción MP3
                   </button>
                 </div>
@@ -1404,7 +1407,7 @@ function AdminDashboardContent() {
                   </>
                 )}
 
-                {/* --- FORMULARIO: TEXTOS DE LA WEB --- */}
+                {/* --- FORMULARIO: TEXTOS DE LA WEB (CON VIDEOS) --- */}
                 {modalType === "WEB_TEXTS" && (
                   <div className="space-y-10">
                      <div>
@@ -1421,9 +1424,10 @@ function AdminDashboardContent() {
 
                      <div>
                        <h4 className="text-amber-500 font-black uppercase tracking-widest text-xs mb-4 border-b border-zinc-800 pb-2">2. La Experiencia</h4>
-                       <div className="grid grid-cols-1 gap-4">
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                          <InputField label="Etiqueta Superior (Tag)" name="exp_tag" defaultValue={editingItem?.exp_tag} />
                          <InputField label="Título Principal" name="exp_title" defaultValue={editingItem?.exp_title} />
+                         <InputField label="URL Video de Fondo" name="video_experiencia" defaultValue={editingItem?.video_experiencia || FALLBACK_PAGE_CONTENT.video_experiencia} placeholder="/presentacion.mp4 o https://..." />
                          <TextAreaField label="Párrafo Descriptivo" name="exp_desc" defaultValue={editingItem?.exp_desc} rows={3} />
                        </div>
                      </div>
@@ -1441,15 +1445,17 @@ function AdminDashboardContent() {
                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                          <InputField label="Etiqueta Superior" name="services_tag" defaultValue={editingItem?.services_tag} />
                          <InputField label="Título Principal" name="services_title" defaultValue={editingItem?.services_title} />
+                         <InputField label="URL Video Demostrativo" name="video_servicios" defaultValue={editingItem?.video_servicios || FALLBACK_PAGE_CONTENT.video_servicios} placeholder="/cortes.mp4 o https://..." />
                          <TextAreaField label="Descripción Breve" name="services_desc" defaultValue={editingItem?.services_desc} rows={2} />
                        </div>
                      </div>
 
                      <div>
                        <h4 className="text-amber-500 font-black uppercase tracking-widest text-xs mb-4 border-b border-zinc-800 pb-2">5. VIP Room</h4>
-                       <div className="grid grid-cols-1 gap-4">
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                          <InputField label="Etiqueta Superior" name="vip_tag" defaultValue={editingItem?.vip_tag} />
                          <InputField label="Título Principal" name="vip_title" defaultValue={editingItem?.vip_title} />
+                         <InputField label="URL Video de Fondo" name="video_vip" defaultValue={editingItem?.video_vip || FALLBACK_PAGE_CONTENT.video_vip} placeholder="/mesadepool.mp4 o https://..." />
                          <TextAreaField label="Párrafo Descriptivo" name="vip_desc" defaultValue={editingItem?.vip_desc} rows={2} />
                        </div>
                      </div>
@@ -1459,6 +1465,7 @@ function AdminDashboardContent() {
                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                          <InputField label="Etiqueta Superior" name="salon_tag" defaultValue={editingItem?.salon_tag} />
                          <InputField label="Título Principal" name="salon_title" defaultValue={editingItem?.salon_title} />
+                         <InputField label="URL Video del Salón" name="video_salon" defaultValue={editingItem?.video_salon || FALLBACK_PAGE_CONTENT.video_salon} placeholder="/barberia.mp4 o https://..." />
                        </div>
                      </div>
 
