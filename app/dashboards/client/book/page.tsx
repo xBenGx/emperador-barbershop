@@ -13,7 +13,7 @@ import {
   CalendarDays, Clock, Scissors, Star, ChevronRight, 
   ArrowLeft, CheckCircle2, Crown, Zap, History, Gift,
   AlertCircle, Lock, Settings, MessageSquare,
-  Loader2, UserCircle2, XCircle, LogOut
+  Loader2, UserCircle2, XCircle, LogOut, Check
 } from "lucide-react";
 
 // ============================================================================
@@ -26,6 +26,7 @@ interface ClientProfile { id: string; name: string; phone: string; email: string
 interface Barber { id: string; name: string; role: string; img: string; tag: string; }
 interface Service { id: string; name: string; price: number; time: string; duration?: number; desc: string; }
 interface Appointment { id: string; date: string; time: string; status: string; barber: Barber; service: Service; }
+interface VIPBenefit { id: string; tier_name: string; required_points: number; reward_desc: string; }
 
 // Intervalos exactos de 1 Hora
 const TIME_SLOTS = ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"];
@@ -71,6 +72,7 @@ function ClientDashboardContent() {
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [myAppointments, setMyAppointments] = useState<Appointment[]>([]);
+  const [vipBenefits, setVipBenefits] = useState<VIPBenefit[]>([]); // <--- Nuevo Estado Dinámico
   const [bookedSlots, setBookedSlots] = useState<string[]>([]); 
   const [isAppLoading, setIsAppLoading] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
@@ -99,49 +101,7 @@ function ClientDashboardContent() {
         return;
       }
 
-      // 1. Perfil del Cliente
-      let { data: profile } = await supabase.from('clients').select('*').eq('id', user.id).single();
-      
-      if (!profile) {
-        // Si no existe, lo registramos automáticamente usando sus datos de Auth
-        const { data: newProfile } = await supabase.from('clients').insert({
-          id: user.id,
-          name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Cliente Emperador',
-          email: user.email,
-          phone: user.user_metadata?.phone || '',
-          points: 0
-        }).select().single();
-        profile = newProfile;
-      }
-
-      // Gamificación
-      let tier = "Bronce";
-      if (profile.points >= 500) tier = "Plata";
-      if (profile.points >= 1000) tier = "Oro";
-      if (profile.points >= 2000) tier = "Emperador";
-      setClientProfile({ ...profile, tier });
-
-      // 2. Cargar Barberos (Activos)
-      const { data: dbBarbers } = await supabase.from('Barbers').select('*').eq('status', 'ACTIVE');
-      if (dbBarbers) {
-        setBarbers(dbBarbers as Barber[]);
-        
-        // Auto-selección por Link de Instagram/Referido
-        const barberIdFromUrl = searchParams.get("barber");
-        if (barberIdFromUrl) {
-          const preSelected = dbBarbers.find(b => b.id === barberIdFromUrl || b.name.toLowerCase().replace(/\s+/g, '-') === barberIdFromUrl);
-          if (preSelected) {
-            setSelectedBarber(preSelected as Barber);
-            setStep(2); 
-          }
-        }
-      }
-
-      // 3. Cargar Servicios
-      const { data: dbServices } = await supabase.from('Services').select('*').order('price', { ascending: true });
-      if (dbServices) setServices(dbServices);
-
-      // 4. Historial (Usando Appointments con mayúscula)
+      // 1. Historial (Se carga primero para calcular los puntos reales)
       const { data: dbAppointments } = await supabase
         .from('Appointments')
         .select(`
@@ -154,6 +114,73 @@ function ClientDashboardContent() {
         .order('time', { ascending: false });
 
       if (dbAppointments) setMyAppointments(dbAppointments as unknown as Appointment[]);
+
+      // Cálculo de Puntos Automático ($100 = 1 Punto)
+      const completedAppts = (dbAppointments || []).filter(a => a.status === 'COMPLETED');
+      const totalSpent = completedAppts.reduce((sum, a) => sum + Number((a.service as any)?.price || 0), 0);
+      const puntosCalculados = Math.floor(totalSpent / 100);
+
+      // 2. Perfil del Cliente
+      let { data: profile } = await supabase.from('clients').select('*').eq('id', user.id).single();
+      
+      if (!profile) {
+        const { data: newProfile } = await supabase.from('clients').insert({
+          id: user.id,
+          name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Cliente Emperador',
+          email: user.email,
+          phone: user.user_metadata?.phone || '',
+          points: 0
+        }).select().single();
+        profile = newProfile;
+      }
+
+      // Usamos el puntaje mayor: El calculado automáticamente o el forzado manualmente por el admin
+      const puntosFinales = profile.points > puntosCalculados ? profile.points : puntosCalculados;
+
+      // 3. Cargar Beneficios VIP desde Supabase (Dinámico)
+      const { data: dbBenefits } = await supabase.from('ClientBenefits').select('*').order('required_points', { ascending: true });
+      let loadedBenefits: VIPBenefit[] = [];
+      if (dbBenefits) {
+         loadedBenefits = dbBenefits;
+         setVipBenefits(loadedBenefits);
+      }
+
+      // Gamificación Dinámica (Basado en la tabla de beneficios)
+      let currentTier = "Nuevo";
+      for (const benefit of loadedBenefits) {
+         if (puntosFinales >= benefit.required_points) {
+             currentTier = benefit.tier_name; // Va sobreescribiendo hasta quedarse con el nivel más alto alcanzado
+         }
+      }
+
+      setClientProfile({ ...profile, points: puntosFinales, tier: currentTier });
+
+      // 4. Cargar Barberos (Activos)
+      const { data: dbBarbers } = await supabase.from('Barbers').select('*').eq('status', 'ACTIVE');
+      if (dbBarbers) {
+        setBarbers(dbBarbers as Barber[]);
+        
+        const barberIdFromUrl = searchParams.get("barber");
+        if (barberIdFromUrl) {
+          const preSelected = dbBarbers.find(b => b.id === barberIdFromUrl || b.name.toLowerCase().replace(/\s+/g, '-') === barberIdFromUrl);
+          if (preSelected) {
+            setSelectedBarber(preSelected as Barber);
+            setStep(2); 
+          }
+        }
+      }
+
+      // 5. Cargar Servicios (Con order_index para que coincida con admin)
+      const { data: dbServices } = await supabase.from('Services').select('*');
+      if (dbServices) {
+         const sortedServices = dbServices.sort((a, b) => {
+            const indexA = a.order_index || 0;
+            const indexB = b.order_index || 0;
+            if (indexA === indexB) return (a.price || 0) - (b.price || 0);
+            return indexA - indexB;
+         });
+         setServices(sortedServices);
+      }
 
     } catch (error) {
       console.error("Error cargando datos:", error);
@@ -172,7 +199,6 @@ function ClientDashboardContent() {
   useEffect(() => {
     const fetchBookedSlots = async () => {
       if (selectedDate && selectedBarber) {
-        // Consultar Appointments con mayúscula
         const { data } = await supabase
           .from('Appointments')
           .select('time')
@@ -199,7 +225,6 @@ function ClientDashboardContent() {
     setIsConfirming(true);
     
     try {
-      // Usamos la Server Action (que maneja seguridad y vinculación)
       const appointmentData = {
         barber_id: selectedBarber.id,
         barber_name: selectedBarber.name,
@@ -218,7 +243,7 @@ function ClientDashboardContent() {
         throw new Error(result.error);
       }
 
-      await loadClientData(); // Refrescar historial
+      await loadClientData(); 
       setIsSuccess(true);
     } catch (error: any) {
       alert(error.message || "Error al procesar reserva. Es posible que el horario ya no esté disponible.");
@@ -240,7 +265,6 @@ function ClientDashboardContent() {
   const handleCancelAppointment = async (id: string) => {
     if(!window.confirm("¿Seguro que deseas cancelar esta reserva? El barbero será notificado.")) return;
     try {
-      // Actualizamos en Appointments con mayúscula
       const { error } = await supabase.from('Appointments').update({ status: 'CANCELLED' }).eq('id', id);
       if (error) throw error;
       loadClientData();
@@ -422,7 +446,7 @@ function ClientDashboardContent() {
                             >
                               <div className="flex gap-4 items-start mb-4">
                                 <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-lg ${selectedService?.id === s.id ? 'bg-amber-500 text-black' : 'bg-black border border-zinc-800 text-amber-500'}`}>
-                                  <Scissors size={24} />
+                                  <DynamicIcon name={s.iconName || "Scissors"} size={24} />
                                 </div>
                                 <div>
                                   <h4 className="text-lg font-black text-white uppercase tracking-tight leading-tight">{s.name}</h4>
@@ -625,7 +649,7 @@ function ClientDashboardContent() {
                         </div>
                       </div>
                       <div className="flex flex-col items-end w-full sm:w-auto border-t sm:border-t-0 border-zinc-800 pt-4 sm:pt-0 mt-2 sm:mt-0">
-                        <span className="text-xl font-black text-white tracking-tighter">{formatMoney(cut.service?.price)}</span>
+                        <span className="text-xl font-black text-white tracking-tighter">{formatMoney(cut.service?.price as number)}</span>
                         <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-md mt-2 ${cut.status === 'COMPLETED' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
                           {cut.status === 'COMPLETED' ? 'Realizado' : 'Cancelado / Falta'}
                         </span>
@@ -641,10 +665,12 @@ function ClientDashboardContent() {
         )}
 
         {/* =================================================================== */}
-        {/* TAB 3: BENEFICIOS */}
+        {/* TAB 3: BENEFICIOS VIP DINÁMICOS */}
         {/* =================================================================== */}
         {activeTab === "BENEFICIOS" && (
           <motion.div key="beneficios" variants={fadeUp} initial="hidden" animate="visible" exit="exit" className="space-y-8">
+            
+            {/* Banner VIP Resumen */}
             <div className="bg-gradient-to-br from-amber-500/20 to-zinc-950 border border-amber-500/30 rounded-[3rem] p-10 md:p-16 relative overflow-hidden shadow-2xl">
               <Crown className="absolute -bottom-10 -right-10 text-amber-500/10 w-80 h-80 pointer-events-none" />
               <div className="relative z-10 flex flex-col md:flex-row items-center gap-10">
@@ -654,35 +680,57 @@ function ClientDashboardContent() {
                 </div>
                 <div className="text-center md:text-left flex-1">
                   <h3 className="text-4xl font-black text-white uppercase tracking-tighter mb-3 font-serif italic">Nivel: {clientProfile?.tier}</h3>
-                  <p className="text-zinc-300 mb-8 font-medium text-lg">Sigue atendiéndote con nosotros para alcanzar el nivel Platino y obtener beneficios y productos gratis.</p>
-                  <div className="w-full bg-zinc-950/80 rounded-full h-6 border border-zinc-800 overflow-hidden p-1 shadow-inner">
-                    <div className="bg-gradient-to-r from-amber-600 to-amber-400 h-full rounded-full relative" style={{width: `${Math.min((clientProfile?.points || 0) / 10, 100)}%`}}>
-                      <div className="absolute top-0 right-0 bottom-0 left-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.2)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.2)_50%,rgba(255,255,255,0.2)_75%,transparent_75%,transparent)] bg-[length:1rem_1rem] animate-[progress_1s_linear_infinite]"></div>
-                    </div>
-                  </div>
+                  <p className="text-zinc-300 mb-8 font-medium text-lg">Acumulas 1 punto por cada $100 gastados en tus cortes. Sigue subiendo de nivel para desbloquear los beneficios exclusivos de la barbería.</p>
                 </div>
               </div>
             </div>
 
+            {/* Listado Dinámico de Beneficios extraído de Supabase */}
             <div>
               <h3 className="text-2xl font-black text-white mb-8 flex items-center gap-3 uppercase border-b border-zinc-800 pb-4"><Gift className="text-amber-500" size={24}/> Catálogo de Recompensas</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className={`bg-zinc-900/40 border border-zinc-800 rounded-[2rem] p-8 flex items-start gap-6 transition-colors group ${clientProfile!.points >= 500 ? 'hover:border-green-500/50' : 'opacity-60'}`}>
-                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform ${clientProfile!.points >= 500 ? 'bg-green-500/10 text-green-500' : 'bg-zinc-950 text-zinc-600'}`}><Zap size={28} /></div>
-                  <div>
-                    <h4 className="font-black text-xl text-white mb-2 uppercase">Corte Gratis</h4>
-                    <p className="text-sm text-zinc-400 mb-6 font-medium">Canjeable por 500 puntos de fidelidad.</p>
-                    <button disabled={clientProfile!.points < 500} className="px-6 py-3 bg-zinc-950 border border-zinc-800 hover:bg-green-500 hover:text-black hover:border-green-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Canjear Ahora</button>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {vipBenefits.length === 0 ? (
+                  <div className="col-span-full p-10 border-2 border-dashed border-zinc-800 rounded-3xl text-center">
+                    <p className="text-zinc-500 font-bold">Aún no hay beneficios VIP publicados. ¡Pronto habrá sorpresas!</p>
                   </div>
-                </div>
-                <div className="bg-zinc-900/40 border border-zinc-800 rounded-[2rem] p-8 flex items-start gap-6 opacity-60 relative overflow-hidden">
-                  <div className="w-16 h-16 bg-zinc-950 border border-zinc-800 text-zinc-500 rounded-2xl flex items-center justify-center flex-shrink-0"><Lock size={28} /></div>
-                  <div>
-                    <h4 className="font-black text-xl text-white mb-2 uppercase">Kit Cuidado Barba</h4>
-                    <p className="text-sm text-zinc-400 mb-4 font-medium">Requiere Nivel Oro (1000 pts).</p>
-                    <div className="mt-4 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-zinc-600 bg-zinc-950 inline-flex px-4 py-2 rounded-lg"><Lock size={14} /> Bloqueado</div>
-                  </div>
-                </div>
+                ) : (
+                  vipBenefits.map(benefit => {
+                    // Verificamos si el cliente tiene los puntos necesarios para este beneficio
+                    const isUnlocked = (clientProfile?.points || 0) >= benefit.required_points;
+                    
+                    return (
+                      <div key={benefit.id} className={`bg-zinc-900/40 border ${isUnlocked ? 'border-green-500/30' : 'border-zinc-800'} rounded-[2rem] p-8 flex flex-col justify-between transition-colors relative overflow-hidden ${!isUnlocked && 'opacity-60'}`}>
+                        
+                        {/* Cinta de estado */}
+                        <div className={`absolute top-0 right-0 px-4 py-1 text-[9px] font-black uppercase tracking-widest rounded-bl-xl ${isUnlocked ? 'bg-green-500 text-black' : 'bg-zinc-800 text-zinc-500'}`}>
+                          {isUnlocked ? 'Desbloqueado' : 'Bloqueado'}
+                        </div>
+
+                        <div>
+                          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-6 ${isUnlocked ? 'bg-green-500/10 text-green-500 shadow-[0_0_20px_rgba(34,197,94,0.2)]' : 'bg-zinc-950 border border-zinc-800 text-zinc-600'}`}>
+                            {isUnlocked ? <Zap size={24} /> : <Lock size={24} />}
+                          </div>
+                          
+                          <h4 className="font-black text-xl text-white mb-1 uppercase tracking-tight">{benefit.tier_name}</h4>
+                          <p className="text-[10px] font-bold font-mono text-amber-500 bg-amber-500/10 px-2 py-1 rounded inline-block mb-4">Requiere: {benefit.required_points} PTS</p>
+                          <p className="text-sm text-zinc-400 mb-6 font-medium leading-relaxed">{benefit.reward_desc}</p>
+                        </div>
+
+                        <button 
+                          disabled={!isUnlocked} 
+                          className={`w-full py-4 text-[10px] font-black uppercase tracking-widest rounded-xl transition-colors flex justify-center items-center gap-2 ${
+                            isUnlocked 
+                              ? 'bg-zinc-950 border border-green-500 hover:bg-green-500 hover:text-black text-white shadow-lg' 
+                              : 'bg-zinc-950 border border-zinc-800 text-zinc-600 cursor-not-allowed'
+                          }`}
+                        >
+                          {isUnlocked ? <><Check size={14}/> Cobrar en Local</> : <><Lock size={14}/> Faltan Puntos</>}
+                        </button>
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </div>
           </motion.div>
