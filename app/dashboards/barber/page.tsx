@@ -89,7 +89,6 @@ const DAYS_OF_WEEK = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sá
 // COMPONENTE PRINCIPAL DEL BARBERO
 // ============================================================================
 export default function BarberDashboard() {
-  // CLAVE: Evita que supabase se recree en cada render
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
   
@@ -115,46 +114,39 @@ export default function BarberDashboard() {
   const [modalType, setModalType] = useState<ModalType>(null);
   const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null);
   const [copySuccess, setCopySuccess] = useState(false);
-  
-  // Reloj Mejorado (Día y Hora)
-  const [currentTime, setCurrentTime] = useState({ date: TODAY_DATE, hour: "00:00" });
+  const [currentHour, setCurrentHour] = useState("");
 
-  // Reproductor de Notificación (Alerta Sonora)
   const playNotificationSound = () => {
     try {
-      const audio = new Audio('/notification.mp3'); // Puedes añadir un archivo mp3 corto en tu carpeta public/
+      const audio = new Audio('/notification.mp3'); 
       audio.volume = 0.5;
-      audio.play().catch(e => console.log("Audio de notificación silenciado por el navegador."));
+      audio.play().catch(e => console.log("Audio silenciado por el navegador."));
     } catch (error) {}
   };
 
-  // Reloj en tiempo real
   useEffect(() => {
-    const updateTime = () => {
+    const updateHour = () => {
       const now = new Date();
-      setCurrentTime({
-        date: getLocalTodayDate(),
-        hour: `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`
-      });
+      setCurrentHour(`${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`);
     };
-    updateTime();
-    const interval = setInterval(updateTime, 60000); 
+    updateHour();
+    const interval = setInterval(updateHour, 60000); 
     return () => clearInterval(interval);
   }, []);
 
   // ============================================================================
-  // CARGA MAESTRA CON SEGURIDAD BLINDADA Y SINCRONIZACIÓN PERFECTA
+  // CARGA MAESTRA CON SEGURIDAD BLINDADA Y CERO JOINS
   // ============================================================================
   const loadDashboardData = useCallback(async () => {
     setIsFetching(true);
     try {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (!user || userError) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (!user || authError) {
         router.push('/login');
         return;
       }
 
-      // 1. VERIFICACIÓN BLINDADA: Consultar directamente la tabla Barbers
+      // 1. VERIFICACIÓN BLINDADA
       const { data: barberData } = await supabase.from('Barbers').select('*').eq('id', user.id).single();
 
       if (!barberData) {
@@ -174,23 +166,24 @@ export default function BarberDashboard() {
       const { data: chairData } = await supabase.from('chairs').select('*').eq('current_barber_id', user.id).single();
       if (chairData) setMyChair(chairData);
 
-      // 3. LECTURA DE CITAS: Consulta fuerte, trayendo todo lo del barbero logueado
+      // 3. LECTURA DE CITAS SEGURA (SIN JOINS PARA EVITAR ERRORES DE LLAVES FORÁNEAS)
       const { data: rawAppts, error: apptError } = await supabase
         .from('Appointments')
-        .select(`*, client:client_id(*), service:service_id(*)`)
-        .eq('barber_id', activeBarber.id);
-
-      if (apptError) {
-        console.error("Error leyendo citas de supabase:", apptError);
-      }
+        .select('*') // <-- MAGIA: Extraemos todo plano sin depender de otras tablas.
+        .eq('barber_id', user.id);
         
+      if (apptError) {
+        console.error("Error leyendo citas de supabase:", apptError.message);
+      }
+
+      // Pedimos los servicios por separado
       const { data: allServices } = await supabase.from('Services').select('*');
 
       if (rawAppts && !apptError) {
         const mappedAppts: Appointment[] = rawAppts.map((a: any) => {
-          const matchedService = a.service || allServices?.find(s => s.id === a.service_id);
+          const matchedService = allServices?.find(s => s.id === a.service_id) || null;
           
-          // LÓGICA BLINDADA DE FECHAS Y HORAS: Asegura formato YYYY-MM-DD y HH:mm
+          // NORMALIZACIÓN DE FECHAS ESTRICTA
           const safeDate = a.date ? String(a.date).substring(0, 10) : TODAY_DATE;
           const safeTime = a.time ? String(a.time).substring(0, 5) : "00:00";
 
@@ -198,22 +191,26 @@ export default function BarberDashboard() {
             ...a,
             date: safeDate,
             time: safeTime,
-            client: a.client || { id: a.client_id, name: a.client_name || 'Anónimo', phone: a.client_phone || '', email: '' },
-            service: matchedService || { name: a.service_name || 'Servicio General', price: a.service_price || 0, duration: 60 }
+            // Reconstruimos el cliente desde los datos crudos que ya guardaste en la reserva
+            client: { 
+              id: a.client_id, 
+              name: a.client_name || 'Anónimo', 
+              phone: a.client_phone || '', 
+              email: '' 
+            },
+            service: matchedService || { name: a.service_name || 'Servicio General', price: 0, duration: 60 }
           };
         });
 
-        // Filtrar y ordenar futuras (Desde hoy hacia el infinito)
+        // Ordenar citas (desde hoy hacia el futuro)
         const futureAppts = mappedAppts.filter(a => a.date >= TODAY_DATE).sort((a,b) => {
-          if (a.date === b.date) {
-            return a.time.localeCompare(b.time);
-          }
-          return a.date.localeCompare(b.date);
+           if (a.date === b.date) return a.time.localeCompare(b.time);
+           return a.date.localeCompare(b.date);
         });
-
+        
         setAppointments(futureAppts);
         
-        // Cargar y unificar clientes
+        // Unificar Clientes para la agenda
         const uniqueClientsMap = new Map();
         mappedAppts.forEach(a => { 
           const clientKey = a.client?.id || a.client?.phone || a.client?.name;
@@ -245,7 +242,7 @@ export default function BarberDashboard() {
   }, [supabase, router]);
 
   // ============================================================================
-  // SUSCRIPCIÓN EN TIEMPO REAL (REALTIME) CON FILTRO ESPECÍFICO
+  // SUSCRIPCIÓN EN TIEMPO REAL
   // ============================================================================
   useEffect(() => {
     loadDashboardData();
@@ -255,7 +252,6 @@ export default function BarberDashboard() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       
-      // Creamos un canal exclusivo para este barbero
       channel = supabase.channel(`barber-sync-${user.id}`)
         .on('postgres_changes', { 
             event: '*', 
@@ -263,15 +259,11 @@ export default function BarberDashboard() {
             table: 'Appointments',
             filter: `barber_id=eq.${user.id}` 
         }, (payload) => {
-           console.log("Evento en tiempo real detectado:", payload);
-           
-           // Si es una cita nueva, alertamos
            if (payload.eventType === 'INSERT') {
              playNotificationSound();
              setNewApptNotification(true);
              setTimeout(() => setNewApptNotification(false), 5000);
            }
-           
            loadDashboardData();
         })
         .subscribe();
@@ -304,16 +296,13 @@ export default function BarberDashboard() {
     navigator.clipboard.writeText(link).then(() => {
       setCopySuccess(true);
       setTimeout(() => setCopySuccess(false), 3000);
-    }).catch(err => {
-      console.error("No se pudo copiar automáticamente:", err);
-      prompt("Copia tu link de reservas manualmente:", link);
     });
   };
 
   const handleUpdateStatus = async (id: string, newStatus: AppointmentStatus) => {
     setIsLoading(true);
-    const { error } = await supabase.from('Appointments').update({ status: newStatus }).eq('id', id);
-    if (!error) loadDashboardData(); 
+    await supabase.from('Appointments').update({ status: newStatus }).eq('id', id);
+    loadDashboardData(); 
     setIsLoading(false);
   };
 
@@ -382,15 +371,9 @@ export default function BarberDashboard() {
         };
       });
 
-      const { error } = await supabase.from('barber_schedules').upsert(upsertData, { onConflict: 'barber_id, day_of_week' });
-      
-      if (error) throw error;
-      
+      await supabase.from('barber_schedules').upsert(upsertData, { onConflict: 'barber_id, day_of_week' });
       loadDashboardData();
       alert("Horarios de trabajo actualizados en el sistema.");
-    } catch (error: any) {
-      console.error(error);
-      alert("Error al guardar los horarios: " + error.message);
     } finally {
       setIsLoading(false);
     }
@@ -401,7 +384,6 @@ export default function BarberDashboard() {
     if (type === "EDIT_APPT") setSelectedAppt(item);
   };
 
-  // Status Badges (Hechos más vibrantes y claros)
   const getStatusBadge = (status: AppointmentStatus) => {
     const badges = {
       PENDING: <span className="px-3 py-1 bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1 shadow-sm animate-pulse"><Clock size={12}/> Nueva</span>,
@@ -522,7 +504,7 @@ export default function BarberDashboard() {
       <AnimatePresence mode="wait">
         
         {/* =================================================================== */}
-        {/* TAB 1: RESUMEN / PRÓXIMO CORTE MEJORADO */}
+        {/* TAB 1: RESUMEN / PRÓXIMO CORTE */}
         {/* =================================================================== */}
         {activeTab === "RESUMEN" && (
           <motion.div key="resumen" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-8">
@@ -535,16 +517,12 @@ export default function BarberDashboard() {
               </h3>
               
               {(() => {
-                // LÓGICA INFALIBLE: Muestra la próxima cita, incluso si es para mañana o en 3 días.
                 const nextAppt = appointments
                   .filter(a => 
                     (a.status === "CONFIRMED" || a.status === "PENDING") &&
-                    (a.date > currentTime.date || (a.date === currentTime.date && a.time >= currentTime.hour))
+                    (a.date > TODAY_DATE || (a.date === TODAY_DATE && a.time >= currentHour))
                   )
-                  .sort((a, b) => {
-                    if (a.date === b.date) return a.time.localeCompare(b.time);
-                    return a.date.localeCompare(b.date);
-                  })[0];
+                  .sort((a, b) => a.date === b.date ? a.time.localeCompare(b.time) : a.date.localeCompare(b.date))[0];
 
                 if (nextAppt) {
                   return (
@@ -560,7 +538,7 @@ export default function BarberDashboard() {
                           <p className="text-xs font-black uppercase tracking-widest text-zinc-400 mt-2 bg-zinc-900 px-3 py-1 rounded-md inline-block border border-zinc-800 shadow-inner">
                             Para el {new Date(nextAppt.date + 'T00:00:00').toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric', month: 'short' })}
                           </p>
-                          {nextAppt.notes && <p className="text-amber-400 text-xs font-bold mt-2 bg-amber-500/20 inline-block px-3 py-1 rounded-md border border-amber-500/30">Nota: {nextAppt.notes}</p>}
+                          {nextAppt.notes && <p className="text-amber-400 text-xs font-bold mt-2 bg-amber-500/20 inline-block px-3 py-1 rounded-md border border-amber-500/30 ml-2">Nota: {nextAppt.notes}</p>}
                         </div>
                       </div>
                       <div className="flex gap-3 w-full lg:w-auto">
@@ -613,7 +591,7 @@ export default function BarberDashboard() {
               <div className="space-y-2">
                 {TIMELINE_SLOTS.map(time => {
                   const appAtThisTime = filteredAppointments.find(a => a.time.startsWith(time.split(':')[0]));
-                  const isPast = selectedDateFilter === currentTime.date && time < currentTime.hour;
+                  const isPast = selectedDateFilter === TODAY_DATE && time < currentHour;
                   const isBlocked = appAtThisTime?.status === 'BLOCKED' || (!appAtThisTime && isPast);
 
                   if (appAtThisTime && appAtThisTime.status !== 'BLOCKED') {
