@@ -130,7 +130,7 @@ export default function Footer() {
           </div>
 
           {/* FIRMA DE AGENCIA (POWERED BY BAYX) */}
-          <a href="https://bayx.pro" target="_blank" rel="noopener noreferrer" className="group flex items-center gap-4 bg-zinc-950 border border-zinc-800/50 hover:border-[#00f0ff]/50 px-5 py-2.5 rounded-2xl transition-all duration-500 shadow-xl hover:shadow-[0_0_20px_rgba(0,240,255,0.1)]">
+          <a href="https://bayx-gamma.vercel.app/" target="_blank" rel="noopener noreferrer" className="group flex items-center gap-4 bg-zinc-950 border border-zinc-800/50 hover:border-[#00f0ff]/50 px-5 py-2.5 rounded-2xl transition-all duration-500 shadow-xl hover:shadow-[0_0_20px_rgba(0,240,255,0.1)]">
             <div className="flex flex-col text-right">
               <span className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em] group-hover:text-zinc-400 transition-colors">Engineered By</span>
             </div>
