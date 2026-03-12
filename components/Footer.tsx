@@ -102,7 +102,7 @@ export default function Footer() {
               </li>
               <li className="flex items-center gap-3 group">
                 <LucideIcons.Mail size={18} className="text-amber-500 shrink-0 group-hover:scale-110 transition-transform" />
-                <span>contacto@emperador.cl</span>
+                <span>contacto@emperador.com</span>
               </li>
               <li className="flex items-center gap-3 group">
                 <LucideIcons.Phone size={18} className="text-amber-500 shrink-0 group-hover:scale-110 transition-transform" />
