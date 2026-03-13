@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion, useScroll, useTransform, AnimatePresence, Variants } from "framer-motion";
@@ -9,13 +9,13 @@ import {
   Gamepad2, MapPin, Instagram, ChevronRight, 
   Crown, Star, Scissors, Zap, Flame, Crosshair,
   Minus, Plus, Clapperboard, Heart, MessageCircle,
-  ShoppingCart, Volume2, VolumeX
+  ShoppingCart, Volume2, VolumeX, Quote
 } from "lucide-react";
 
 import { createClient } from "@/utils/supabase/client";
 
 // ============================================================================
-// DATA MAESTRA (FALLBACKS Y TEXTOS POR DEFECTO PARA EL PANEL ADMIN)
+// DATA MAESTRA (FALLBACKS Y ESTRUCTURA DINÁMICA BASE)
 // ============================================================================
 const FALLBACK_PAGE_CONTENT = {
   hero_subtitle: "Peña 666, Piso 2 • Curicó",
@@ -39,44 +39,17 @@ const FALLBACK_PAGE_CONTENT = {
   salon_title: "NUESTRO SALÓN.",
   faq_tag: "Resolviendo Dudas",
   faq_title: "AYUDA.",
-  faq_desc: "Todo lo que necesitas saber antes de asegurar tu trono."
+  faq_desc: "Todo lo que necesitas saber antes de asegurar tu trono.",
+  
+  // RUTAS DE VIDEOS (Pueden ser sobreescritas desde Supabase 'settings')
+  video_experiencia: "/presentacion.mp4",
+  video_servicios: "/cortes.mp4",
+  video_vip: "/mesadepool.mp4",
+  video_salon: "/barberia.mp4"
 };
 
 const FALLBACK_HERO_SLIDES = [
-  { id: "brand1", type: "brand", media_type: "image", media_url: "https://images.unsplash.com/photo-1599351431202-1e0f0137899a?q=80&w=2000&auto=format&fit=crop" },
-  { id: "promo1", type: "promo", title: "WAHL MAGIC CLIP", subtitle: "Edición Gold Cordless", tag: "NUEVO STOCK", media_type: "image", media_url: "https://images.unsplash.com/photo-1621607512214-68297480165e?q=80&w=2000&auto=format&fit=crop" },
-  { id: "brand2", type: "brand", media_type: "image", media_url: "https://images.unsplash.com/photo-1622286342621-4bd786c2447c?q=80&w=2000&auto=format&fit=crop" },
-  { id: "promo2", type: "promo", title: "POMADA REUZEL", subtitle: "Matte Clay Extreme", tag: "OFERTA DEL MES", media_type: "image", media_url: "https://images.unsplash.com/photo-1597354984706-fac992d9306f?q=80&w=2000&auto=format&fit=crop" }
-];
-
-const FALLBACK_TEAM = [
-  { id: "cesar", name: "Cesar Luna", role: "Master Barber", tag: "El Arquitecto", img: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=800&auto=format&fit=crop" },
-  { id: "jack", name: "Jack Guerra", role: "Fade Specialist", tag: "Rey del Fade", img: "https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=800&auto=format&fit=crop" },
-  { id: "jhonn", name: "Jhonn Prado", role: "Beard Expert", tag: "Precisión", img: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?q=80&w=800&auto=format&fit=crop" },
-  { id: "marcos", name: "Marcos Peña", role: "Senior Barber", tag: "Versatilidad", img: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=800&auto=format&fit=crop" },
-];
-
-const FALLBACK_SERVICES = [
-  { id: "s1", name: "Corte Clásico / Degradado", time: "45 min", duration: 45, price: "$12.000", desc: "El corte que define tu estilo. Clean, fresh, de líneas perfectas.", iconName: "Scissors" },
-  { id: "s2", name: "Corte + Perfilado de Cejas", time: "1 hrs", duration: 60, price: "$14.000", desc: "Sube de nivel tu mirada. Detalles quirúrgicos que marcan la diferencia.", iconName: "Crosshair" },
-  { id: "s3", name: "Barba + Vapor Caliente", time: "30 min", duration: 30, price: "$7.000", desc: "Afeitado VIP. Abrimos los poros para un acabado de seda y cero irritación.", iconName: "Flame" },
-  { id: "s4", name: "Corte + Barba + Lavado", time: "1h 15m", duration: 75, price: "$17.000", desc: "El combo indispensable para salir listo directo al fin de semana.", iconName: "Zap" },
-];
-
-const FALLBACK_FAQS = [
-  { id: "f1", q: "¿Necesito cuenta para reservar?", a: "No, en Emperador valoramos tu tiempo. Puedes agendar como invitado en menos de 1 minuto ingresando solo tu nombre y número." },
-  { id: "f2", q: "¿El uso de PS5 tiene costo?", a: "Para nada. PS5 y la mesa de Pool son un beneficio exclusivo y 100% gratuito para nuestros clientes mientras esperan." },
-  { id: "f3", q: "¿Qué métodos de pago aceptan?", a: "Para tu comodidad, aceptamos Efectivo, Transferencia Electrónica y todas las tarjetas de Débito/Crédito vía Transbank." },
-  { id: "f4", q: "¿Puedo comprar productos online?", a: "Sí, contamos con una tienda integrada donde puedes adquirir ceras, pomadas y máquinas profesionales." },
-];
-
-const INSTA_REELS = [
-  { id: "i1", likes: "12.4k", comments: "145", type: "image", media_url: "https://images.unsplash.com/photo-1593702275687-f8b402bf1fb5?q=80&w=600&h=600&auto=format&fit=crop" },
-  { id: "i2", likes: "8.2k", comments: "98", type: "image", media_url: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=600&h=600&auto=format&fit=crop" },
-  { id: "i3", likes: "15.1k", comments: "230", type: "image", media_url: "https://images.unsplash.com/photo-1605497788044-5a32c7078486?q=80&w=600&h=600&auto=format&fit=crop" },
-  { id: "i4", likes: "20.5k", comments: "314", type: "reel", media_url: "https://images.unsplash.com/photo-1621607512214-68297480165e?q=80&w=600&h=600&auto=format&fit=crop" },
-  { id: "i5", likes: "9.8k", comments: "112", type: "image", media_url: "https://images.unsplash.com/photo-1585747860715-2ba37e788b70?q=80&w=600&h=600&auto=format&fit=crop" },
-  { id: "i6", likes: "18.3k", comments: "289", type: "reel", media_url: "https://images.unsplash.com/photo-1595152772835-219674b2a8a6?q=80&w=600&h=600&auto=format&fit=crop" },
+  { id: "brand1", type: "brand", media_type: "image", media_url: "https://images.unsplash.com/photo-1599351431202-1e0f0137899a?q=80&w=2000&auto=format&fit=crop" }
 ];
 
 // ============================================================================
@@ -188,13 +161,14 @@ const FAQItem = ({ faq }: { faq: any }) => {
 export default function UltimateEmperadorLanding() {
   const supabase = createClient();
 
-  // Estados Dinámicos de Textos para sincronizar con el panel Admin
+  // Estados Dinámicos Sincronizados con el Panel Administrador
   const [pageContent, setPageContent] = useState(FALLBACK_PAGE_CONTENT);
   const [heroSlides, setHeroSlides] = useState<any[]>(FALLBACK_HERO_SLIDES);
-  const [team, setTeam] = useState<any[]>(FALLBACK_TEAM);
-  const [services, setServices] = useState<any[]>(FALLBACK_SERVICES);
-  const [faqs, setFaqs] = useState<any[]>(FALLBACK_FAQS);
-  const [reels, setReels] = useState<any[]>(INSTA_REELS);
+  const [team, setTeam] = useState<any[]>([]);
+  const [services, setServices] = useState<any[]>([]);
+  const [faqs, setFaqs] = useState<any[]>([]);
+  const [reels, setReels] = useState<any[]>([]);
+  const [reviews, setReviews] = useState<any[]>([]);
 
   const [currentHeroSlide, setCurrentHeroSlide] = useState(0);
   const totalSlides = heroSlides.length > 0 ? heroSlides.length : 1;
@@ -202,62 +176,117 @@ export default function UltimateEmperadorLanding() {
   const { scrollY } = useScroll();
   const yHero = useTransform(scrollY, [0, 1000], [0, 400]);
 
-  // CONTROL DE AUDIO PARA VIDEOS EN BUCLE (Previene que suenen 2 videos a la vez)
+  // CONTROL DE AUDIO PARA VIDEOS EN BUCLE
   const handleGlobalReelUnmute = (activeVideo: HTMLVideoElement) => {
     const allVideos = document.querySelectorAll('video');
     allVideos.forEach(vid => {
-      if (vid !== activeVideo) {
-        vid.muted = true;
-      }
+      if (vid !== activeVideo) vid.muted = true;
     });
   };
 
   // ============================================================================
-  // FETCH Y SLIDERS (AHORA INCLUYE LOS TEXTOS DESDE SETTINGS)
+  // FETCH DE DATOS (Conectado a la Base de Datos Pura)
   // ============================================================================
-  useEffect(() => {
-    const slideInterval = setInterval(() => setCurrentHeroSlide((prev) => (prev + 1) % totalSlides), 8000); 
-    return () => clearInterval(slideInterval);
-  }, [totalSlides]);
+  const fetchPublicData = useCallback(async () => {
+    try {
+      // Pedimos todo en paralelo para máxima velocidad
+      const [
+        { data: dbSettings },
+        { data: dbHero },
+        { data: dbPromos },
+        { data: dbTeam },
+        { data: dbServices },
+        { data: dbFaqs },
+        { data: dbReels },
+        { data: dbReviews }
+      ] = await Promise.all([
+        supabase.from('settings').select('*'),
+        supabase.from('HeroSlides').select('*').order('order_index', { ascending: true }),
+        supabase.from('StorePromos').select('*').order('created_at', { ascending: false }),
+        supabase.from('Barbers').select('*').eq('status', 'ACTIVE').order('created_at', { ascending: true }),
+        // Ordenamos inicialmente por order_index en la BD
+        supabase.from('Services').select('*').order('order_index', { ascending: true }).order('price', { ascending: true }),
+        supabase.from('Faqs').select('*').order('created_at', { ascending: true }),
+        supabase.from('InstagramReels').select('*').order('created_at', { ascending: false }),
+        supabase.from('Reviews').select('*').order('created_at', { ascending: false })
+      ]);
 
-  useEffect(() => {
-    async function fetchAdminData() {
-      try {
-        // 1. OBTENER TEXTOS GLOBALES DE LA PÁGINA PARA PODER EDITARLOS DEL ADMIN
-        const { data: dbSettings } = await supabase.from('settings').select('*');
-        if (dbSettings?.length) {
-          const contentUpdates = { ...FALLBACK_PAGE_CONTENT };
-          dbSettings.forEach(setting => {
-            if (Object.keys(contentUpdates).includes(setting.key)) {
-               // @ts-ignore
-               contentUpdates[setting.key] = setting.value;
-            }
-          });
-          setPageContent(contentUpdates);
-        }
-
-        // 2. OBTENER EL RESTO DE DATOS
-        const { data: dbHero } = await supabase.from('HeroSlides').select('*').order('order_index', { ascending: true });
-        if (dbHero?.length) setHeroSlides(dbHero); 
-
-        const { data: dbTeam } = await supabase.from('Barbers').select('*').eq('status', 'ACTIVE').order('created_at', { ascending: true });
-        if (dbTeam?.length) setTeam(dbTeam);
-
-        const { data: dbServices } = await supabase.from('Services').select('*').order('price', { ascending: true }).limit(4);
-        if (dbServices?.length) setServices(dbServices);
-
-        const { data: dbFaqs } = await supabase.from('Faqs').select('*');
-        if (dbFaqs?.length) setFaqs(dbFaqs);
-        
-        const { data: dbReels } = await supabase.from('InstagramReels').select('*').order('created_at', { ascending: false });
-        if (dbReels?.length) setReels(dbReels);
-
-      } catch (error) {
-        console.log("Usando datos de respaldo locales.");
+      // 1. Textos y Configuraciones Web
+      if (dbSettings?.length) {
+        const contentUpdates = { ...FALLBACK_PAGE_CONTENT };
+        dbSettings.forEach(setting => {
+          if (Object.keys(contentUpdates).includes(setting.key)) {
+             // @ts-ignore
+             contentUpdates[setting.key] = setting.value;
+          }
+        });
+        setPageContent(contentUpdates);
       }
+
+      // 2. Fusión Inteligente de Slides (Hero Visual + Promociones Tienda)
+      let combinedSlides: any[] = [];
+      if (dbHero?.length) {
+        combinedSlides = [...combinedSlides, ...dbHero.map(s => ({ ...s, type: 'brand' }))];
+      }
+      if (dbPromos?.length) {
+        combinedSlides = [...combinedSlides, ...dbPromos.map(s => ({ 
+          ...s, 
+          type: 'promo',
+          title: s.title_left || s.tag, 
+          subtitle: s.subtitle_left || ''
+        }))];
+      }
+      if (combinedSlides.length > 0) setHeroSlides(combinedSlides);
+
+      // 3. Barberos, FAQs, Reels, Reviews
+      if (dbTeam?.length) setTeam(dbTeam);
+      if (dbFaqs?.length) setFaqs(dbFaqs);
+      if (dbReels?.length) setReels(dbReels);
+      if (dbReviews?.length) setReviews(dbReviews);
+
+      // 4. Servicios Ordenados ESTRICTAMENTE
+      if (dbServices?.length) {
+         const sortedServices = [...dbServices].sort((a, b) => {
+            const indexA = a.order_index ?? 0; // Si no tiene orden, asume 0
+            const indexB = b.order_index ?? 0;
+            if (indexA !== indexB) {
+              return indexA - indexB; // Ordena de menor a mayor (1, 2, 3...)
+            }
+            // Si el index es igual, desempata por precio
+            return (a.price || 0) - (b.price || 0); 
+         });
+         // Mostramos solo los primeros 4 en la página principal, los demás en la página completa
+         setServices(sortedServices.slice(0, 4)); 
+      }
+
+    } catch (error) {
+      console.log("Error sincronizando. Usando datos iniciales.");
     }
-    fetchAdminData();
   }, [supabase]);
+
+  // Ejecución inicial y Suscripción Realtime
+  useEffect(() => {
+    fetchPublicData();
+    
+    // Rotación del Hero
+    const slideInterval = setInterval(() => setCurrentHeroSlide((prev) => (prev + 1) % totalSlides), 8000); 
+    
+    // Web Viva: Reacciona a cambios del Admin Panel en tiempo real
+    const channel = supabase.channel('public-home-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'settings' }, fetchPublicData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'HeroSlides' }, fetchPublicData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'StorePromos' }, fetchPublicData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'Barbers' }, fetchPublicData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'Services' }, fetchPublicData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'InstagramReels' }, fetchPublicData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'Reviews' }, fetchPublicData)
+      .subscribe();
+      
+    return () => { 
+      clearInterval(slideInterval);
+      supabase.removeChannel(channel); 
+    };
+  }, [fetchPublicData, supabase, totalSlides]);
 
   const currentSlideData = heroSlides[currentHeroSlide];
 
@@ -275,7 +304,7 @@ export default function UltimateEmperadorLanding() {
       <div className="fixed inset-0 z-0 pointer-events-none bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:32px_32px]"></div>
 
       {/* ========================================================================= */}
-      {/* 1. HERO GLOBAL DINÁMICO (Sincronizado con Admin) */}
+      {/* 1. HERO GLOBAL DINÁMICO */}
       {/* ========================================================================= */}
       <section className="relative w-full h-[100dvh] flex flex-col justify-center overflow-hidden bg-[#050505]">
         <AnimatePresence>
@@ -375,11 +404,11 @@ export default function UltimateEmperadorLanding() {
       </div>
 
       {/* ========================================================================= */}
-      {/* 2. LA EXPERIENCIA (Sincronizado con Admin) */}
+      {/* 2. LA EXPERIENCIA */}
       {/* ========================================================================= */}
       <section className="py-24 md:py-32 relative border-b border-zinc-900 overflow-hidden min-h-screen flex items-center">
         <div className="absolute inset-0 z-0">
-          <video src="/presentacion.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover blur-xl opacity-60 scale-110" />
+          <video src={pageContent.video_experiencia} autoPlay loop muted playsInline className="w-full h-full object-cover blur-xl opacity-60 scale-110" />
         </div>
         
         <div className="max-w-[1400px] w-full mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center relative z-10">
@@ -395,7 +424,7 @@ export default function UltimateEmperadorLanding() {
            
            <motion.div initial={{ opacity: 0, y: 50 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 1 }} className="flex justify-center lg:justify-end">
               <DistributedVideo 
-                 src="/presentacion.mp4" 
+                 src={pageContent.video_experiencia} 
                  onUnmute={handleGlobalReelUnmute} 
                  className="w-[340px] md:w-[420px] h-[600px] md:h-[750px] rounded-[2.5rem] shadow-[0_0_60px_rgba(0,0,0,0.8)] border-[6px] border-zinc-900" 
               />
@@ -413,35 +442,39 @@ export default function UltimateEmperadorLanding() {
             <h3 className="text-5xl md:text-8xl font-serif font-black text-white uppercase tracking-tighter leading-none">{pageContent.team_title}</h3>
           </div>
           
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={staggerContainer} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-            {team.map((t, i) => (
-              <motion.div key={t.id || i} variants={popUp} className="group relative h-[450px] md:h-[600px] rounded-[2rem] overflow-hidden border border-zinc-800 bg-zinc-900 cursor-pointer shadow-xl hover:shadow-[0_20px_50px_rgba(217,119,6,0.3)] transition-all duration-500">
-                <Image src={t.img || '/placeholder.jpg'} fill alt={t.name} className="object-cover grayscale contrast-125 group-hover:grayscale-0 group-hover:scale-110 transition-all duration-700" unoptimized />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/50 to-transparent opacity-90 group-hover:opacity-70 transition-opacity" />
-                <div className="absolute top-6 left-6"><span className="px-4 py-2 bg-amber-500 text-black text-[10px] font-black uppercase tracking-[0.2em] rounded-lg shadow-lg">{t.tag}</span></div>
-                
-                <div className="absolute bottom-8 left-8 right-8">
-                  <h4 className="text-3xl md:text-4xl font-black text-white uppercase tracking-tighter mb-1">{t.name}</h4>
-                  <p className="text-amber-500 font-bold uppercase text-[10px] tracking-[0.3em] mb-6">{t.role}</p>
+          {team.length > 0 ? (
+            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={staggerContainer} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+              {team.map((t, i) => (
+                <motion.div key={t.id || i} variants={popUp} className="group relative h-[450px] md:h-[600px] rounded-[2rem] overflow-hidden border border-zinc-800 bg-zinc-900 cursor-pointer shadow-xl hover:shadow-[0_20px_50px_rgba(217,119,6,0.3)] transition-all duration-500">
+                  <Image src={t.img || '/placeholder.jpg'} fill alt={t.name} className="object-cover grayscale contrast-125 group-hover:grayscale-0 group-hover:scale-110 transition-all duration-700" unoptimized />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/50 to-transparent opacity-90 group-hover:opacity-70 transition-opacity" />
+                  <div className="absolute top-6 left-6"><span className="px-4 py-2 bg-amber-500 text-black text-[10px] font-black uppercase tracking-[0.2em] rounded-lg shadow-lg">{t.tag}</span></div>
                   
-                  <div className="overflow-hidden">
-                      <Link href={`/reservar?barber=${t.id}`} className="w-full py-4 bg-white text-black font-black uppercase text-xs tracking-widest rounded-xl flex justify-center items-center gap-2 opacity-0 translate-y-full group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 hover:bg-amber-500 shadow-xl hover:scale-105 active:scale-95">
-                         Reservar con él <Zap size={14} fill="currentColor" />
-                      </Link>
+                  <div className="absolute bottom-8 left-8 right-8">
+                    <h4 className="text-3xl md:text-4xl font-black text-white uppercase tracking-tighter mb-1">{t.name}</h4>
+                    <p className="text-amber-500 font-bold uppercase text-[10px] tracking-[0.3em] mb-6">{t.role}</p>
+                    
+                    <div className="overflow-hidden">
+                        <Link href={`/reservar?barber=${t.id}`} className="w-full py-4 bg-white text-black font-black uppercase text-xs tracking-widest rounded-xl flex justify-center items-center gap-2 opacity-0 translate-y-full group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 hover:bg-amber-500 shadow-xl hover:scale-105 active:scale-95">
+                           Reservar con él <Zap size={14} fill="currentColor" />
+                        </Link>
+                    </div>
                   </div>
-                </div>
-              </motion.div>
-            ))}
-          </motion.div>
+                </motion.div>
+              ))}
+            </motion.div>
+          ) : (
+            <p className="text-center text-zinc-500">Aún no se han configurado barberos activos.</p>
+          )}
         </div>
       </section>
 
       {/* ========================================================================= */}
-      {/* 4. SERVICIOS DESTACADOS */}
+      {/* 4. SERVICIOS DESTACADOS (CON ORDEN SINCRONIZADO) */}
       {/* ========================================================================= */}
       <section id="servicios" className="py-24 md:py-32 relative border-b border-zinc-900 overflow-hidden">
         <div className="absolute inset-0 z-0">
-          <video src="/cortes.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover blur-lg opacity-40 scale-105" />
+          <video src={pageContent.video_servicios} autoPlay loop muted playsInline className="w-full h-full object-cover blur-lg opacity-40 scale-105" />
         </div>
 
         <div className="max-w-[1400px] mx-auto px-6 relative z-10">
@@ -455,7 +488,7 @@ export default function UltimateEmperadorLanding() {
              </div>
              
              <motion.div initial={{ opacity: 0, scale: 0.9 }} whileInView={{ opacity: 1, scale: 1 }} className="w-full lg:w-[500px] h-[300px] shrink-0">
-               <DistributedVideo src="/cortes.mp4" onUnmute={handleGlobalReelUnmute} className="w-full h-full rounded-[2rem] shadow-[0_0_50px_rgba(0,0,0,0.8)] border-[4px] border-zinc-800" />
+               <DistributedVideo src={pageContent.video_servicios} onUnmute={handleGlobalReelUnmute} className="w-full h-full rounded-[2rem] shadow-[0_0_50px_rgba(0,0,0,0.8)] border-[4px] border-zinc-800" />
              </motion.div>
           </div>
           
@@ -499,7 +532,7 @@ export default function UltimateEmperadorLanding() {
       {/* ========================================================================= */}
       <section id="flow" className="py-24 md:py-32 relative border-b border-zinc-900 overflow-hidden">
         <div className="absolute inset-0 z-0">
-          <video src="/mesadepool.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover blur-lg opacity-40 scale-105" />
+          <video src={pageContent.video_vip} autoPlay loop muted playsInline className="w-full h-full object-cover blur-lg opacity-40 scale-105" />
         </div>
 
         <div className="max-w-[1400px] mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-16 md:gap-20 items-center relative z-10">
@@ -528,7 +561,7 @@ export default function UltimateEmperadorLanding() {
           
           <motion.div initial={{ opacity: 0, x: 50 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 1 }} className="relative h-[450px] md:h-[700px] w-full">
              <DistributedVideo 
-               src="/mesadepool.mp4" 
+               src={pageContent.video_vip} 
                onUnmute={handleGlobalReelUnmute} 
                className="w-full h-full rounded-[3rem] shadow-[0_0_60px_rgba(0,0,0,0.8)] border-[6px] border-zinc-900"
              />
@@ -541,7 +574,7 @@ export default function UltimateEmperadorLanding() {
       {/* ========================================================================= */}
       <section className="py-24 md:py-32 relative border-b border-zinc-900 overflow-hidden">
         <div className="absolute inset-0 z-0">
-          <video src="/barberia.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover blur-lg opacity-40 scale-105" />
+          <video src={pageContent.video_salon} autoPlay loop muted playsInline className="w-full h-full object-cover blur-lg opacity-40 scale-105" />
         </div>
         
         <div className="max-w-[1400px] mx-auto px-6 text-center mb-16 relative z-10">
@@ -553,7 +586,7 @@ export default function UltimateEmperadorLanding() {
         
         <div className="max-w-[1200px] mx-auto px-6 relative z-10">
            <DistributedVideo 
-              src="/barberia.mp4" 
+              src={pageContent.video_salon} 
               onUnmute={handleGlobalReelUnmute} 
               className="w-full h-[350px] md:h-[650px] rounded-[3rem] shadow-[0_0_60px_rgba(0,0,0,0.8)] border-[4px] border-zinc-800" 
            />
@@ -561,81 +594,108 @@ export default function UltimateEmperadorLanding() {
       </section>
 
       {/* ========================================================================= */}
-      {/* 7. INSTAGRAM (TARJETA BLANCA IDÉNTICA A LA VISTA PREVIA ORIGINAL) */}
+      {/* 7. INSTAGRAM & TESTIMONIOS (REVIEWS) */}
       {/* ========================================================================= */}
       <section id="instagram" className="py-24 md:py-32 bg-[#0a0a0a] relative overflow-hidden border-b border-zinc-900 flex justify-center">
          <div className="absolute inset-0 opacity-20 pointer-events-none">
            <Image src="https://images.unsplash.com/photo-1593702275687-f8b402bf1fb5?q=80&w=2000&auto=format&fit=crop" fill className="object-cover blur-3xl scale-110" alt="Insta Background" unoptimized />
          </div>
          
-         <div className="w-full max-w-[450px] px-4 relative z-10">
-            <a href="https://www.instagram.com/emperador_barbershop/?hl=es" target="_blank" rel="noopener noreferrer" className="flex justify-between items-center mb-4 text-white font-bold text-sm px-2 group cursor-pointer">
-              <div className="flex items-center gap-2">
-                <div className="bg-gradient-to-tr from-[#fdf497] via-[#fd5949] to-[#d6249f] rounded-[0.4rem] p-0.5 group-hover:scale-110 transition-transform">
-                  <Instagram size={18} className="text-white" />
-                </div>
-                <span className="tracking-wide group-hover:text-amber-500 transition-colors">@emperador_barbershop</span>
-              </div>
-              <span className="text-[10px] md:text-xs uppercase font-black tracking-widest text-zinc-400 group-hover:text-white transition-colors">
-                ABRIR APP ↗
-              </span>
-            </a>
-
-            {/* TARJETA BLANCA */}
-            <div className="bg-white rounded-[1.5rem] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] hover:shadow-[0_20px_50px_rgba(214,36,159,0.3)] transition-shadow duration-500 cursor-pointer">
-               <a href="https://www.instagram.com/emperador_barbershop/?hl=es" target="_blank" rel="noopener noreferrer" className="block p-5 md:p-6 relative group">
-                  <div className="absolute top-5 right-5 group-hover:scale-110 transition-transform">
-                     <Instagram size={28} className="text-[#d6249f]" />
-                  </div>
-
-                  <div className="flex items-center gap-4">
-                     <div className="shrink-0 w-[70px] h-[70px] md:w-[84px] md:h-[84px] rounded-full bg-gradient-to-tr from-[#fdf497] via-[#fd5949] to-[#d6249f] p-[3px] shadow-sm group-hover:scale-105 transition-transform">
-                        <div className="w-full h-full bg-white rounded-full p-[2px]">
-                           <div className="w-full h-full relative rounded-full overflow-hidden border border-gray-100 bg-black flex items-center justify-center">
-                             <Image src="/logo.png" fill className="object-cover p-1" alt="Emperador Logo Instagram" />
-                           </div>
-                        </div>
-                     </div>
-                     <div className="text-black flex flex-col justify-center">
-                        <h3 className="font-bold text-base md:text-lg leading-none mb-1 group-hover:text-[#d6249f] transition-colors">emperador_barbershop</h3>
-                        <p className="text-zinc-600 text-[13px] md:text-sm mb-1">Emperador BarberShop</p>
-                        
-                        <div className="flex items-center gap-3 mt-1">
-                           <p className="text-zinc-800 text-[12px] md:text-[13px]"><span className="font-bold">84</span> publicaciones</p>
-                           <p className="text-zinc-800 text-[12px] md:text-[13px]"><span className="font-bold">1039</span> seguidores</p>
-                        </div>
-                        <p className="text-zinc-800 text-[12px] md:text-[13px] mt-0.5"><span className="font-bold">488</span> seguidos</p>
-                     </div>
-                  </div>
+         <div className="max-w-[1400px] mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-16 relative z-10 w-full">
+            
+            {/* COLUMNA IZQUIERDA: INSTAGRAM WIDGET */}
+            <div className="w-full max-w-[450px] mx-auto lg:mx-0">
+               <a href="https://www.instagram.com/emperador_barbershop/?hl=es" target="_blank" rel="noopener noreferrer" className="flex justify-between items-center mb-4 text-white font-bold text-sm px-2 group cursor-pointer">
+                 <div className="flex items-center gap-2">
+                   <div className="bg-gradient-to-tr from-[#fdf497] via-[#fd5949] to-[#d6249f] rounded-[0.4rem] p-0.5 group-hover:scale-110 transition-transform">
+                     <Instagram size={18} className="text-white" />
+                   </div>
+                   <span className="tracking-wide group-hover:text-amber-500 transition-colors">@emperador_barbershop</span>
+                 </div>
+                 <span className="text-[10px] md:text-xs uppercase font-black tracking-widest text-zinc-400 group-hover:text-white transition-colors">
+                   ABRIR APP ↗
+                 </span>
                </a>
 
-               <div className="grid grid-cols-3 gap-0.5 bg-gray-200">
-                  {reels.map((post) => (
-                    <a 
-                      key={post.id} 
-                      href="https://www.instagram.com/emperador_barbershop/?hl=es" 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="relative aspect-square bg-white overflow-hidden group block"
-                    >
-                       <Image 
-                         src={post.media_url} 
-                         alt="Insta Post" 
-                         fill
-                         className="object-cover group-hover:scale-105 transition-transform duration-500" 
-                         unoptimized
-                       />
-                       <div className="absolute top-2 right-2 text-white drop-shadow-md">
-                          {post.type === 'reel' ? <Clapperboard size={14} fill="currentColor" /> : null}
-                       </div>
-                       <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 backdrop-blur-sm">
-                          <div className="flex items-center gap-1 text-white font-bold text-xs"><Heart fill="currentColor" size={12} /> {post.likes}</div>
-                          <div className="flex items-center gap-1 text-white font-bold text-xs"><MessageCircle fill="currentColor" size={12} /> {post.comments}</div>
-                       </div>
-                    </a>
-                  ))}
+               <div className="bg-white rounded-[1.5rem] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] hover:shadow-[0_20px_50px_rgba(214,36,159,0.3)] transition-shadow duration-500 cursor-pointer">
+                  <a href="https://www.instagram.com/emperador_barbershop/?hl=es" target="_blank" rel="noopener noreferrer" className="block p-5 md:p-6 relative group">
+                     <div className="absolute top-5 right-5 group-hover:scale-110 transition-transform">
+                        <Instagram size={28} className="text-[#d6249f]" />
+                     </div>
+
+                     <div className="flex items-center gap-4">
+                        <div className="shrink-0 w-[70px] h-[70px] md:w-[84px] md:h-[84px] rounded-full bg-gradient-to-tr from-[#fdf497] via-[#fd5949] to-[#d6249f] p-[3px] shadow-sm group-hover:scale-105 transition-transform">
+                           <div className="w-full h-full bg-white rounded-full p-[2px]">
+                              <div className="w-full h-full relative rounded-full overflow-hidden border border-gray-100 bg-black flex items-center justify-center">
+                                <Image src="/logo.png" fill className="object-cover p-1" alt="Emperador Logo Instagram" />
+                              </div>
+                           </div>
+                        </div>
+                        <div className="text-black flex flex-col justify-center">
+                           <h3 className="font-bold text-base md:text-lg leading-none mb-1 group-hover:text-[#d6249f] transition-colors">emperador_barbershop</h3>
+                           <p className="text-zinc-600 text-[13px] md:text-sm mb-1">Emperador BarberShop</p>
+                           
+                           <div className="flex items-center gap-3 mt-1">
+                              <p className="text-zinc-800 text-[12px] md:text-[13px]"><span className="font-bold">84</span> publicaciones</p>
+                              <p className="text-zinc-800 text-[12px] md:text-[13px]"><span className="font-bold">1039</span> seguidores</p>
+                           </div>
+                           <p className="text-zinc-800 text-[12px] md:text-[13px] mt-0.5"><span className="font-bold">488</span> seguidos</p>
+                        </div>
+                     </div>
+                  </a>
+
+                  <div className="grid grid-cols-3 gap-0.5 bg-gray-200">
+                     {reels.map((post) => (
+                       <a 
+                         key={post.id} 
+                         href="https://www.instagram.com/emperador_barbershop/?hl=es" 
+                         target="_blank" 
+                         rel="noopener noreferrer"
+                         className="relative aspect-square bg-white overflow-hidden group block"
+                       >
+                          <Image 
+                            src={post.media_url} 
+                            alt="Insta Post" 
+                            fill
+                            className="object-cover group-hover:scale-105 transition-transform duration-500" 
+                            unoptimized
+                          />
+                          <div className="absolute top-2 right-2 text-white drop-shadow-md">
+                             {post.type === 'reel' ? <Clapperboard size={14} fill="currentColor" /> : null}
+                          </div>
+                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 backdrop-blur-sm">
+                             <div className="flex items-center gap-1 text-white font-bold text-xs"><Heart fill="currentColor" size={12} /> {post.likes}</div>
+                             <div className="flex items-center gap-1 text-white font-bold text-xs"><MessageCircle fill="currentColor" size={12} /> {post.comments}</div>
+                          </div>
+                       </a>
+                     ))}
+                  </div>
                </div>
             </div>
+
+            {/* COLUMNA DERECHA: REVIEWS (Sincronizado con Admin) */}
+            <div className="flex flex-col justify-center">
+              <h3 className="text-amber-500 font-black text-sm uppercase tracking-[0.4em] mb-4">Lo que dicen de nosotros</h3>
+              <h4 className="text-4xl md:text-6xl font-serif font-black text-white uppercase tracking-tighter leading-none mb-10">Reviews.</h4>
+              
+              <div className="space-y-4 max-h-[600px] overflow-y-auto pr-4 custom-scrollbar">
+                {reviews.map(review => (
+                  <div key={review.id} className="bg-zinc-900/80 border border-zinc-800 p-6 rounded-2xl backdrop-blur-sm">
+                    <Quote className="text-zinc-700 w-8 h-8 mb-4 rotate-180" />
+                    <p className="text-zinc-300 italic mb-6 font-medium leading-relaxed">"{review.text}"</p>
+                    <div className="flex justify-between items-center border-t border-zinc-800/50 pt-4">
+                      <span className="font-black text-white uppercase text-sm tracking-widest">{review.name}</span>
+                      <div className="flex gap-1">
+                        {[...Array(5)].map((_, i) => (
+                          <Star key={i} size={14} className={i < review.rating ? "text-amber-500 fill-amber-500" : "text-zinc-700"} />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
          </div>
       </section>
 

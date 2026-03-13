@@ -4,9 +4,9 @@ import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion, Variants } from "framer-motion";
-import * as LucideIcons from "lucide-react"; 
-import { 
-  Scissors, Flame, Crosshair, Zap, Crown, Sparkles, 
+import * as LucideIcons from "lucide-react";
+import {
+  Scissors, Flame, Crosshair, Zap, Crown, Sparkles,
   ChevronRight, Clock, Star, CheckCircle2, ShieldCheck,
   Gamepad2
 } from "lucide-react";
@@ -23,16 +23,17 @@ interface Service {
   time: string;
   duration?: number;
   iconName: string;
+  order_index?: number;
 }
 
 // Fallback de alta fidelidad por si la base de datos está vacía o sin conexión
 const FALLBACK_SERVICES: Service[] = [
-  { id: "s1", name: "Corte Clásico / Degradado", time: "45 min", duration: 45, price: "$12.000", desc: "El corte que define tu estilo. Clean, fresh, de líneas perfectas.", iconName: "Scissors" },
-  { id: "s2", name: "Corte + Perfilado de Cejas", time: "1 hrs", duration: 60, price: "$14.000", desc: "Sube de nivel tu mirada. Detalles quirúrgicos que marcan la diferencia.", iconName: "Crosshair" },
-  { id: "s3", name: "Barba + Vapor Caliente", time: "30 min", duration: 30, price: "$7.000", desc: "Afeitado VIP. Abrimos los poros para un acabado de seda y cero irritación.", iconName: "Flame" },
-  { id: "s4", name: "Corte + Barba + Lavado", time: "1h 15m", duration: 75, price: "$17.000", desc: "El combo indispensable para salir listo directo al fin de semana.", iconName: "Zap" },
-  { id: "s5", name: "Limpieza Facial", time: "25 min", duration: 25, price: "$10.000", desc: "Skin care masculino. Vapor, extracción de impurezas y mascarilla.", iconName: "Sparkles" },
-  { id: "s6", name: "Servicio Emperador VIP", time: "1h 30m", duration: 90, price: "$35.000", desc: "La experiencia definitiva. Trato de realeza garantizado con todo incluido.", iconName: "Crown" },
+  { id: "s1", name: "Corte Clásico / Degradado", time: "45 min", duration: 45, price: "$12.000", desc: "El corte que define tu estilo. Clean, fresh, de líneas perfectas.", iconName: "Scissors", order_index: 1 },
+  { id: "s2", name: "Corte + Perfilado de Cejas", time: "1 hrs", duration: 60, price: "$14.000", desc: "Sube de nivel tu mirada. Detalles quirúrgicos que marcan la diferencia.", iconName: "Crosshair", order_index: 2 },
+  { id: "s3", name: "Barba + Vapor Caliente", time: "30 min", duration: 30, price: "$7.000", desc: "Afeitado VIP. Abrimos los poros para un acabado de seda y cero irritación.", iconName: "Flame", order_index: 3 },
+  { id: "s4", name: "Corte + Barba + Lavado", time: "1h 15m", duration: 75, price: "$17.000", desc: "El combo indispensable para salir listo directo al fin de semana.", iconName: "Zap", order_index: 4 },
+  { id: "s5", name: "Limpieza Facial", time: "25 min", duration: 25, price: "$10.000", desc: "Skin care masculino. Vapor, extracción de impurezas y mascarilla.", iconName: "Sparkles", order_index: 5 },
+  { id: "s6", name: "Servicio Emperador VIP", time: "1h 30m", duration: 90, price: "$35.000", desc: "La experiencia definitiva. Trato de realeza garantizado con todo incluido.", iconName: "Crown", order_index: 6 },
 ];
 
 // ============================================================================
@@ -76,20 +77,29 @@ export default function ServiciosPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Sincronización Maestra con Supabase
+  // Sincronización Maestra con Supabase y Doble Ordenamiento
   useEffect(() => {
     async function fetchServices() {
       setLoading(true);
       try {
         const { data, error } = await supabase
           .from('Services')
-          .select('*')
-          .order('price', { ascending: true }); // Ordenados por precio como en el Admin
+          .select('*');
 
         if (error) throw error;
 
         if (data && data.length > 0) {
-          setServices(data);
+          // ORDENAMIENTO ESTRICTO EN FRONTEND POR order_index
+          const sortedServices = [...data].sort((a, b) => {
+            const indexA = a.order_index ?? 0;
+            const indexB = b.order_index ?? 0;
+            if (indexA !== indexB) {
+              return indexA - indexB; // Ordena de menor a mayor (1, 2, 3...)
+            }
+            // Si tienen el mismo index o ambos no tienen (0), desempata por precio
+            return (parseFloat(a.price) || 0) - (parseFloat(b.price) || 0);
+          });
+          setServices(sortedServices);
         } else {
           // Si la tabla está vacía, mostramos el fallback para no romper la UI
           setServices(FALLBACK_SERVICES);
@@ -116,7 +126,7 @@ export default function ServiciosPage() {
       {/* ========================================================================= */}
       <section className="relative min-h-[65vh] flex flex-col justify-center items-center overflow-hidden border-b border-zinc-900 pb-20">
         <div className="absolute inset-0 z-0">
-          <Image 
+          <Image
             src="https://images.unsplash.com/photo-1593702275687-f8b402bf1fb5?q=80&w=2000&auto=format&fit=crop"
             alt="Barbería Premium Servicios"
             fill
@@ -163,17 +173,17 @@ export default function ServiciosPage() {
             <span className="font-black uppercase tracking-[0.3em] text-xs animate-pulse">Afilando Navajas...</span>
           </div>
         ) : (
-          <motion.div 
-            initial="hidden" 
-            whileInView="visible" 
-            viewport={{ once: true, margin: "-50px" }} 
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: "-50px" }}
             variants={staggerContainer}
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8"
           >
             {services.map((service) => (
-              <motion.div 
-                key={service.id} 
-                variants={fadeUp} 
+              <motion.div
+                key={service.id}
+                variants={fadeUp}
                 whileHover={{ y: -10 }}
                 className="group p-8 md:p-10 bg-zinc-900/40 border border-zinc-800 rounded-[2.5rem] hover:bg-zinc-900 hover:border-amber-500/50 transition-all duration-500 flex flex-col justify-between shadow-lg relative overflow-hidden"
               >
@@ -211,7 +221,7 @@ export default function ServiciosPage() {
                     </div>
                   </div>
                   
-                  <Link 
+                  <Link
                     href={`/reservar?service=${service.id}`} // Redirige a reserva con el servicio en mente (Opcional, pero buen UX)
                     className="w-full py-5 bg-white text-black font-black uppercase text-xs tracking-widest rounded-2xl flex justify-center items-center gap-2 group-hover:bg-amber-500 transition-colors shadow-xl active:scale-95"
                   >

@@ -26,8 +26,8 @@ const FALLBACK_BARBERS = [
 ];
 
 const FALLBACK_SERVICES = [
-  { id: "s1", name: "Corte Clásico / Degradado", time: "60 min", duration: 60, price: 12000, desc: "Clean, fresh, de líneas perfectas.", iconName: "Scissors" },
-  { id: "s2", name: "Barba + Vapor Caliente", time: "60 min", duration: 60, price: 7000, desc: "Afeitado VIP. Poros abiertos, cero irritación.", iconName: "Flame" },
+  { id: "s1", name: "Corte Clásico / Degradado", time: "60 min", duration: 60, price: 12000, desc: "Clean, fresh, de líneas perfectas.", iconName: "Scissors", order_index: 1 },
+  { id: "s2", name: "Barba + Vapor Caliente", time: "60 min", duration: 60, price: 7000, desc: "Afeitado VIP. Poros abiertos, cero irritación.", iconName: "Flame", order_index: 2 },
 ];
 
 // ============================================================================
@@ -162,8 +162,22 @@ function BookingEngineContent() {
           }
         }
 
-        const { data: servicesData } = await supabase.from('Services').select('*').order('price', { ascending: true });
-        if (servicesData && servicesData.length > 0) setDbServices(servicesData);
+        // ======================================================================
+        // OBTENER SERVICIOS Y ORDENARLOS ESTRICTAMENTE POR order_index
+        // ======================================================================
+        const { data: servicesData } = await supabase.from('Services').select('*');
+        if (servicesData && servicesData.length > 0) {
+           const sortedServices = [...servicesData].sort((a, b) => {
+              const indexA = a.order_index ?? 0;
+              const indexB = b.order_index ?? 0;
+              if (indexA !== indexB) {
+                return indexA - indexB; // Ordena de menor a mayor (1, 2, 3...)
+              }
+              // Si el index es igual, desempata por precio
+              return (a.price || 0) - (b.price || 0); 
+           });
+           setDbServices(sortedServices);
+        }
       } catch (error) {
         console.error("Error cargando datos:", error);
       }
