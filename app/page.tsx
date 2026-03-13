@@ -244,7 +244,7 @@ export default function UltimateEmperadorLanding() {
       if (dbReels?.length) setReels(dbReels);
       if (dbReviews?.length) setReviews(dbReviews);
 
-      // 4. Servicios Ordenados ESTRICTAMENTE
+      // 4. Servicios Ordenados ESTRICTAMENTE por order_index
       if (dbServices?.length) {
          const sortedServices = [...dbServices].sort((a, b) => {
             const indexA = a.order_index ?? 0; // Si no tiene orden, asume 0
@@ -255,7 +255,7 @@ export default function UltimateEmperadorLanding() {
             // Si el index es igual, desempata por precio
             return (a.price || 0) - (b.price || 0); 
          });
-         // Mostramos solo los primeros 4 en la página principal, los demás en la página completa
+         // Mostramos solo los primeros 4 en la página principal
          setServices(sortedServices.slice(0, 4)); 
       }
 
@@ -433,7 +433,7 @@ export default function UltimateEmperadorLanding() {
       </section>
 
       {/* ========================================================================= */}
-      {/* 3. EQUIPO DE TRABAJO */}
+      {/* 3. EQUIPO DE TRABAJO (CON COLORES FIJOS EN MÓVIL Y HOVER EN PC) */}
       {/* ========================================================================= */}
       <section id="squad" className="py-24 md:py-32 bg-[#050505] relative overflow-hidden border-b border-zinc-900">
         <div className="max-w-[1400px] mx-auto px-6 relative z-10">
@@ -446,16 +446,26 @@ export default function UltimateEmperadorLanding() {
             <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={staggerContainer} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
               {team.map((t, i) => (
                 <motion.div key={t.id || i} variants={popUp} className="group relative h-[450px] md:h-[600px] rounded-[2rem] overflow-hidden border border-zinc-800 bg-zinc-900 cursor-pointer shadow-xl hover:shadow-[0_20px_50px_rgba(217,119,6,0.3)] transition-all duration-500">
-                  <Image src={t.img || '/placeholder.jpg'} fill alt={t.name} className="object-cover grayscale contrast-125 group-hover:grayscale-0 group-hover:scale-110 transition-all duration-700" unoptimized />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/50 to-transparent opacity-90 group-hover:opacity-70 transition-opacity" />
-                  <div className="absolute top-6 left-6"><span className="px-4 py-2 bg-amber-500 text-black text-[10px] font-black uppercase tracking-[0.2em] rounded-lg shadow-lg">{t.tag}</span></div>
+                  {/* Imagen a color en móvil por defecto, blanco y negro en PC con hover */}
+                  <Image src={t.img || '/placeholder.jpg'} fill alt={t.name} className="object-cover grayscale-0 md:grayscale md:contrast-125 md:group-hover:grayscale-0 md:group-hover:scale-110 scale-105 md:scale-100 transition-all duration-700" unoptimized />
+                  
+                  {/* Gradiente más oscuro en móvil para que resalte el texto */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/70 md:via-[#050505]/50 to-transparent opacity-100 md:opacity-90 group-hover:opacity-70 transition-opacity" />
+                  
+                  {/* Etiqueta animada */}
+                  <div className="absolute top-6 left-6">
+                    <span className="px-4 py-2 bg-amber-500 text-black text-[10px] font-black uppercase tracking-[0.2em] rounded-lg shadow-[0_0_15px_rgba(217,119,6,0.6)] animate-pulse inline-block">
+                      {t.tag}
+                    </span>
+                  </div>
                   
                   <div className="absolute bottom-8 left-8 right-8">
                     <h4 className="text-3xl md:text-4xl font-black text-white uppercase tracking-tighter mb-1">{t.name}</h4>
-                    <p className="text-amber-500 font-bold uppercase text-[10px] tracking-[0.3em] mb-6">{t.role}</p>
+                    <p className="text-amber-500 font-bold uppercase text-[10px] tracking-[0.3em] mb-6 drop-shadow-md">{t.role}</p>
                     
-                    <div className="overflow-hidden">
-                        <Link href={`/reservar?barber=${t.id}`} className="w-full py-4 bg-white text-black font-black uppercase text-xs tracking-widest rounded-xl flex justify-center items-center gap-2 opacity-0 translate-y-full group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 hover:bg-amber-500 shadow-xl hover:scale-105 active:scale-95">
+                    <div className="overflow-hidden mt-4">
+                        {/* Botón visible siempre en móvil, hover en PC */}
+                        <Link href={`/reservar?barber=${t.id}`} className="w-full py-4 bg-amber-500 md:bg-white text-black font-black uppercase text-xs tracking-widest rounded-xl flex justify-center items-center gap-2 md:opacity-0 md:translate-y-full md:group-hover:opacity-100 md:group-hover:translate-y-0 transition-all duration-300 md:hover:bg-amber-500 shadow-xl active:scale-95">
                            Reservar con él <Zap size={14} fill="currentColor" />
                         </Link>
                     </div>
