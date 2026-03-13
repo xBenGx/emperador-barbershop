@@ -171,7 +171,7 @@ function AdminDashboardContent() {
   }, [searchParams]);
 
   // ============================================================================
-  // ESCUDO DE SEGURIDAD Y CARGA DE DATOS (CONECTADO A SETTINGS GENERAL)
+  // ESCUDO DE SEGURIDAD Y CARGA DE DATOS
   // ============================================================================
   const verifyAdminAndFetchData = useCallback(async () => {
     setIsFetching(true);
@@ -193,7 +193,8 @@ function AdminDashboardContent() {
         dbHero, dbPromos, dbReels, dbReviews, dbFaqs, dbSongs, dbVip
       ] = await Promise.all([
         supabase.from('Barbers').select('*').order('created_at', { ascending: false }),
-        supabase.from('Services').select('*'), // Se extrae sin Order By de DB para no romper si la columna no existe aún
+        // TRUCO APLICADO AQUÍ: Extraemos los servicios ordenados por order_index ascendente
+        supabase.from('Services').select('*').order('order_index', { ascending: true }).order('price', { ascending: true }),
         supabase.from('inventory').select('*').order('created_at', { ascending: false }),
         supabase.from('clients').select('*').order('created_at', { ascending: false }),
         supabase.from('chairs').select('*').order('name', { ascending: true }),
@@ -205,7 +206,7 @@ function AdminDashboardContent() {
         supabase.from('Reviews').select('*').order('created_at', { ascending: false }),
         supabase.from('Faqs').select('*').order('created_at', { ascending: true }),
         supabase.from('Songs').select('*').order('created_at', { ascending: false }),
-        supabase.from('ClientBenefits').select('*').order('required_points', { ascending: true }) // Tabla de Beneficios VIP
+        supabase.from('ClientBenefits').select('*').order('required_points', { ascending: true }) 
       ]);
 
       if (dbBarbers.data) setBarbers(dbBarbers.data);
@@ -213,13 +214,15 @@ function AdminDashboardContent() {
       if (dbSongs.data) setSongs(dbSongs.data);
       if (dbVip.data) setVipBenefits(dbVip.data);
       
+      // DOBLE ORDENAMIENTO EN FRONTEND (Por si falla la base de datos)
       if (dbServices.data) {
-        // Ordenamos en memoria para evitar caídas si la DB no tiene order_index
-        const sortedServices = dbServices.data.sort((a, b) => {
-          const indexA = a.order_index || 0;
-          const indexB = b.order_index || 0;
-          if (indexA === indexB) return (a.price || 0) - (b.price || 0);
-          return indexA - indexB;
+        const sortedServices = [...dbServices.data].sort((a, b) => {
+          const indexA = a.order_index ?? 0;
+          const indexB = b.order_index ?? 0;
+          if (indexA !== indexB) {
+            return indexA - indexB; // Ordena de menor a mayor
+          }
+          return (a.price || 0) - (b.price || 0); // Si tienen el mismo index, desempata por precio
         });
         setServices(sortedServices);
       }
