@@ -10,6 +10,36 @@ const supabaseAdmin = createSupabaseClient(
   { auth: { autoRefreshToken: false, persistSession: false } }
 );
 
+// --- FUNCIONES AUXILIARES PARA EL BOT ---
+
+// 1. Convertir YYYY-MM-DD a DD/MM/YYYY para WhatsApp
+function formatDateToDDMMYYYY(dateString: string) {
+  if (!dateString) return dateString;
+  const parts = dateString.split('-');
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`; // Retorna DD/MM/YYYY
+  }
+  return dateString;
+}
+
+// 2. Búsqueda de teléfono a prueba de fallos (Por ID y como Plan B por Nombre)
+async function getBarberPhone(barberId: string, barberName: string) {
+  try {
+    if (barberId) {
+      const { data } = await supabaseAdmin.from('Barbers').select('phone').eq('id', barberId).single();
+      if (data?.phone) return data.phone;
+    }
+    // Plan B: Si el ID falla, buscamos por el nombre exacto
+    if (barberName) {
+      const { data } = await supabaseAdmin.from('Barbers').select('phone').eq('name', barberName).single();
+      if (data?.phone) return data.phone;
+    }
+  } catch (error) {
+    console.error("Error buscando teléfono del barbero:", error);
+  }
+  return null;
+}
+
 // ==========================================
 // 1. CREAR CITA (RESERVA NUEVA)
 // ==========================================
@@ -22,7 +52,6 @@ export async function createAppointment(data: any) {
 
     if (user) {
       finalClientId = user.id;
-      
       await supabaseAdmin.from('clients').upsert({
         id: finalClientId,
         name: data.client_name || user.user_metadata?.full_name || user.email?.split('@')[0],
@@ -39,9 +68,11 @@ export async function createAppointment(data: any) {
       ? `${data.time}:00` 
       : data.time;
 
-    const displayTime = cleanTime.substring(0, 5); // Formato 19:00
+    // Formatos visuales para el WhatsApp
+    const displayTime = cleanTime.substring(0, 5); // 19:00
+    const displayDate = formatDateToDDMMYYYY(cleanDate); // 18/03/2026
 
-    console.log(`🚀 Procesando reserva -> Cliente: ${data.client_name}, Barbero ID: ${data.barber_id}`);
+    console.log(`🚀 Procesando reserva -> Cliente: ${data.client_name}, Barbero: ${data.barber_name}`);
 
     const appointmentPayload = {
       client_id: finalClientId, 
@@ -69,26 +100,12 @@ export async function createAppointment(data: any) {
 
     // --- INTEGRACIÓN BOT WHATSAPP ---
     try {
-      let barberPhone = null;
-      if (data.barber_id) {
-         // Buscamos en la tabla Barbers
-         const { data: barberData, error: barberError } = await supabaseAdmin
-           .from('Barbers') 
-           .select('phone')
-           .eq('id', data.barber_id)
-           .single();
-           
-         if (barberData?.phone) barberPhone = barberData.phone;
-      }
+      // Usamos nuestra nueva función infalible
+      const barberPhone = await getBarberPhone(data.barber_id, data.barber_name);
 
-      // Buscar el precio (si no viene en el data, lo buscamos en la BD)
       let precioBruto = data.service_price || data.price;
       if (!precioBruto && data.service_id) {
-         const { data: serviceData } = await supabaseAdmin
-           .from('Services') 
-           .select('price') 
-           .eq('id', data.service_id)
-           .single();
+         const { data: serviceData } = await supabaseAdmin.from('Services').select('price').eq('id', data.service_id).single();
          if (serviceData?.price) precioBruto = serviceData.price;
       }
       const precioFinal = precioBruto ? `$${Number(precioBruto).toLocaleString('es-CL')}` : 'Valor a confirmar';
@@ -104,7 +121,7 @@ export async function createAppointment(data: any) {
             clientePhone: data.client_phone,
             barberoNombre: data.barber_name,
             barberoPhone: barberPhone, 
-            fecha: cleanDate,
+            fecha: displayDate, // Enviamos fecha formateada
             hora: displayTime,
             servicio: data.service_name,
             precio: precioFinal 
@@ -148,7 +165,6 @@ export async function updateAppointment(appointmentId: string, updateData: any) 
       ? `${updateData.time}:00` 
       : updateData.time;
 
-    // Actualizar en Supabase
     const { data: updatedAppt, error: updateError } = await supabaseAdmin
       .from('Appointments')
       .update({
@@ -164,18 +180,10 @@ export async function updateAppointment(appointmentId: string, updateData: any) 
 
     // --- INTEGRACIÓN BOT WHATSAPP ---
     try {
-      let barberPhone = null;
-      if (updatedAppt.barber_id) {
-         // Buscamos en la tabla Barbers
-         const { data: barberData } = await supabaseAdmin
-           .from('Barbers') 
-           .select('phone')
-           .eq('id', updatedAppt.barber_id)
-           .single();
-         if (barberData?.phone) barberPhone = barberData.phone;
-      }
-
-      const displayTime = updatedAppt.time.substring(0, 5); // Formato 19:00
+      const barberPhone = await getBarberPhone(updatedAppt.barber_id, updatedAppt.barber_name);
+      
+      const displayTime = updatedAppt.time.substring(0, 5); 
+      const displayDate = formatDateToDDMMYYYY(updatedAppt.date);
 
       await fetch('http://45.236.90.25:4000/api/notify', {
         method: 'POST',
@@ -188,7 +196,7 @@ export async function updateAppointment(appointmentId: string, updateData: any) 
             clientePhone: updatedAppt.client_phone,
             barberoNombre: updatedAppt.barber_name,
             barberoPhone: barberPhone,
-            fecha: updatedAppt.date,
+            fecha: displayDate, // Enviamos fecha formateada
             hora: displayTime,
             servicio: updatedAppt.service_name
           }
@@ -231,18 +239,10 @@ export async function deleteAppointment(appointmentId: string) {
 
     // --- INTEGRACIÓN BOT WHATSAPP ---
     try {
-      let barberPhone = null;
-      if (apptToDelete.barber_id) {
-         // Buscamos en la tabla Barbers
-         const { data: barberData } = await supabaseAdmin
-           .from('Barbers') 
-           .select('phone')
-           .eq('id', apptToDelete.barber_id)
-           .single();
-         if (barberData?.phone) barberPhone = barberData.phone;
-      }
-
-      const displayTime = apptToDelete.time.substring(0, 5); // Formato 19:00
+      const barberPhone = await getBarberPhone(apptToDelete.barber_id, apptToDelete.barber_name);
+      
+      const displayTime = apptToDelete.time.substring(0, 5); 
+      const displayDate = formatDateToDDMMYYYY(apptToDelete.date);
 
       await fetch('http://45.236.90.25:4000/api/notify', {
         method: 'POST',
@@ -255,7 +255,7 @@ export async function deleteAppointment(appointmentId: string) {
             clientePhone: apptToDelete.client_phone,
             barberoNombre: apptToDelete.barber_name,
             barberoPhone: barberPhone,
-            fecha: apptToDelete.date,
+            fecha: displayDate, // Enviamos fecha formateada
             hora: displayTime,
             servicio: apptToDelete.service_name
           }
