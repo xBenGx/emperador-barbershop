@@ -48,22 +48,20 @@ export async function createAppointment(data: any) {
     console.log(`🚀 Procesando reserva -> Cliente: ${data.client_name}, Barbero ID: ${data.barber_id}, Fecha: ${cleanDate}, Hora: ${cleanTime}`);
 
     // 3. Inserción FORZADA a la tabla "Appointments" (Ignora bloqueos de RLS)
-    // Al usar supabaseAdmin, no importa si es invitado o cliente, la cita se guardará.
     const appointmentPayload = {
-      client_id: finalClientId, // Será NULL si es invitado, lo cual es correcto.
+      client_id: finalClientId, 
       barber_id: data.barber_id, 
       barber_name: data.barber_name,
       service_id: data.service_id,
       service_name: data.service_name,
-      date: cleanDate, // Insertamos fecha limpia
-      time: cleanTime, // Insertamos hora limpia
+      date: cleanDate, 
+      time: cleanTime, 
       client_name: data.client_name,
       client_phone: data.client_phone,
       status: "PENDING",
       notes: data.notes || ""
     };
 
-    // El .select() final fuerza a la BD a devolver el registro, lo que empuja el evento Realtime instantáneamente.
     const { data: insertedData, error: insertError } = await supabaseAdmin
       .from("Appointments")
       .insert([appointmentPayload])
@@ -77,8 +75,50 @@ export async function createAppointment(data: any) {
       };
     }
 
-    // 4. Recargamos TODAS las vistas para sincronización en caché de Next.js
-    revalidatePath("/reservar"); // Ajustado a la ruta correcta de tu app
+    // ====================================================================
+    // 4. INTEGRACIÓN CON EL BOT DE WHATSAPP (VPS)
+    // ====================================================================
+    try {
+      // Intentamos obtener el teléfono del barbero de la BD para notificarle
+      let barberPhone = null;
+      if (data.barber_id) {
+         // Ajusta "User" al nombre exacto de tu tabla donde guardas a los barberos si es distinto
+         const { data: barberData } = await supabaseAdmin
+           .from('User') 
+           .select('phone')
+           .eq('id', data.barber_id)
+           .single();
+         if (barberData?.phone) barberPhone = barberData.phone;
+      }
+
+      // Enviamos la orden directa al VPS
+      await fetch('http://45.236.90.25:4000/api/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          secret: 'Emperador_Secreto_2026', // Debe coincidir con el de tu VPS
+          action: 'RESERVA_NUEVA',
+          data: {
+            clienteNombre: data.client_name,
+            clientePhone: data.client_phone,
+            barberoNombre: data.barber_name,
+            barberoPhone: barberPhone, 
+            fecha: cleanDate,
+            hora: cleanTime,
+            servicio: data.service_name
+          }
+        })
+      });
+      console.log("✅ Orden de WhatsApp despachada al VPS correctamente.");
+    } catch (botError) {
+      // Si el bot falla, no bloqueamos la reserva. Solo lo registramos.
+      console.error("⚠️ La cita se guardó, pero hubo un error contactando al Bot:", botError);
+    }
+
+    // ====================================================================
+    // 5. REVALIDACIÓN DE CACHÉ
+    // ====================================================================
+    revalidatePath("/reservar"); 
     revalidatePath("/dashboards/client/book");
     revalidatePath("/dashboards/barber");
     revalidatePath("/dashboards/admin/todaslascitas");
