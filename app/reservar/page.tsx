@@ -30,6 +30,12 @@ const FALLBACK_SERVICES = [
   { id: "s2", name: "Barba + Vapor Caliente", time: "60 min", duration: 60, price: 7000, desc: "Afeitado VIP. Poros abiertos, cero irritación.", iconName: "Flame", order_index: 2 },
 ];
 
+const FALLBACK_TIME_SLOTS = {
+  manana: ["10:00", "11:00", "12:00", "13:00", "14:00"],
+  tarde: ["15:00", "16:00", "17:00"],
+  noche: ["18:00", "19:00", "20:00"]
+};
+
 // ============================================================================
 // FUNCIONES DE APOYO Y LÓGICA DE TIEMPO
 // ============================================================================
@@ -43,7 +49,7 @@ const formatMoney = (amount: number | string) => {
   return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(numericAmount || 0);
 };
 
-// FIX: ZONA HORARIA LOCAL (Evita errores de medianoche)
+// ZONA HORARIA LOCAL (Evita errores de medianoche)
 const getLocalTodayDate = () => {
   const today = new Date();
   today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
@@ -61,7 +67,6 @@ const generateDates = () => {
   for(let i = 0; i < 14; i++) { 
     const d = new Date(today);
     d.setDate(today.getDate() + i);
-    // Aplicamos corrección de zona horaria a cada día generado
     const localDateStr = new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
 
     // Saltamos domingos (0)
@@ -77,13 +82,6 @@ const generateDates = () => {
   return dates;
 };
 const DATES = generateDates();
-
-// Intervalos exactos de 1 HORA.
-const TIME_SLOTS = {
-  manana: ["10:00", "11:00", "12:00", "13:00", "14:00"],
-  tarde: ["15:00", "16:00", "17:00"],
-  noche: ["18:00", "19:00", "20:00"]
-};
 
 const timeToMinutes = (timeStr: string) => {
   if (!timeStr) return 0;
@@ -104,7 +102,6 @@ const slideIn: Variants = {
 // COMPONENTE INTERNO (Lógica Principal)
 // ============================================================================
 function BookingEngineContent() {
-  // CLAVE: Memoizamos el cliente para evitar renders infinitos que rompen Realtime
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -127,13 +124,13 @@ function BookingEngineContent() {
   const [dbBarbers, setDbBarbers] = useState<any[]>(FALLBACK_BARBERS);
   const [dbServices, setDbServices] = useState<any[]>(FALLBACK_SERVICES);
   const [bookedSlots, setBookedSlots] = useState<{time: string, duration: number}[]>([]);
+  const [barberSchedule, setBarberSchedule] = useState<any[]>([]); // NUEVO: Horario del barbero
 
-  // 1. Cargar Datos y Pre-llenar Cuenta de Cliente (Si la hay)
+  // 1. Cargar Datos Iniciales
   useEffect(() => {
     const loadInitialData = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        // Si hay usuario, prellenamos sus datos por comodidad. Si no, seguimos como invitados.
         if (user) {
           setBooking(prev => ({
             ...prev,
@@ -162,18 +159,13 @@ function BookingEngineContent() {
           }
         }
 
-        // ======================================================================
-        // OBTENER SERVICIOS Y ORDENARLOS ESTRICTAMENTE POR order_index
-        // ======================================================================
+        // Obtener servicios ordenados
         const { data: servicesData } = await supabase.from('Services').select('*');
         if (servicesData && servicesData.length > 0) {
            const sortedServices = [...servicesData].sort((a, b) => {
               const indexA = a.order_index ?? 0;
               const indexB = b.order_index ?? 0;
-              if (indexA !== indexB) {
-                return indexA - indexB; // Ordena de menor a mayor (1, 2, 3...)
-              }
-              // Si el index es igual, desempata por precio
+              if (indexA !== indexB) return indexA - indexB; 
               return (a.price || 0) - (b.price || 0); 
            });
            setDbServices(sortedServices);
@@ -185,7 +177,17 @@ function BookingEngineContent() {
     loadInitialData();
   }, [supabase, barberParam]);
 
-  // 2. Extraemos la lógica de búsqueda de slots a un useCallback
+  // 2. Cargar Horario y Slots Ocupados al seleccionar Barbero
+  useEffect(() => {
+    if (booking.barber) {
+      const fetchSchedule = async () => {
+        const { data } = await supabase.from('barber_schedules').select('*').eq('barber_id', booking.barber.id);
+        if (data) setBarberSchedule(data);
+      };
+      fetchSchedule();
+    }
+  }, [booking.barber, supabase]);
+
   const fetchBookedSlots = useCallback(async () => {
     if (booking.barber && booking.date) {
       try {
@@ -201,10 +203,7 @@ function BookingEngineContent() {
         if (rawAppts) {
           const mappedSlots = rawAppts.map((a: any) => {
             const srv = srvs?.find(s => s.id === a.service_id);
-            return {
-              time: a.time,
-              duration: srv?.duration || 60 
-            };
+            return { time: a.time, duration: srv?.duration || 60 };
           });
           setBookedSlots(mappedSlots);
         }
@@ -215,17 +214,14 @@ function BookingEngineContent() {
     }
   }, [booking.barber, booking.date, supabase]);
 
-  // Cargar horas ocupadas al cambiar barbero o fecha
   useEffect(() => {
     fetchBookedSlots();
   }, [fetchBookedSlots]);
 
-  // 3. NUEVO: REALTIME ANTI-COLISIONES PARA EL CLIENTE
-  // Si otro cliente toma la hora mientras este usuario mira el calendario, se bloquea automáticamente.
+  // 3. REALTIME ANTI-COLISIONES
   useEffect(() => {
     if (!booking.barber || !booking.date) return;
     
-    // Filtramos estrictamente por el barbero seleccionado
     const channel = supabase.channel(`public:appts-client-${booking.barber.id}`)
       .on('postgres_changes', { 
         event: '*', 
@@ -233,7 +229,6 @@ function BookingEngineContent() {
         table: 'Appointments',
         filter: `barber_id=eq.${booking.barber.id}` 
       }, () => {
-        // Al detectar un cambio en la tabla de este barbero, recargamos los slots
         fetchBookedSlots();
       })
       .subscribe();
@@ -248,7 +243,47 @@ function BookingEngineContent() {
   const nextStep = () => setStep((p) => Math.min(p + 1, 5));
   const prevStep = () => setStep((p) => Math.max(p - 1, 1));
 
-  // 4. MOTOR DE COLISIONES DE TIEMPO
+  // ============================================================================
+  // GENERACIÓN DINÁMICA DEL HORARIO BASADO EN LA BD SQL
+  // ============================================================================
+  const dynamicTimeSlots = useMemo(() => {
+    if (!booking.date) return { manana: [], tarde: [], noche: [] };
+
+    // Si el barbero no ha configurado su horario, usamos el fallback de seguridad
+    if (barberSchedule.length === 0) return FALLBACK_TIME_SLOTS;
+
+    const dateObj = new Date(booking.date.fullDate + 'T00:00:00');
+    const dayNames = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+    const currentDayName = dayNames[dateObj.getDay()];
+
+    const todaySchedule = barberSchedule.find(s => s.day_of_week === currentDayName);
+
+    // Si marcó el día como inactivo
+    if (!todaySchedule || !todaySchedule.is_active) {
+      return { manana: [], tarde: [], noche: [] };
+    }
+
+    const startHour = parseInt(todaySchedule.start_time.split(':')[0]);
+    const endHour = parseInt(todaySchedule.end_time.split(':')[0]);
+    const breakStart = parseInt(todaySchedule.break_start.split(':')[0]);
+    const breakEnd = parseInt(todaySchedule.break_end.split(':')[0]);
+
+    const slots = [];
+    // OJO: Usamos < endHour. Si el turno termina a las 19:00, el último bloque será 18:00
+    for (let i = startHour; i < endHour; i++) {
+      // Excluir la hora de colación
+      if (i >= breakStart && i < breakEnd) continue;
+      slots.push(`${i.toString().padStart(2, '0')}:00`);
+    }
+
+    return {
+      manana: slots.filter(t => parseInt(t.split(':')[0]) < 14),
+      tarde: slots.filter(t => parseInt(t.split(':')[0]) >= 14 && parseInt(t.split(':')[0]) < 18),
+      noche: slots.filter(t => parseInt(t.split(':')[0]) >= 18)
+    };
+  }, [booking.date, barberSchedule]);
+
+  // 4. MOTOR DE COLISIONES DE TIEMPO BLINDADO
   const isSlotUnavailable = useCallback((timeStr: string) => {
     if (!booking.date || !booking.service) return true;
 
@@ -257,13 +292,26 @@ function BookingEngineContent() {
     const [hours, minutes] = timeStr.split(':').map(Number);
     const slotDate = new Date(year, month - 1, day, hours, minutes);
     
+    // Bloquear si es en menos de 2 horas desde AHORA
     const diffHours = (slotDate.getTime() - now.getTime()) / (1000 * 60 * 60);
-
     if (diffHours < 2) return true;
 
     const slotStart = timeToMinutes(timeStr);
     const slotEnd = slotStart + (booking.service.duration || 60);
 
+    // Evitar que el servicio termine DESPUÉS del turno del barbero
+    if (barberSchedule.length > 0) {
+      const dayNames = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+      const currentDayName = dayNames[slotDate.getDay()];
+      const todaySchedule = barberSchedule.find(s => s.day_of_week === currentDayName);
+      
+      if (todaySchedule) {
+        const shiftEndMinutes = timeToMinutes(todaySchedule.end_time);
+        if (slotEnd > shiftEndMinutes) return true;
+      }
+    }
+
+    // Comprobar colisiones con otras citas ya guardadas en SQL
     for (const booked of bookedSlots) {
        const bStart = timeToMinutes(booked.time);
        const bEnd = bStart + booked.duration;
@@ -274,21 +322,20 @@ function BookingEngineContent() {
     }
 
     return false; 
-  }, [booking.date, booking.service, bookedSlots]);
+  }, [booking.date, booking.service, bookedSlots, barberSchedule]);
 
-
-  // 5. CONFIRMACIÓN FINAL USANDO LA SERVER ACTION
+  // 5. CONFIRMACIÓN FINAL
   const handleFinalConfirm = async () => {
     setIsConfirming(true);
     setAuthError(null);
 
     try {
       if (!booking.barber?.id || !booking.service?.id) {
-        throw new Error("Faltan datos críticos para la reserva (Barbero o Servicio). Refresca la página.");
+        throw new Error("Faltan datos críticos para la reserva. Refresca la página.");
       }
 
       if (!booking.guest.name || !booking.guest.phone) {
-        throw new Error("Por favor, ingresa tu nombre y teléfono para confirmar la reserva.");
+        throw new Error("Por favor, ingresa tu nombre y teléfono para confirmar.");
       }
 
       const appointmentData = {
@@ -305,14 +352,11 @@ function BookingEngineContent() {
 
       const result = await createAppointment(appointmentData);
       
-      if (!result.success) {
-        throw new Error(result.error);
-      }
+      if (!result.success) throw new Error(result.error);
       
       nextStep(); 
     } catch (error: any) {
-      console.error(error);
-      setAuthError(error.message || "Hubo un error al procesar tu reserva. Intenta nuevamente.");
+      setAuthError(error.message || "Hubo un error al procesar tu reserva.");
     } finally {
       setIsConfirming(false);
     }
@@ -325,7 +369,7 @@ function BookingEngineContent() {
       <div className="fixed inset-0 z-0 pointer-events-none opacity-[0.03]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}></div>
       <div className="fixed inset-0 z-0 pointer-events-none bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:32px_32px]"></div>
 
-      {/* HEADER TÁCTICO INTERNO - CENTRADO */}
+      {/* HEADER TÁCTICO INTERNO */}
       <header className="relative w-full z-40 mb-12 md:mb-16">
         <div className="max-w-[1400px] mx-auto px-6 relative flex items-center justify-center h-16">
           
@@ -360,7 +404,7 @@ function BookingEngineContent() {
       {/* CONTENIDO PRINCIPAL */}
       <div className="px-6 max-w-[1400px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-16 text-left relative z-10">
         
-        {/* COLUMNA IZQUIERDA: RESUMEN DINÁMICO (Sticky Sidebar) */}
+        {/* COLUMNA IZQUIERDA: RESUMEN DINÁMICO */}
         <div className="hidden lg:block lg:col-span-4 text-left">
           <div className="sticky top-40 space-y-6">
             
@@ -541,42 +585,53 @@ function BookingEngineContent() {
                   <div className="bg-zinc-900/40 border border-zinc-800 rounded-[3rem] p-8 md:p-10 space-y-10 relative overflow-hidden shadow-2xl">
                     <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/5 blur-[80px] rounded-full pointer-events-none"></div>
 
-                    {[
-                      { title: "Jornada Mañana", slots: TIME_SLOTS.manana },
-                      { title: "Jornada Tarde", slots: TIME_SLOTS.tarde },
-                      { title: "Jornada Noche", slots: TIME_SLOTS.noche }
-                    ].map((section, idx) => (
-                      <div key={idx} className="text-left space-y-6 relative z-10">
-                        <h4 className="text-[10px] font-black text-amber-500 uppercase tracking-[0.4em] flex items-center gap-6">
-                          {section.title} <div className="h-px bg-zinc-800 flex-1" />
-                        </h4>
-                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-4 text-left">
-                          {section.slots.map(t => {
-                            const isUnavailable = isSlotUnavailable(t);
-                            return (
-                              <button 
-                                key={t} 
-                                disabled={isUnavailable}
-                                onClick={() => setBooking({...booking, time: t})} 
-                                className={`py-4 rounded-2xl text-xs font-black uppercase border transition-all duration-300 relative overflow-hidden group
-                                  ${isUnavailable ? 'bg-zinc-950/50 border-zinc-900/50 text-zinc-700 cursor-not-allowed' : 
-                                    booking.time === t ? 'bg-white text-black border-white shadow-[0_0_20px_rgba(255,255,255,0.3)] scale-105' : 
-                                    'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white hover:border-amber-500 hover:bg-zinc-900 hover:-translate-y-1'
-                                  }
-                                `}
-                              >
-                                {isUnavailable && (
-                                  <div className="absolute inset-0 flex items-center justify-center bg-zinc-950/80 backdrop-blur-[1px]">
-                                    <Lock size={14} className="text-zinc-800"/>
-                                  </div>
-                                )}
-                                <span className={isUnavailable ? 'opacity-30' : ''}>{t}</span>
-                              </button>
-                            );
-                          })}
+                    {/* LÓGICA DE DÍA LIBRE O SIN HORARIO */}
+                    {dynamicTimeSlots.manana.length === 0 && dynamicTimeSlots.tarde.length === 0 && dynamicTimeSlots.noche.length === 0 ? (
+                       <div className="text-center py-10 relative z-10">
+                         <CalendarIcon size={48} className="text-zinc-600 mx-auto mb-4" />
+                         <p className="text-zinc-400 font-bold text-lg">El maestro no atiende en este día.</p>
+                         <p className="text-zinc-500 text-sm">Por favor, selecciona otra fecha en el calendario.</p>
+                       </div>
+                    ) : (
+                      [
+                        { title: "Jornada Mañana", slots: dynamicTimeSlots.manana },
+                        { title: "Jornada Tarde", slots: dynamicTimeSlots.tarde },
+                        { title: "Jornada Noche", slots: dynamicTimeSlots.noche }
+                      ]
+                      .filter(section => section.slots.length > 0) // Ocultar jornadas vacías automáticamente
+                      .map((section, idx) => (
+                        <div key={idx} className="text-left space-y-6 relative z-10">
+                          <h4 className="text-[10px] font-black text-amber-500 uppercase tracking-[0.4em] flex items-center gap-6">
+                            {section.title} <div className="h-px bg-zinc-800 flex-1" />
+                          </h4>
+                          <div className="grid grid-cols-3 sm:grid-cols-4 gap-4 text-left">
+                            {section.slots.map(t => {
+                              const isUnavailable = isSlotUnavailable(t);
+                              return (
+                                <button 
+                                  key={t} 
+                                  disabled={isUnavailable}
+                                  onClick={() => setBooking({...booking, time: t})} 
+                                  className={`py-4 rounded-2xl text-xs font-black uppercase border transition-all duration-300 relative overflow-hidden group
+                                    ${isUnavailable ? 'bg-zinc-950/50 border-zinc-900/50 text-zinc-700 cursor-not-allowed' : 
+                                      booking.time === t ? 'bg-white text-black border-white shadow-[0_0_20px_rgba(255,255,255,0.3)] scale-105' : 
+                                      'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white hover:border-amber-500 hover:bg-zinc-900 hover:-translate-y-1'
+                                    }
+                                  `}
+                                >
+                                  {isUnavailable && (
+                                    <div className="absolute inset-0 flex items-center justify-center bg-zinc-950/80 backdrop-blur-[1px]">
+                                      <Lock size={14} className="text-zinc-800"/>
+                                    </div>
+                                  )}
+                                  <span className={isUnavailable ? 'opacity-30' : ''}>{t}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))
+                    )}
                   </div>
                 )}
 
@@ -592,7 +647,7 @@ function BookingEngineContent() {
               </motion.div>
             )}
 
-            {/* PASO 4: FORMULARIO GUEST CON AUTO-COMPLETADO */}
+            {/* PASO 4: FORMULARIO GUEST */}
             {step === 4 && (
               <motion.div key="s4" variants={slideIn} initial="hidden" animate="visible" exit="exit" className="space-y-10 text-left">
                 <div>
