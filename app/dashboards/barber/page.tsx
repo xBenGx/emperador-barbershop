@@ -6,7 +6,10 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import Image from "next/image";
 
-// IMPORTACIONES
+// IMPORTAMOS LAS ACCIONES DEL SERVIDOR QUE CONECTAN AL BOT DE WHATSAPP
+import { updateAppointment, deleteAppointment } from "@/app/actions/appointment";
+
+// IMPORTACIONES DE ICONOS
 import * as LucideIcons from "lucide-react";
 import { 
   CalendarDays, Clock, DollarSign, Users, TrendingUp, 
@@ -82,8 +85,7 @@ const generateDates = () => {
 };
 
 const DATES = generateDates();
-const TIMELINE_SLOTS = ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"];
-const DAYS_OF_WEEK = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
+const DAYS_OF_WEEK = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 
 // ============================================================================
 // COMPONENTE PRINCIPAL DEL BARBERO
@@ -166,24 +168,22 @@ export default function BarberDashboard() {
       const { data: chairData } = await supabase.from('chairs').select('*').eq('current_barber_id', user.id).single();
       if (chairData) setMyChair(chairData);
 
-      // 3. LECTURA DE CITAS SEGURA (SIN JOINS PARA EVITAR ERRORES DE LLAVES FORÁNEAS)
+      // 3. LECTURA DE CITAS SEGURA
       const { data: rawAppts, error: apptError } = await supabase
         .from('Appointments')
-        .select('*') // <-- MAGIA: Extraemos todo plano sin depender de otras tablas.
+        .select('*') 
         .eq('barber_id', user.id);
         
       if (apptError) {
         console.error("Error leyendo citas de supabase:", apptError.message);
       }
 
-      // Pedimos los servicios por separado
       const { data: allServices } = await supabase.from('Services').select('*');
 
       if (rawAppts && !apptError) {
         const mappedAppts: Appointment[] = rawAppts.map((a: any) => {
           const matchedService = allServices?.find(s => s.id === a.service_id) || null;
           
-          // NORMALIZACIÓN DE FECHAS ESTRICTA
           const safeDate = a.date ? String(a.date).substring(0, 10) : TODAY_DATE;
           const safeTime = a.time ? String(a.time).substring(0, 5) : "00:00";
 
@@ -191,7 +191,6 @@ export default function BarberDashboard() {
             ...a,
             date: safeDate,
             time: safeTime,
-            // Reconstruimos el cliente desde los datos crudos que ya guardaste en la reserva
             client: { 
               id: a.client_id, 
               name: a.client_name || 'Anónimo', 
@@ -202,7 +201,6 @@ export default function BarberDashboard() {
           };
         });
 
-        // Ordenar citas (desde hoy hacia el futuro)
         const futureAppts = mappedAppts.filter(a => a.date >= TODAY_DATE).sort((a,b) => {
            if (a.date === b.date) return a.time.localeCompare(b.time);
            return a.date.localeCompare(b.date);
@@ -210,7 +208,6 @@ export default function BarberDashboard() {
         
         setAppointments(futureAppts);
         
-        // Unificar Clientes para la agenda
         const uniqueClientsMap = new Map();
         mappedAppts.forEach(a => { 
           const clientKey = a.client?.id || a.client?.phone || a.client?.name;
@@ -220,7 +217,6 @@ export default function BarberDashboard() {
         });
         setClients(Array.from(uniqueClientsMap.values()));
 
-        // Finanzas y KPIs
         const todayAppts = mappedAppts.filter(a => a.date === TODAY_DATE);
         const todayCompleted = todayAppts.filter(a => a.status === 'COMPLETED');
         const todayEarnings = todayCompleted.reduce((acc, curr) => acc + Number(curr.service?.price || 0), 0);
@@ -240,6 +236,36 @@ export default function BarberDashboard() {
       setIsFetching(false);
     }
   }, [supabase, router]);
+
+  // ============================================================================
+  // GENERACIÓN DINÁMICA DE HORARIO (CRÍTICO PARA SINCRONIZACIÓN SQL)
+  // ============================================================================
+  const dynamicTimeline = useMemo(() => {
+    // Obtenemos qué día es en la fecha seleccionada (ej: 0 = Domingo, 1 = Lunes)
+    const dateObj = new Date(selectedDateFilter + 'T00:00:00');
+    const dayIndex = dateObj.getDay();
+    const currentDayName = DAYS_OF_WEEK[dayIndex]; // Ej: "Martes"
+
+    // Buscamos si el barbero guardó configuración para este día
+    const todaySchedule = schedules.find(s => s.day_of_week === currentDayName);
+
+    // Fallback por defecto si nunca ha configurado su horario
+    if (!todaySchedule) return ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"];
+    
+    // Si marcó el día como inactivo, devolvemos un array vacío (Día Libre)
+    if (!todaySchedule.is_active) return [];
+
+    // Generamos los bloques basándonos en la SQL real
+    const startHour = parseInt(todaySchedule.start_time.split(':')[0]);
+    const endHour = parseInt(todaySchedule.end_time.split(':')[0]);
+
+    const slots = [];
+    for (let i = startHour; i <= endHour; i++) {
+      slots.push(`${i.toString().padStart(2, '0')}:00`);
+    }
+    return slots;
+  }, [selectedDateFilter, schedules]);
+
 
   // ============================================================================
   // SUSCRIPCIÓN EN TIEMPO REAL
@@ -274,7 +300,7 @@ export default function BarberDashboard() {
   }, [loadDashboardData, supabase]);
 
   // ============================================================================
-  // ACCIONES CRUD Y NAVEGACIÓN
+  // ACCIONES CRUD Y NAVEGACIÓN (INTEGRADAS CON EL BOT DE WHATSAPP)
   // ============================================================================
 
   const handleLogout = async () => {
@@ -299,13 +325,56 @@ export default function BarberDashboard() {
     });
   };
 
+  // 1. ACTUALIZAR ESTADO (CONFIRMAR, RECHAZAR, COMPLETAR) -> AVISA AL WHATSAPP
   const handleUpdateStatus = async (id: string, newStatus: AppointmentStatus) => {
     setIsLoading(true);
-    await supabase.from('Appointments').update({ status: newStatus }).eq('id', id);
-    loadDashboardData(); 
+    // Usamos el Server Action que ya tiene integrado el aviso al bot
+    const result = await updateAppointment(id, { status: newStatus });
+    if(result.success){
+       loadDashboardData(); 
+    } else {
+       alert("Error al actualizar la cita.");
+    }
     setIsLoading(false);
   };
 
+  // 2. ELIMINAR CITA -> AVISA AL WHATSAPP
+  const handleDeleteAppt = async (id: string) => {
+    if(!confirm("¿Estás seguro de eliminar esta reserva? Se enviará un WhatsApp de cancelación automática al cliente.")) return;
+    setIsLoading(true);
+    const result = await deleteAppointment(id);
+    if(result.success){
+       loadDashboardData();
+    } else {
+       alert("Error al eliminar la cita.");
+    }
+    setIsLoading(false);
+  }
+
+  // 3. EDITAR CITA (REPROGRAMAR) -> AVISA AL WHATSAPP
+  const handleEditApptSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedAppt) return;
+    setIsLoading(true);
+    
+    const form = e.target as HTMLFormElement;
+    const newDate = (form.elements.namedItem('date') as HTMLInputElement).value;
+    const newTime = (form.elements.namedItem('time') as HTMLInputElement).value;
+
+    // Usamos el Server Action que inyecta la edición y dispara el bot
+    const result = await updateAppointment(selectedAppt.id, { date: newDate, time: newTime });
+    
+    if (result.success) {
+      loadDashboardData();
+      setModalType(null);
+      alert("Reserva reprogramada exitosamente. Se ha notificado al cliente.");
+    } else {
+      alert("Error al reprogramar: " + result.error);
+    }
+    setIsLoading(false);
+  };
+
+  // 4. BLOQUEO DE ESPACIOS (No avisa al WhatsApp, solo gestiona la agenda local del barbero)
   const handleToggleBlockSlot = async (time: string, isBlocked: boolean, existingId?: string) => {
     setIsLoading(true);
     try {
@@ -328,23 +397,7 @@ export default function BarberDashboard() {
     }
   };
 
-  const handleEditApptSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedAppt) return;
-    setIsLoading(true);
-    const form = e.target as HTMLFormElement;
-    const newDate = (form.elements.namedItem('date') as HTMLInputElement).value;
-    const newTime = (form.elements.namedItem('time') as HTMLInputElement).value;
-
-    const { error } = await supabase.from('Appointments').update({ date: newDate, time: newTime }).eq('id', selectedAppt.id);
-    if (!error) {
-      loadDashboardData();
-      setModalType(null);
-      alert("Reserva reprogramada exitosamente.");
-    }
-    setIsLoading(false);
-  };
-
+  // 5. GUARDAR CONFIGURACIÓN DEL HORARIO DEL BARBERO EN SQL
   const handleSaveSchedule = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!barber) return;
@@ -352,13 +405,24 @@ export default function BarberDashboard() {
     
     try {
       const form = e.target as HTMLFormElement;
-      
+      // Excluimos "Domingo" porque DAYS_OF_WEEK empieza el Lunes visualmente, pero aseguraremos todos.
+      // Modificamos a iterar por los días reales guardados arriba.
       const upsertData = DAYS_OF_WEEK.map(day => {
-        const isActive = (form.elements.namedItem(`active_${day}`) as HTMLInputElement).checked;
-        const start = (form.elements.namedItem(`start_${day}`) as HTMLInputElement).value;
-        const end = (form.elements.namedItem(`end_${day}`) as HTMLInputElement).value;
-        const bStart = (form.elements.namedItem(`bstart_${day}`) as HTMLInputElement).value;
-        const bEnd = (form.elements.namedItem(`bend_${day}`) as HTMLInputElement).value;
+        // En el form están como active_Lunes, etc.
+        const isActiveNode = form.elements.namedItem(`active_${day}`) as HTMLInputElement;
+        const isActive = isActiveNode ? isActiveNode.checked : false;
+        
+        const startNode = form.elements.namedItem(`start_${day}`) as HTMLInputElement;
+        const start = startNode ? startNode.value : "10:00";
+        
+        const endNode = form.elements.namedItem(`end_${day}`) as HTMLInputElement;
+        const end = endNode ? endNode.value : "20:00";
+        
+        const bStartNode = form.elements.namedItem(`bstart_${day}`) as HTMLInputElement;
+        const bStart = bStartNode ? bStartNode.value : "14:00";
+        
+        const bEndNode = form.elements.namedItem(`bend_${day}`) as HTMLInputElement;
+        const bEnd = bEndNode ? bEndNode.value : "15:00";
 
         return {
           barber_id: barber.id,
@@ -373,7 +437,7 @@ export default function BarberDashboard() {
 
       await supabase.from('barber_schedules').upsert(upsertData, { onConflict: 'barber_id, day_of_week' });
       loadDashboardData();
-      alert("Horarios de trabajo actualizados en el sistema.");
+      alert("Horarios de trabajo actualizados en el sistema de agenda online.");
     } finally {
       setIsLoading(false);
     }
@@ -588,82 +652,92 @@ export default function BarberDashboard() {
                 <span className="text-sm text-zinc-400 font-bold bg-zinc-800 px-4 py-2 rounded-xl border border-zinc-600">{new Date(selectedDateFilter + 'T00:00:00').toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
               </h3>
               
-              <div className="space-y-2">
-                {TIMELINE_SLOTS.map(time => {
-                  const appAtThisTime = filteredAppointments.find(a => a.time.startsWith(time.split(':')[0]));
-                  const isPast = selectedDateFilter === TODAY_DATE && time < currentHour;
-                  const isBlocked = appAtThisTime?.status === 'BLOCKED' || (!appAtThisTime && isPast);
+              {dynamicTimeline.length === 0 ? (
+                <div className="text-center text-zinc-400 py-16 font-bold text-lg border-2 border-dashed border-zinc-700 rounded-xl mt-6 bg-zinc-800/30">
+                  <CalendarDays size={40} className="mx-auto mb-4 text-zinc-500" />
+                  Tienes este día configurado como Libre en tu horario.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {dynamicTimeline.map(time => {
+                    const appAtThisTime = filteredAppointments.find(a => a.time.startsWith(time.split(':')[0]));
+                    const isPast = selectedDateFilter === TODAY_DATE && time < currentHour;
+                    const isBlocked = appAtThisTime?.status === 'BLOCKED' || (!appAtThisTime && isPast);
 
-                  if (appAtThisTime && appAtThisTime.status !== 'BLOCKED') {
-                    return (
-                      <div key={time} className="flex gap-6 items-stretch group">
-                        <div className="w-16 flex flex-col items-center">
-                          <span className={`font-black text-lg ${appAtThisTime.status === 'COMPLETED' ? 'text-green-400' : 'text-amber-500'}`}>{time}</span>
-                          <div className={`w-1 h-full my-2 rounded-full group-last:hidden ${appAtThisTime.status === 'COMPLETED' ? 'bg-green-500/40' : 'bg-amber-500/40'}`}></div>
-                        </div>
-                        
-                        <div className={`flex-1 border-2 hover:border-amber-500 rounded-3xl p-6 mb-6 shadow-lg transition-colors relative overflow-hidden ${appAtThisTime.status === 'COMPLETED' ? 'border-green-500/60 bg-green-500/5' : appAtThisTime.status === 'PENDING' ? 'border-amber-500/80 bg-amber-500/5' : 'border-zinc-600 bg-zinc-800/80'}`}>
-                           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-                             <div>
-                               <div className="flex items-center gap-3 mb-2">
-                                 <h4 className="text-2xl font-black text-white uppercase">{appAtThisTime.client?.name || appAtThisTime.client_name || 'Anónimo'}</h4>
-                                 {getStatusBadge(appAtThisTime.status)}
+                    if (appAtThisTime && appAtThisTime.status !== 'BLOCKED') {
+                      return (
+                        <div key={time} className="flex gap-6 items-stretch group">
+                          <div className="w-16 flex flex-col items-center">
+                            <span className={`font-black text-lg ${appAtThisTime.status === 'COMPLETED' ? 'text-green-400' : 'text-amber-500'}`}>{time}</span>
+                            <div className={`w-1 h-full my-2 rounded-full group-last:hidden ${appAtThisTime.status === 'COMPLETED' ? 'bg-green-500/40' : 'bg-amber-500/40'}`}></div>
+                          </div>
+                          
+                          <div className={`flex-1 border-2 hover:border-amber-500 rounded-3xl p-6 mb-6 shadow-lg transition-colors relative overflow-hidden ${appAtThisTime.status === 'COMPLETED' ? 'border-green-500/60 bg-green-500/5' : appAtThisTime.status === 'PENDING' ? 'border-amber-500/80 bg-amber-500/5' : 'border-zinc-600 bg-zinc-800/80'}`}>
+                             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                               <div>
+                                 <div className="flex items-center gap-3 mb-2">
+                                   <h4 className="text-2xl font-black text-white uppercase">{appAtThisTime.client?.name || appAtThisTime.client_name || 'Anónimo'}</h4>
+                                   {getStatusBadge(appAtThisTime.status)}
+                                 </div>
+                                 <p className="text-base font-bold text-zinc-300 flex items-center gap-2">
+                                   <Scissors size={16} className="text-amber-500"/> {appAtThisTime.service?.name || appAtThisTime.service_name || 'Servicio General'} • <span className="text-white bg-zinc-900 px-2 py-0.5 rounded-md border border-zinc-700">{formatMoney(appAtThisTime.service?.price as number)}</span>
+                                 </p>
+                                 {appAtThisTime.notes && <p className="text-xs text-zinc-400 mt-2 font-mono break-words">{appAtThisTime.notes}</p>}
                                </div>
-                               <p className="text-base font-bold text-zinc-300 flex items-center gap-2">
-                                 <Scissors size={16} className="text-amber-500"/> {appAtThisTime.service?.name || appAtThisTime.service_name || 'Servicio General'} • <span className="text-white bg-zinc-900 px-2 py-0.5 rounded-md border border-zinc-700">{formatMoney(appAtThisTime.service?.price as number)}</span>
-                               </p>
-                               {appAtThisTime.notes && <p className="text-xs text-zinc-400 mt-2 font-mono break-words">{appAtThisTime.notes}</p>}
                              </div>
-                           </div>
 
-                           <div className="flex flex-wrap items-center gap-3 pt-6 border-t border-zinc-700">
-                             {appAtThisTime.status === "PENDING" && (
-                               <>
-                                 <button onClick={() => handleUpdateStatus(appAtThisTime.id, "CONFIRMED")} disabled={isLoading} className="px-6 py-3 bg-blue-500/20 text-blue-400 hover:bg-blue-500 hover:text-white border border-blue-500/40 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all">Confirmar</button>
-                                 <button onClick={() => handleUpdateStatus(appAtThisTime.id, "CANCELLED")} disabled={isLoading} className="px-6 py-3 bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white border border-red-500/40 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all">Rechazar</button>
-                               </>
-                             )}
-                             {appAtThisTime.status === "CONFIRMED" && (
-                               <button onClick={() => handleUpdateStatus(appAtThisTime.id, "COMPLETED")} disabled={isLoading} className="px-8 py-3 bg-green-500 text-black hover:bg-green-400 border border-green-400 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-[0_5px_15px_rgba(34,197,94,0.4)]">Cobrar</button>
-                             )}
-                             {appAtThisTime.status === "COMPLETED" && (
-                               <p className="text-green-400 text-sm font-black uppercase tracking-widest flex items-center gap-2 bg-green-500/10 px-4 py-2 rounded-lg border border-green-500/20"><Check size={18} /> Cobro Registrado</p>
-                             )}
-                             <div className="flex-1"></div>
-                             
-                             {appAtThisTime.status !== "COMPLETED" && (
-                               <button onClick={() => openModal("EDIT_APPT", appAtThisTime)} className="p-3 text-zinc-300 hover:text-white bg-zinc-700 hover:bg-zinc-600 rounded-xl transition-colors border border-zinc-600 shadow-sm" title="Reprogramar"><Edit3 size={18}/></button>
-                             )}
-                             <button onClick={() => handleUpdateStatus(appAtThisTime.id, "NO_SHOW")} className="p-3 text-zinc-300 hover:text-yellow-400 bg-zinc-700 hover:bg-zinc-600 rounded-xl transition-colors border border-zinc-600 shadow-sm" title="Faltó (No Show)"><AlertCircle size={18}/></button>
-                           </div>
+                             <div className="flex flex-wrap items-center gap-3 pt-6 border-t border-zinc-700">
+                               {appAtThisTime.status === "PENDING" && (
+                                 <>
+                                   <button onClick={() => handleUpdateStatus(appAtThisTime.id, "CONFIRMED")} disabled={isLoading} className="px-6 py-3 bg-blue-500/20 text-blue-400 hover:bg-blue-500 hover:text-white border border-blue-500/40 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all">Confirmar</button>
+                                   <button onClick={() => handleUpdateStatus(appAtThisTime.id, "CANCELLED")} disabled={isLoading} className="px-6 py-3 bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white border border-red-500/40 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all">Rechazar</button>
+                                 </>
+                               )}
+                               {appAtThisTime.status === "CONFIRMED" && (
+                                 <button onClick={() => handleUpdateStatus(appAtThisTime.id, "COMPLETED")} disabled={isLoading} className="px-8 py-3 bg-green-500 text-black hover:bg-green-400 border border-green-400 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-[0_5px_15px_rgba(34,197,94,0.4)]">Cobrar</button>
+                               )}
+                               {appAtThisTime.status === "COMPLETED" && (
+                                 <p className="text-green-400 text-sm font-black uppercase tracking-widest flex items-center gap-2 bg-green-500/10 px-4 py-2 rounded-lg border border-green-500/20"><Check size={18} /> Cobro Registrado</p>
+                               )}
+                               <div className="flex-1"></div>
+                               
+                               {appAtThisTime.status !== "COMPLETED" && (
+                                 <>
+                                   <button onClick={() => openModal("EDIT_APPT", appAtThisTime)} className="p-3 text-zinc-300 hover:text-white bg-zinc-700 hover:bg-zinc-600 rounded-xl transition-colors border border-zinc-600 shadow-sm" title="Reprogramar y Avisar"><Edit3 size={18}/></button>
+                                   <button onClick={() => handleDeleteAppt(appAtThisTime.id)} className="p-3 text-zinc-300 hover:text-red-400 bg-zinc-700 hover:bg-zinc-600 rounded-xl transition-colors border border-zinc-600 shadow-sm" title="Eliminar Cita y Avisar"><Trash2 size={18}/></button>
+                                 </>
+                               )}
+                               <button onClick={() => handleUpdateStatus(appAtThisTime.id, "NO_SHOW")} className="p-3 text-zinc-300 hover:text-yellow-400 bg-zinc-700 hover:bg-zinc-600 rounded-xl transition-colors border border-zinc-600 shadow-sm" title="Faltó (No Show)"><AlertCircle size={18}/></button>
+                             </div>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  } else {
-                    return (
-                      <div key={time} className={`flex gap-6 items-stretch group transition-opacity ${isBlocked ? 'opacity-40' : 'opacity-80 hover:opacity-100'}`}>
-                        <div className="w-16 flex flex-col items-center">
-                          <span className={`font-bold ${isBlocked ? 'text-zinc-600 line-through' : 'text-zinc-400'}`}>{time}</span>
-                          <div className="w-0.5 h-full bg-zinc-700 my-2 group-last:hidden"></div>
+                      );
+                    } else {
+                      return (
+                        <div key={time} className={`flex gap-6 items-stretch group transition-opacity ${isBlocked ? 'opacity-40' : 'opacity-80 hover:opacity-100'}`}>
+                          <div className="w-16 flex flex-col items-center">
+                            <span className={`font-bold ${isBlocked ? 'text-zinc-600 line-through' : 'text-zinc-400'}`}>{time}</span>
+                            <div className="w-0.5 h-full bg-zinc-700 my-2 group-last:hidden"></div>
+                          </div>
+                          <div className={`flex-1 border-2 border-dashed rounded-3xl flex items-center justify-between px-8 mb-6 min-h-[100px] shadow-sm ${isBlocked ? 'border-zinc-800 bg-[#0a0a0a]' : 'border-zinc-600 bg-zinc-800/40 hover:bg-zinc-800/60'}`}>
+                             <p className={`font-black text-sm uppercase tracking-widest flex items-center gap-2 ${isBlocked ? 'text-zinc-500' : 'text-zinc-300'}`}>
+                               {isPast ? <><Clock size={16}/> Hora Pasada</> : isBlocked ? <><Lock size={16}/> Bloqueado por ti</> : 'Espacio Libre'}
+                             </p>
+                             {!isPast && (
+                               <button 
+                                 onClick={() => handleToggleBlockSlot(time, isBlocked, appAtThisTime?.id)}
+                                 className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm ${isBlocked ? 'bg-zinc-700 text-white hover:bg-zinc-600 border border-zinc-600' : 'bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white border border-red-500/40'}`}
+                               >
+                                 {isBlocked ? 'Liberar' : 'Bloquear'}
+                               </button>
+                             )}
+                          </div>
                         </div>
-                        <div className={`flex-1 border-2 border-dashed rounded-3xl flex items-center justify-between px-8 mb-6 min-h-[100px] shadow-sm ${isBlocked ? 'border-zinc-800 bg-[#0a0a0a]' : 'border-zinc-600 bg-zinc-800/40 hover:bg-zinc-800/60'}`}>
-                           <p className={`font-black text-sm uppercase tracking-widest flex items-center gap-2 ${isBlocked ? 'text-zinc-500' : 'text-zinc-300'}`}>
-                             {isPast ? <><Clock size={16}/> Hora Pasada</> : isBlocked ? <><Lock size={16}/> Bloqueado por ti</> : 'Espacio Libre'}
-                           </p>
-                           {!isPast && (
-                             <button 
-                               onClick={() => handleToggleBlockSlot(time, isBlocked, appAtThisTime?.id)}
-                               className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm ${isBlocked ? 'bg-zinc-700 text-white hover:bg-zinc-600 border border-zinc-600' : 'bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white border border-red-500/40'}`}
-                             >
-                               {isBlocked ? 'Liberar' : 'Bloquear'}
-                             </button>
-                           )}
-                        </div>
-                      </div>
-                    );
-                  }
-                })}
-              </div>
+                      );
+                    }
+                  })}
+                </div>
+              )}
             </div>
           </motion.div>
         )}
@@ -915,7 +989,7 @@ export default function BarberDashboard() {
                     Cancelar
                   </button>
                   <button type="submit" disabled={isLoading} className="flex-1 py-5 text-black font-black uppercase tracking-widest text-sm bg-amber-500 hover:bg-amber-400 rounded-2xl transition-all shadow-[0_10px_20px_rgba(217,119,6,0.4)]">
-                    {isLoading ? <Loader2 className="animate-spin mx-auto" size={20} /> : 'Confirmar'}
+                    {isLoading ? <Loader2 className="animate-spin mx-auto" size={20} /> : 'Confirmar y Avisar'}
                   </button>
                 </div>
               </form>
