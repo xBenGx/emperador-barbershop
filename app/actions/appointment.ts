@@ -39,6 +39,8 @@ export async function createAppointment(data: any) {
       ? `${data.time}:00` 
       : data.time;
 
+    const displayTime = cleanTime.substring(0, 5); // Formato 19:00
+
     console.log(`🚀 Procesando reserva -> Cliente: ${data.client_name}, Barbero ID: ${data.barber_id}`);
 
     const appointmentPayload = {
@@ -65,24 +67,31 @@ export async function createAppointment(data: any) {
       return { success: false, error: `Rechazo de BD: ${insertError.message}` };
     }
 
+    // --- INTEGRACIÓN BOT WHATSAPP ---
     try {
       let barberPhone = null;
       if (data.barber_id) {
+         // Buscamos en la tabla Barbers
          const { data: barberData, error: barberError } = await supabaseAdmin
-           .from('User') 
+           .from('Barbers') 
            .select('phone')
            .eq('id', data.barber_id)
            .single();
            
-         if (barberError) {
-             console.error("⚠️ BD no encontró el teléfono del barbero:", barberError.message);
-         } else if (barberData?.phone) {
-             barberPhone = barberData.phone;
-             console.log(`✅ Teléfono del barbero encontrado: ${barberPhone}`);
-         }
+         if (barberData?.phone) barberPhone = barberData.phone;
       }
 
-      const precioCorte = data.service_price || data.price || 'Valor a confirmar';
+      // Buscar el precio (si no viene en el data, lo buscamos en la BD)
+      let precioBruto = data.service_price || data.price;
+      if (!precioBruto && data.service_id) {
+         const { data: serviceData } = await supabaseAdmin
+           .from('Services') 
+           .select('price') 
+           .eq('id', data.service_id)
+           .single();
+         if (serviceData?.price) precioBruto = serviceData.price;
+      }
+      const precioFinal = precioBruto ? `$${Number(precioBruto).toLocaleString('es-CL')}` : 'Valor a confirmar';
 
       await fetch('http://45.236.90.25:4000/api/notify', {
         method: 'POST',
@@ -96,9 +105,9 @@ export async function createAppointment(data: any) {
             barberoNombre: data.barber_name,
             barberoPhone: barberPhone, 
             fecha: cleanDate,
-            hora: cleanTime,
+            hora: displayTime,
             servicio: data.service_name,
-            precio: precioCorte 
+            precio: precioFinal 
           }
         })
       });
@@ -123,16 +132,13 @@ export async function createAppointment(data: any) {
 // ==========================================
 export async function updateAppointment(appointmentId: string, updateData: any) {
   try {
-    // 1. Obtener la cita original para comparar y tener todos los datos
     const { data: originalAppt, error: fetchError } = await supabaseAdmin
       .from('Appointments')
       .select('*')
       .eq('id', appointmentId)
       .single();
 
-    if (fetchError || !originalAppt) {
-      throw new Error('Cita original no encontrada');
-    }
+    if (fetchError || !originalAppt) throw new Error('Cita original no encontrada');
 
     const cleanDate = typeof updateData.date === 'string' && updateData.date.includes('T') 
       ? updateData.date.split('T')[0] 
@@ -142,34 +148,34 @@ export async function updateAppointment(appointmentId: string, updateData: any) 
       ? `${updateData.time}:00` 
       : updateData.time;
 
-    // 2. Actualizar en Supabase
+    // Actualizar en Supabase
     const { data: updatedAppt, error: updateError } = await supabaseAdmin
       .from('Appointments')
       .update({
         date: cleanDate || originalAppt.date,
         time: cleanTime || originalAppt.time,
         status: updateData.status || originalAppt.status,
-        // Agrega aquí otros campos que el barbero pueda modificar
       })
       .eq('id', appointmentId)
       .select()
       .single();
 
-    if (updateError) {
-      throw new Error(`Error al actualizar en BD: ${updateError.message}`);
-    }
+    if (updateError) throw new Error(`Error al actualizar en BD: ${updateError.message}`);
 
-    // 3. Notificar al Bot del VPS
+    // --- INTEGRACIÓN BOT WHATSAPP ---
     try {
       let barberPhone = null;
       if (updatedAppt.barber_id) {
+         // Buscamos en la tabla Barbers
          const { data: barberData } = await supabaseAdmin
-           .from('User') 
+           .from('Barbers') 
            .select('phone')
            .eq('id', updatedAppt.barber_id)
            .single();
          if (barberData?.phone) barberPhone = barberData.phone;
       }
+
+      const displayTime = updatedAppt.time.substring(0, 5); // Formato 19:00
 
       await fetch('http://45.236.90.25:4000/api/notify', {
         method: 'POST',
@@ -182,19 +188,16 @@ export async function updateAppointment(appointmentId: string, updateData: any) 
             clientePhone: updatedAppt.client_phone,
             barberoNombre: updatedAppt.barber_name,
             barberoPhone: barberPhone,
-            fecha: cleanDate || originalAppt.date,
-            hora: cleanTime || originalAppt.time,
-            servicio: updatedAppt.service_name,
-            precio: 'Valor a confirmar' // Puedes inyectar el precio real si lo pasas en updateData
+            fecha: updatedAppt.date,
+            hora: displayTime,
+            servicio: updatedAppt.service_name
           }
         })
       });
-      console.log("✅ Alerta de modificación despachada al VPS.");
     } catch (botError) {
       console.error("⚠️ Error contactando al Bot (Update):", botError);
     }
 
-    // 4. Revalidar caché
     revalidatePath("/dashboards/barber");
     revalidatePath("/dashboards/admin/todaslascitas");
     revalidatePath("/reservar");
@@ -211,38 +214,35 @@ export async function updateAppointment(appointmentId: string, updateData: any) 
 // ==========================================
 export async function deleteAppointment(appointmentId: string) {
   try {
-    // 1. Obtener los datos ANTES de borrar para poder avisarle a quién correspondía
     const { data: apptToDelete, error: fetchError } = await supabaseAdmin
       .from('Appointments')
       .select('*')
       .eq('id', appointmentId)
       .single();
 
-    if (fetchError || !apptToDelete) {
-      throw new Error('Cita no encontrada para eliminar');
-    }
+    if (fetchError || !apptToDelete) throw new Error('Cita no encontrada para eliminar');
 
-    // 2. Eliminar de Supabase
     const { error: deleteError } = await supabaseAdmin
       .from('Appointments')
       .delete()
       .eq('id', appointmentId);
 
-    if (deleteError) {
-      throw new Error(`Error eliminando de BD: ${deleteError.message}`);
-    }
+    if (deleteError) throw new Error(`Error eliminando de BD: ${deleteError.message}`);
 
-    // 3. Notificar al Bot del VPS
+    // --- INTEGRACIÓN BOT WHATSAPP ---
     try {
       let barberPhone = null;
       if (apptToDelete.barber_id) {
+         // Buscamos en la tabla Barbers
          const { data: barberData } = await supabaseAdmin
-           .from('User') 
+           .from('Barbers') 
            .select('phone')
            .eq('id', apptToDelete.barber_id)
            .single();
          if (barberData?.phone) barberPhone = barberData.phone;
       }
+
+      const displayTime = apptToDelete.time.substring(0, 5); // Formato 19:00
 
       await fetch('http://45.236.90.25:4000/api/notify', {
         method: 'POST',
@@ -256,17 +256,15 @@ export async function deleteAppointment(appointmentId: string) {
             barberoNombre: apptToDelete.barber_name,
             barberoPhone: barberPhone,
             fecha: apptToDelete.date,
-            hora: apptToDelete.time,
+            hora: displayTime,
             servicio: apptToDelete.service_name
           }
         })
       });
-      console.log("✅ Alerta de cancelación despachada al VPS.");
     } catch (botError) {
       console.error("⚠️ Error contactando al Bot (Delete):", botError);
     }
 
-    // 4. Revalidar caché
     revalidatePath("/dashboards/barber");
     revalidatePath("/dashboards/admin/todaslascitas");
     revalidatePath("/reservar");
