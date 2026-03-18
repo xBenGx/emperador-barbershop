@@ -203,8 +203,8 @@ export default function UltimateEmperadorLanding() {
         supabase.from('settings').select('*'),
         supabase.from('HeroSlides').select('*').order('order_index', { ascending: true }),
         supabase.from('StorePromos').select('*').order('created_at', { ascending: false }),
-        supabase.from('Barbers').select('*').eq('status', 'ACTIVE').order('created_at', { ascending: true }),
         // Ordenamos inicialmente por order_index en la BD
+        supabase.from('Barbers').select('*').eq('status', 'ACTIVE').order('order_index', { ascending: true }), 
         supabase.from('Services').select('*').order('order_index', { ascending: true }).order('price', { ascending: true }),
         supabase.from('Faqs').select('*').order('created_at', { ascending: true }),
         supabase.from('InstagramReels').select('*').order('created_at', { ascending: false }),
@@ -238,8 +238,16 @@ export default function UltimateEmperadorLanding() {
       }
       if (combinedSlides.length > 0) setHeroSlides(combinedSlides);
 
-      // 3. Barberos, FAQs, Reels, Reviews
-      if (dbTeam?.length) setTeam(dbTeam);
+      // 3. Barberos (Con orden secundario por seguridad), FAQs, Reels, Reviews
+      if (dbTeam?.length) {
+        const sortedTeam = [...dbTeam].sort((a, b) => {
+          const indexA = a.order_index ?? 0;
+          const indexB = b.order_index ?? 0;
+          return indexA - indexB; 
+        });
+        setTeam(sortedTeam);
+      }
+
       if (dbFaqs?.length) setFaqs(dbFaqs);
       if (dbReels?.length) setReels(dbReels);
       if (dbReviews?.length) setReviews(dbReviews);
@@ -660,20 +668,20 @@ export default function UltimateEmperadorLanding() {
                          rel="noopener noreferrer"
                          className="relative aspect-square bg-white overflow-hidden group block"
                        >
-                          <Image 
-                            src={post.media_url} 
-                            alt="Insta Post" 
-                            fill
-                            className="object-cover group-hover:scale-105 transition-transform duration-500" 
-                            unoptimized
-                          />
-                          <div className="absolute top-2 right-2 text-white drop-shadow-md">
-                             {post.type === 'reel' ? <Clapperboard size={14} fill="currentColor" /> : null}
-                          </div>
-                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 backdrop-blur-sm">
-                             <div className="flex items-center gap-1 text-white font-bold text-xs"><Heart fill="currentColor" size={12} /> {post.likes}</div>
-                             <div className="flex items-center gap-1 text-white font-bold text-xs"><MessageCircle fill="currentColor" size={12} /> {post.comments}</div>
-                          </div>
+                         <Image 
+                           src={post.media_url} 
+                           alt="Insta Post" 
+                           fill
+                           className="object-cover group-hover:scale-105 transition-transform duration-500" 
+                           unoptimized
+                         />
+                         <div className="absolute top-2 right-2 text-white drop-shadow-md">
+                            {post.type === 'reel' ? <Clapperboard size={14} fill="currentColor" /> : null}
+                         </div>
+                         <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 backdrop-blur-sm">
+                            <div className="flex items-center gap-1 text-white font-bold text-xs"><Heart fill="currentColor" size={12} /> {post.likes}</div>
+                            <div className="flex items-center gap-1 text-white font-bold text-xs"><MessageCircle fill="currentColor" size={12} /> {post.comments}</div>
+                         </div>
                        </a>
                      ))}
                   </div>
