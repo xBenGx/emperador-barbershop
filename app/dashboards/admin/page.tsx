@@ -26,7 +26,7 @@ import * as LucideIcons from "lucide-react";
 type TabType = "RESUMEN" | "CITAS" | "SILLONES" | "USUARIOS" | "CLIENTES" | "SERVICIOS" | "INVENTARIO" | "WEB_HOME" | "MUSICA";
 type ModalType = "SERVICE" | "BARBER" | "PRODUCT" | "CLIENT" | "CHAIR" | "ASSIGN_CHAIR" | "HERO_SLIDE" | "STORE_PROMO" | "REEL" | "REVIEW" | "FAQ" | "WEB_TEXTS" | "SONG" | "VIP_BENEFIT" | null;
 
-interface Barber { id: string; name: string; email?: string; phone?: string; status: "ACTIVE" | "INACTIVE"; cutsToday: number; role: string; tag: string; img: string; }
+interface Barber { id: string; name: string; email?: string; phone?: string; status: "ACTIVE" | "INACTIVE"; cutsToday: number; role: string; tag: string; img: string; order_index?: number; }
 interface Service { id: string; name: string; desc: string; price: string | number; time: string; duration?: number; iconName: string; order_index?: number; }
 interface Client { id: string; name: string; phone: string; email?: string; visits: number; last_visit: string; total_spent: number; points: number; }
 interface Chair { id: string; name: string; status: "OCCUPIED" | "FREE"; current_barber_id?: string; payment_due_date?: string; }
@@ -192,8 +192,7 @@ function AdminDashboardContent() {
         dbBarbers, dbServices, dbInventory, dbClients, dbChairs, dbSettings, dbAppts,
         dbHero, dbPromos, dbReels, dbReviews, dbFaqs, dbSongs, dbVip
       ] = await Promise.all([
-        supabase.from('Barbers').select('*').order('created_at', { ascending: false }),
-        // TRUCO APLICADO AQUÍ: Extraemos los servicios ordenados por order_index ascendente
+        supabase.from('Barbers').select('*'), // El orden lo haremos en frontend para asegurar compatibilidad
         supabase.from('Services').select('*').order('order_index', { ascending: true }).order('price', { ascending: true }),
         supabase.from('inventory').select('*').order('created_at', { ascending: false }),
         supabase.from('clients').select('*').order('created_at', { ascending: false }),
@@ -209,20 +208,28 @@ function AdminDashboardContent() {
         supabase.from('ClientBenefits').select('*').order('required_points', { ascending: true }) 
       ]);
 
-      if (dbBarbers.data) setBarbers(dbBarbers.data);
+      // DOBLE ORDENAMIENTO EN FRONTEND PARA BARBEROS (Order Index primero, creado después)
+      if (dbBarbers.data) {
+        const sortedBarbers = [...dbBarbers.data].sort((a, b) => {
+          const indexA = a.order_index ?? 0;
+          const indexB = b.order_index ?? 0;
+          return indexA - indexB;
+        });
+        setBarbers(sortedBarbers);
+      }
+
       if (dbChairs.data) setChairs(dbChairs.data);
       if (dbSongs.data) setSongs(dbSongs.data);
       if (dbVip.data) setVipBenefits(dbVip.data);
       
-      // DOBLE ORDENAMIENTO EN FRONTEND (Por si falla la base de datos)
       if (dbServices.data) {
         const sortedServices = [...dbServices.data].sort((a, b) => {
           const indexA = a.order_index ?? 0;
           const indexB = b.order_index ?? 0;
           if (indexA !== indexB) {
-            return indexA - indexB; // Ordena de menor a mayor
+            return indexA - indexB; 
           }
-          return (a.price || 0) - (b.price || 0); // Si tienen el mismo index, desempata por precio
+          return (a.price || 0) - (b.price || 0); 
         });
         setServices(sortedServices);
       }
@@ -480,6 +487,7 @@ function AdminDashboardContent() {
       if (modalType === "BARBER") {
         const emailInput = formData.get("email") as string;
         const passwordInput = formData.get("password") as string;
+        const orderIndexInput = parseInt(formData.get("order_index") as string) || 0; // NUEVO: Extraemos el orden
         
         const payload = { 
           id: editingItem?.id, 
@@ -490,7 +498,8 @@ function AdminDashboardContent() {
           status: formData.get("status") as string || "ACTIVE", 
           img: mediaUrl,
           email: emailInput,
-          password: passwordInput
+          password: passwordInput,
+          order_index: orderIndexInput
         };
 
         try {
@@ -504,12 +513,18 @@ function AdminDashboardContent() {
              const resJson = await response.json();
              throw new Error(resJson.error || "Fallo en API.");
           }
+
+          // FORZADO DE SEGURIDAD: Actualizamos el orden directo a Supabase por si la API no lo procesa
+          if (editingItem && editingItem.id) {
+             await supabase.from('Barbers').update({ order_index: orderIndexInput }).eq('id', editingItem.id);
+          }
+
         } catch (apiError) {
           console.warn("Fallo API Auth. Activando Modo Rescate Local...");
           
           if (editingItem && editingItem.id) {
              const { error: fallbackErr } = await supabase.from('Barbers').update({
-               name: payload.name, email: payload.email, phone: payload.phone, role: payload.role, tag: payload.tag, status: payload.status, img: payload.img
+               name: payload.name, email: payload.email, phone: payload.phone, role: payload.role, tag: payload.tag, status: payload.status, img: payload.img, order_index: payload.order_index
              }).eq('id', editingItem.id);
              
              if (fallbackErr) throw new Error("No se pudo actualizar localmente: " + fallbackErr.message);
@@ -844,48 +859,55 @@ function AdminDashboardContent() {
               </div>
 
               <div className="bg-zinc-900/40 border border-zinc-800 rounded-[2.5rem] overflow-hidden">
-                <table className="w-full text-left text-sm text-zinc-400">
-                  <thead className="bg-zinc-950 text-[10px] uppercase font-black tracking-[0.2em] border-b border-zinc-800">
-                    <tr><th className="px-8 py-6">Perfil (Web)</th><th className="px-6 py-6">Rol / Etiqueta</th><th className="px-6 py-6">Estado App</th><th className="px-8 py-6 text-right">Configuración & Link</th></tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-800/50">
-                    {barbers.map(b => (
-                      <tr key={b.id} className="hover:bg-zinc-800/20 transition-colors">
-                        <td className="px-8 py-5">
-                          <div className="flex items-center gap-4">
-                            <div className="relative w-14 h-14 rounded-2xl overflow-hidden border border-zinc-700 bg-zinc-800 shrink-0">
-                              {b.img ? <Image src={b.img} alt={b.name} fill className="object-cover" unoptimized /> : <UserCircle2 className="w-full h-full p-2 text-zinc-500" />}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm text-zinc-400 min-w-[800px]">
+                    <thead className="bg-zinc-950 text-[10px] uppercase font-black tracking-[0.2em] border-b border-zinc-800">
+                      <tr><th className="px-8 py-6">Perfil (Web)</th><th className="px-6 py-6">Rol / Etiqueta</th><th className="px-6 py-6">Estado App</th><th className="px-8 py-6 text-right">Configuración & Link</th></tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-800/50">
+                      {barbers.map(b => (
+                        <tr key={b.id} className="hover:bg-zinc-800/20 transition-colors">
+                          <td className="px-8 py-5">
+                            <div className="flex items-center gap-4">
+                              <div className="relative w-14 h-14 rounded-2xl overflow-hidden border border-zinc-700 bg-zinc-800 shrink-0">
+                                {b.img ? <Image src={b.img} alt={b.name} fill className="object-cover" unoptimized /> : <UserCircle2 className="w-full h-full p-2 text-zinc-500" />}
+                              </div>
+                              <div>
+                                <span className="font-bold text-white text-base block">{b.name}</span>
+                                <span className={`text-[10px] font-mono flex items-center gap-1 mt-1 ${b.email ? 'text-green-500' : 'text-zinc-500'}`}>
+                                  <KeyRound size={10}/> {b.email ? 'Acceso Habilitado' : 'Sin Acceso'}
+                                </span>
+                              </div>
                             </div>
-                            <div>
-                              <span className="font-bold text-white text-base block">{b.name}</span>
-                              <span className={`text-[10px] font-mono flex items-center gap-1 mt-1 ${b.email ? 'text-green-500' : 'text-zinc-500'}`}>
-                                <KeyRound size={10}/> {b.email ? 'Acceso Habilitado' : 'Sin Acceso'}
-                              </span>
+                          </td>
+                          <td className="px-6 py-5"><p className="text-white font-bold mb-1">{b.role}</p><span className="inline-block px-2 py-0.5 bg-amber-500/10 text-amber-500 text-[9px] uppercase font-black rounded">{b.tag}</span></td>
+                          <td className="px-6 py-5">
+                            <span className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest ${b.status === 'ACTIVE' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>{b.status === 'ACTIVE' ? 'Visible' : 'Oculto'}</span>
+                            <div className="mt-3 flex items-center gap-1 text-[10px] text-zinc-500 font-bold uppercase">
+                               <AlignJustify size={14} className="text-zinc-600"/> Orden: <span className="text-white">{b.order_index || 0}</span>
                             </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-5"><p className="text-white font-bold mb-1">{b.role}</p><span className="inline-block px-2 py-0.5 bg-amber-500/10 text-amber-500 text-[9px] uppercase font-black rounded">{b.tag}</span></td>
-                        <td className="px-6 py-5"><span className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest ${b.status === 'ACTIVE' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>{b.status === 'ACTIVE' ? 'Visible' : 'Oculto'}</span></td>
-                        <td className="px-8 py-5 text-right">
-                          <div className="flex justify-end items-center gap-4">
-                            <button 
-                              onClick={() => handleCopyLink(b.id, b.name)} 
-                              className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 text-amber-500 hover:bg-amber-500 hover:text-black rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors"
-                              title="El enlace dirige al cliente directo a la agenda de este barbero"
-                            >
-                              {copiedId === b.id ? <><CheckCircle2 size={14}/> Copiado</> : <><Link2 size={14}/> Link Reserva</>}
-                            </button>
+                          </td>
+                          <td className="px-8 py-5 text-right">
+                            <div className="flex justify-end items-center gap-4">
+                              <button 
+                                onClick={() => handleCopyLink(b.id, b.name)} 
+                                className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 text-amber-500 hover:bg-amber-500 hover:text-black rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors"
+                                title="El enlace dirige al cliente directo a la agenda de este barbero"
+                              >
+                                {copiedId === b.id ? <><CheckCircle2 size={14}/> Copiado</> : <><Link2 size={14}/> Link Reserva</>}
+                              </button>
 
-                            <div className="h-6 w-px bg-zinc-800"></div>
+                              <div className="h-6 w-px bg-zinc-800"></div>
 
-                            <button onClick={() => openModal("BARBER", b)} className="p-2 text-zinc-500 hover:text-white transition-colors" title="Editar Perfil"><Edit3 size={18} /></button>
-                            <button onClick={() => handleDelete('Barbers', b.id)} className="p-2 text-zinc-500 hover:text-red-500 transition-colors" title="Borrar Barbero"><Trash2 size={18} /></button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                              <button onClick={() => openModal("BARBER", b)} className="p-2 text-zinc-500 hover:text-white transition-colors" title="Editar Perfil"><Edit3 size={18} /></button>
+                              <button onClick={() => handleDelete('Barbers', b.id)} className="p-2 text-zinc-500 hover:text-red-500 transition-colors" title="Borrar Barbero"><Trash2 size={18} /></button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </motion.div>
           )}
@@ -985,49 +1007,51 @@ function AdminDashboardContent() {
                 <input type="text" placeholder="Buscar cliente por nombre o celular..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl pl-12 pr-4 py-4 text-white focus:border-amber-500 outline-none transition-all shadow-inner" />
               </div>
               <div className="bg-zinc-900/40 border border-zinc-800 rounded-[2.5rem] overflow-hidden">
-                <table className="w-full text-left text-sm text-zinc-400">
-                  <thead className="bg-zinc-950 text-[10px] uppercase font-black tracking-[0.2em] border-b border-zinc-800 text-zinc-500">
-                    <tr><th className="px-8 py-6">Cliente</th><th className="px-6 py-6">Contacto</th><th className="px-6 py-6 text-center">Puntos VIP (Automático)</th><th className="px-8 py-6 text-right">Acciones</th></tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-800/50">
-                    {clients.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()) || c.phone.includes(searchQuery)).map(c => {
-                      
-                      // CÁLCULO DE PUNTOS EN TIEMPO REAL
-                      const clientAppts = appointments.filter(a => a.client?.id === c.id || a.client_name === c.name);
-                      const completedAppts = clientAppts.filter(a => a.status === 'COMPLETED');
-                      const totalSpent = completedAppts.reduce((sum, a) => sum + Number((a.service as any)?.price || 0), 0);
-                      // Fórmula: 1 Punto por cada $100 gastados
-                      const puntosCalculados = Math.floor(totalSpent / 100);
-                      // Usamos los puntos calculados, pero si el admin forzó un número manual en el modal, usamos ese.
-                      const puntosVipFinales = c.points > puntosCalculados ? c.points : puntosCalculados;
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm text-zinc-400 min-w-[800px]">
+                    <thead className="bg-zinc-950 text-[10px] uppercase font-black tracking-[0.2em] border-b border-zinc-800 text-zinc-500">
+                      <tr><th className="px-8 py-6">Cliente</th><th className="px-6 py-6">Contacto</th><th className="px-6 py-6 text-center">Puntos VIP (Automático)</th><th className="px-8 py-6 text-right">Acciones</th></tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-800/50">
+                      {clients.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()) || c.phone.includes(searchQuery)).map(c => {
+                        
+                        // CÁLCULO DE PUNTOS EN TIEMPO REAL
+                        const clientAppts = appointments.filter(a => a.client?.id === c.id || a.client_name === c.name);
+                        const completedAppts = clientAppts.filter(a => a.status === 'COMPLETED');
+                        const totalSpent = completedAppts.reduce((sum, a) => sum + Number((a.service as any)?.price || 0), 0);
+                        // Fórmula: 1 Punto por cada $100 gastados
+                        const puntosCalculados = Math.floor(totalSpent / 100);
+                        // Usamos los puntos calculados, pero si el admin forzó un número manual en el modal, usamos ese.
+                        const puntosVipFinales = c.points > puntosCalculados ? c.points : puntosCalculados;
 
-                      return (
-                        <tr key={c.id} className="hover:bg-zinc-800/20 transition-colors group">
-                          <td className="px-8 py-5">
-                            <div className="flex flex-col">
-                              <span className="font-black text-white text-base">{c.name}</span>
-                              <span className="text-xs text-zinc-500 font-medium flex items-center gap-1 mt-1"><Mail size={12}/> {c.email || "Sin email registrado"}</span>
-                            </div>
-                          </td>
-                          <td className="px-6 py-5"><p className="font-mono text-xs text-white flex items-center gap-2"><Smartphone size={14} className="text-zinc-500"/> {c.phone}</p></td>
-                          <td className="px-6 py-5 text-center">
-                            <div className="flex flex-col items-center gap-1">
-                              <span className="bg-amber-500/10 border border-amber-500/30 text-amber-500 px-3 py-1.5 rounded-lg text-xs font-black shadow-sm">{puntosVipFinales} PTS</span>
-                              <span className="text-[9px] text-zinc-600 font-bold uppercase tracking-widest">({completedAppts.length} Cortes)</span>
-                            </div>
-                          </td>
-                          <td className="px-8 py-5 text-right">
-                            <div className="flex justify-end gap-3">
-                              <a href={`https://wa.me/${c.phone.replace(/[^0-9]/g, '')}?text=Hola%20${c.name}...`} target="_blank" rel="noreferrer" className="p-2 text-green-500 hover:bg-green-500 hover:text-black rounded-lg transition-colors"><MessageCircle size={18} /></a>
-                              <button onClick={() => openModal("CLIENT", c)} className="p-2 text-zinc-500 hover:text-white transition-colors"><Edit3 size={18}/></button>
-                              <button onClick={() => handleDelete('clients', c.id)} className="p-2 text-zinc-500 hover:text-red-500 transition-colors"><Trash2 size={18}/></button>
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
+                        return (
+                          <tr key={c.id} className="hover:bg-zinc-800/20 transition-colors group">
+                            <td className="px-8 py-5">
+                              <div className="flex flex-col">
+                                <span className="font-black text-white text-base">{c.name}</span>
+                                <span className="text-xs text-zinc-500 font-medium flex items-center gap-1 mt-1"><Mail size={12}/> {c.email || "Sin email registrado"}</span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-5"><p className="font-mono text-xs text-white flex items-center gap-2"><Smartphone size={14} className="text-zinc-500"/> {c.phone}</p></td>
+                            <td className="px-6 py-5 text-center">
+                              <div className="flex flex-col items-center gap-1">
+                                <span className="bg-amber-500/10 border border-amber-500/30 text-amber-500 px-3 py-1.5 rounded-lg text-xs font-black shadow-sm">{puntosVipFinales} PTS</span>
+                                <span className="text-[9px] text-zinc-600 font-bold uppercase tracking-widest">({completedAppts.length} Cortes)</span>
+                              </div>
+                            </td>
+                            <td className="px-8 py-5 text-right">
+                              <div className="flex justify-end gap-3">
+                                <a href={`https://wa.me/${c.phone.replace(/[^0-9]/g, '')}?text=Hola%20${c.name}...`} target="_blank" rel="noreferrer" className="p-2 text-green-500 hover:bg-green-500 hover:text-black rounded-lg transition-colors"><MessageCircle size={18} /></a>
+                                <button onClick={() => openModal("CLIENT", c)} className="p-2 text-zinc-500 hover:text-white transition-colors"><Edit3 size={18}/></button>
+                                <button onClick={() => handleDelete('clients', c.id)} className="p-2 text-zinc-500 hover:text-red-500 transition-colors"><Trash2 size={18}/></button>
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </motion.div>
           )}
@@ -1084,30 +1108,32 @@ function AdminDashboardContent() {
                 </div>
               </div>
               <div className="bg-zinc-900/40 border border-zinc-800 rounded-[2.5rem] overflow-hidden">
-                <table className="w-full text-left text-sm text-zinc-400">
-                  <thead className="bg-zinc-950 text-[10px] uppercase font-black tracking-[0.2em] border-b border-zinc-800">
-                    <tr><th className="px-8 py-6">Producto</th><th className="px-6 py-6">SKU</th><th className="px-6 py-6">Precio</th><th className="px-6 py-6 text-center">Stock</th><th className="px-8 py-6 text-right">Acciones</th></tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-800/50">
-                    {inventory.map(p => (
-                      <tr key={p.id} className="hover:bg-zinc-800/20 transition-colors">
-                        <td className="px-8 py-5 flex items-center gap-4">
-                          <div className="w-14 h-14 rounded-xl bg-zinc-800 relative overflow-hidden border border-zinc-700">
-                            {p.image_url ? <Image src={p.image_url} alt={p.name} fill className="object-cover" unoptimized /> : <Package className="w-full h-full p-3 text-zinc-600"/>}
-                          </div>
-                          <p className="font-bold text-white text-base">{p.name}</p>
-                        </td>
-                        <td className="px-6 py-5 font-mono text-xs">{p.sku}</td>
-                        <td className="px-6 py-5 font-black text-amber-500 text-lg">{formatMoney(p.price)}</td>
-                        <td className="px-6 py-5 text-center"><span className="px-3 py-1 rounded-lg font-black text-xs bg-zinc-800 text-white">{p.stock}</span></td>
-                        <td className="px-8 py-5 text-right">
-                          <button onClick={() => openModal("PRODUCT", p)} className="p-2 text-zinc-500 hover:text-white transition-colors"><Edit3 size={18}/></button>
-                          <button onClick={() => handleDelete('inventory', p.id)} className="p-2 text-zinc-500 hover:text-red-500 transition-colors"><Trash2 size={18}/></button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm text-zinc-400 min-w-[800px]">
+                    <thead className="bg-zinc-950 text-[10px] uppercase font-black tracking-[0.2em] border-b border-zinc-800">
+                      <tr><th className="px-8 py-6">Producto</th><th className="px-6 py-6">SKU</th><th className="px-6 py-6">Precio</th><th className="px-6 py-6 text-center">Stock</th><th className="px-8 py-6 text-right">Acciones</th></tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-800/50">
+                      {inventory.map(p => (
+                        <tr key={p.id} className="hover:bg-zinc-800/20 transition-colors">
+                          <td className="px-8 py-5 flex items-center gap-4">
+                            <div className="w-14 h-14 rounded-xl bg-zinc-800 relative overflow-hidden border border-zinc-700">
+                              {p.image_url ? <Image src={p.image_url} alt={p.name} fill className="object-cover" unoptimized /> : <Package className="w-full h-full p-3 text-zinc-600"/>}
+                            </div>
+                            <p className="font-bold text-white text-base">{p.name}</p>
+                          </td>
+                          <td className="px-6 py-5 font-mono text-xs">{p.sku}</td>
+                          <td className="px-6 py-5 font-black text-amber-500 text-lg">{formatMoney(p.price)}</td>
+                          <td className="px-6 py-5 text-center"><span className="px-3 py-1 rounded-lg font-black text-xs bg-zinc-800 text-white">{p.stock}</span></td>
+                          <td className="px-8 py-5 text-right">
+                            <button onClick={() => openModal("PRODUCT", p)} className="p-2 text-zinc-500 hover:text-white transition-colors"><Edit3 size={18}/></button>
+                            <button onClick={() => handleDelete('inventory', p.id)} className="p-2 text-zinc-500 hover:text-red-500 transition-colors"><Trash2 size={18}/></button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </motion.div>
           )}
@@ -1255,78 +1281,80 @@ function AdminDashboardContent() {
 
               {/* Tabla de Canciones Estilo Spotify */}
               <div className="bg-zinc-900/40 border border-zinc-800 rounded-[2.5rem] overflow-hidden backdrop-blur-md">
-                <table className="w-full text-left text-sm text-zinc-400">
-                  <thead className="border-b border-zinc-800">
-                    <tr className="text-[10px] uppercase font-black tracking-[0.2em] text-zinc-500">
-                      <th className="px-8 py-6 w-16">#</th>
-                      <th className="px-6 py-6">Título y Artista</th>
-                      <th className="px-6 py-6 text-center">Estado Web</th>
-                      <th className="px-6 py-6 text-center">Agregado</th>
-                      <th className="px-8 py-6 text-right"><Clock size={16} className="inline"/></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-800/30">
-                    {songs.length === 0 ? (
-                      <tr><td colSpan={5} className="py-12 text-center text-zinc-500 font-bold uppercase tracking-widest text-xs">Aún no hay canciones en tu Playlist.</td></tr>
-                    ) : (
-                      songs.map((song, idx) => (
-                        <tr key={song.id} className="hover:bg-zinc-800/30 transition-colors group">
-                          
-                          {/* Columna Play/Pause y Número */}
-                          <td className="px-8 py-4">
-                            <div className="relative w-6 h-6 flex items-center justify-center cursor-pointer" onClick={() => togglePreviewAudio(song)}>
-                              {playingSongId === song.id ? (
-                                <Pause size={18} className="text-amber-500" />
-                              ) : (
-                                <>
-                                  <span className="group-hover:hidden text-zinc-500 font-medium text-base">{idx + 1}</span>
-                                  <Play size={18} className="hidden group-hover:block text-white" />
-                                </>
-                              )}
-                            </div>
-                          </td>
-
-                          {/* Título, Portada y Artista */}
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-4">
-                              <div className="w-12 h-12 bg-zinc-800 rounded-md relative overflow-hidden flex-shrink-0">
-                                {song.cover_url ? (
-                                  <Image src={song.cover_url} alt={song.title} fill className="object-cover" unoptimized />
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm text-zinc-400 min-w-[800px]">
+                    <thead className="border-b border-zinc-800">
+                      <tr className="text-[10px] uppercase font-black tracking-[0.2em] text-zinc-500">
+                        <th className="px-8 py-6 w-16">#</th>
+                        <th className="px-6 py-6">Título y Artista</th>
+                        <th className="px-6 py-6 text-center">Estado Web</th>
+                        <th className="px-6 py-6 text-center">Agregado</th>
+                        <th className="px-8 py-6 text-right"><Clock size={16} className="inline"/></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-800/30">
+                      {songs.length === 0 ? (
+                        <tr><td colSpan={5} className="py-12 text-center text-zinc-500 font-bold uppercase tracking-widest text-xs">Aún no hay canciones en tu Playlist.</td></tr>
+                      ) : (
+                        songs.map((song, idx) => (
+                          <tr key={song.id} className="hover:bg-zinc-800/30 transition-colors group">
+                            
+                            {/* Columna Play/Pause y Número */}
+                            <td className="px-8 py-4">
+                              <div className="relative w-6 h-6 flex items-center justify-center cursor-pointer" onClick={() => togglePreviewAudio(song)}>
+                                {playingSongId === song.id ? (
+                                  <Pause size={18} className="text-amber-500" />
                                 ) : (
-                                  <Music className="w-full h-full p-3 text-zinc-600" />
+                                  <>
+                                    <span className="group-hover:hidden text-zinc-500 font-medium text-base">{idx + 1}</span>
+                                    <Play size={18} className="hidden group-hover:block text-white" />
+                                  </>
                                 )}
                               </div>
-                              <div>
-                                <span className={`font-bold text-base block ${playingSongId === song.id ? 'text-amber-500' : 'text-white'}`}>{song.title}</span>
-                                <span className="text-xs text-zinc-400">{song.artist}</span>
+                            </td>
+
+                            {/* Título, Portada y Artista */}
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-zinc-800 rounded-md relative overflow-hidden flex-shrink-0">
+                                  {song.cover_url ? (
+                                    <Image src={song.cover_url} alt={song.title} fill className="object-cover" unoptimized />
+                                  ) : (
+                                    <Music className="w-full h-full p-3 text-zinc-600" />
+                                  )}
+                                </div>
+                                <div>
+                                  <span className={`font-bold text-base block ${playingSongId === song.id ? 'text-amber-500' : 'text-white'}`}>{song.title}</span>
+                                  <span className="text-xs text-zinc-400">{song.artist}</span>
+                                </div>
                               </div>
-                            </div>
-                          </td>
+                            </td>
 
-                          {/* Estado Activo/Oculto */}
-                          <td className="px-6 py-4 text-center">
-                            <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${song.is_active ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 'bg-zinc-800 text-zinc-500'}`}>
-                              {song.is_active ? 'Reproduciendo' : 'Oculta'}
-                            </span>
-                          </td>
+                            {/* Estado Activo/Oculto */}
+                            <td className="px-6 py-4 text-center">
+                              <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${song.is_active ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 'bg-zinc-800 text-zinc-500'}`}>
+                                {song.is_active ? 'Reproduciendo' : 'Oculta'}
+                              </span>
+                            </td>
 
-                          {/* Fecha */}
-                          <td className="px-6 py-4 text-center">
-                            <span className="text-xs font-medium text-zinc-500">{new Date(song.created_at).toLocaleDateString('es-CL')}</span>
-                          </td>
+                            {/* Fecha */}
+                            <td className="px-6 py-4 text-center">
+                              <span className="text-xs font-medium text-zinc-500">{new Date(song.created_at).toLocaleDateString('es-CL')}</span>
+                            </td>
 
-                          {/* Acciones */}
-                          <td className="px-8 py-4 text-right">
-                            <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button onClick={() => openModal("SONG", song)} className="p-2 text-zinc-400 hover:text-white"><Edit3 size={18}/></button>
-                              <button onClick={() => handleDelete('Songs', song.id)} className="p-2 text-zinc-400 hover:text-red-500"><Trash2 size={18}/></button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                            {/* Acciones */}
+                            <td className="px-8 py-4 text-right">
+                              <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onClick={() => openModal("SONG", song)} className="p-2 text-zinc-400 hover:text-white"><Edit3 size={18}/></button>
+                                <button onClick={() => handleDelete('Songs', song.id)} className="p-2 text-zinc-400 hover:text-red-500"><Trash2 size={18}/></button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
               
               {/* Elemento de audio invisible para la vista previa en el panel admin */}
@@ -1544,15 +1572,16 @@ function AdminDashboardContent() {
                       </div>
                     </div>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                       <InputField label="Teléfono" name="phone" defaultValue={editingItem?.phone || ""} />
                       <div className="space-y-2">
                         <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest pl-2">Estado</label>
-                        <select name="status" defaultValue={editingItem?.status || "ACTIVE"} className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white font-bold">
+                        <select name="status" defaultValue={editingItem?.status || "ACTIVE"} className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white font-bold outline-none focus:border-amber-500 transition-all">
                           <option value="ACTIVE">Activo</option>
                           <option value="INACTIVE">Inactivo</option>
                         </select>
                       </div>
+                      <InputField label="Orden de Lista (1, 2...)" name="order_index" type="number" defaultValue={editingItem?.order_index || 0} />
                     </div>
                   </>
                 )}
