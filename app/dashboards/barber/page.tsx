@@ -70,13 +70,14 @@ const getLocalTodayDate = () => {
 
 const TODAY_DATE = getLocalTodayDate();
 
+// CAMBIO APLICADO: Generador extendido a 30 días (Mes completo)
 const generateDates = () => {
   const dates = [];
   const today = new Date();
   const days = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
   const months = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
   
-  for(let i = 0; i < 7; i++) {
+  for(let i = 0; i < 30; i++) {
     const d = new Date(today);
     d.setDate(today.getDate() + i);
     const localDateStr = new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
@@ -257,7 +258,7 @@ export default function BarberDashboard() {
     const breakEnd = parseInt(todaySchedule.break_end.split(':')[0]);
 
     const slots = [];
-    for (let i = startHour; i <= endHour; i++) {
+    for (let i = startHour; i < endHour; i++) {
       // Excluir la hora de colación de la vista del barbero también
       if (i >= breakStart && i < breakEnd) continue;
       slots.push(`${i.toString().padStart(2, '0')}:00`);
@@ -640,7 +641,7 @@ export default function BarberDashboard() {
         {activeTab === "MIS_CORTES" && (
           <motion.div key="mis_cortes" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
             
-            {/* Fechas Swipeables */}
+            {/* Fechas Swipeables (Mes Completo) */}
             <div className="flex gap-2 md:gap-4 overflow-x-auto pb-4 hide-scrollbar -mx-4 px-4 md:mx-0 md:px-0 snap-x">
               {DATES.map((d, i) => (
                 <button 
@@ -730,8 +731,8 @@ export default function BarberDashboard() {
                              </p>
                              {!isPast && (
                                <button 
-                                 onClick={() => handleToggleBlockSlot(time, isBlocked, appAtThisTime?.id)}
-                                 className={`px-3 md:px-4 py-1.5 md:py-2 rounded-lg text-[9px] md:text-[10px] font-black uppercase tracking-widest active:scale-95 ${isBlocked ? 'bg-zinc-800 text-white' : 'bg-red-500/10 text-red-500 border border-red-500/20'}`}
+                                 onClick={(e) => { e.stopPropagation(); handleToggleBlockSlot(time, isBlocked, appAtThisTime?.id); }}
+                                 className={`relative z-20 px-3 md:px-4 py-1.5 md:py-2 rounded-lg text-[9px] md:text-[10px] font-black uppercase tracking-widest active:scale-95 cursor-pointer ${isBlocked ? 'bg-zinc-800 text-white' : 'bg-red-500/10 text-red-500 border border-red-500/20'}`}
                                >
                                  {isBlocked ? 'Liberar' : 'Bloquear'}
                                </button>
