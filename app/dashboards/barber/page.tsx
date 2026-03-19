@@ -732,7 +732,7 @@ export default function BarberDashboard() {
                              {!isPast && (
                                <button 
                                  onClick={(e) => { e.stopPropagation(); handleToggleBlockSlot(time, isBlocked, appAtThisTime?.id); }}
-                                 className={`relative z-20 px-3 md:px-4 py-1.5 md:py-2 rounded-lg text-[9px] md:text-[10px] font-black uppercase tracking-widest active:scale-95 cursor-pointer ${isBlocked ? 'bg-zinc-800 text-white' : 'bg-red-500/10 text-red-500 border border-red-500/20'}`}
+                                 className={`relative z-50 px-4 md:px-5 py-2 md:py-2.5 rounded-lg text-[9px] md:text-[10px] font-black uppercase tracking-widest active:scale-95 cursor-pointer ${isBlocked ? 'bg-zinc-800 text-white border border-zinc-600' : 'bg-red-500/10 text-red-500 border border-red-500/20'}`}
                                >
                                  {isBlocked ? 'Liberar' : 'Bloquear'}
                                </button>
