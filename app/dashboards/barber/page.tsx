@@ -372,29 +372,34 @@ export default function BarberDashboard() {
     setIsLoading(false);
   };
 
-  // 4. BLOQUEO MANUAL DE ESPACIOS
-  // Inserta una cita "falsa" con el estado BLOCKED para ocupar la hora.
+  // 4. BLOQUEO MANUAL DE ESPACIOS A PRUEBA DE FALLOS SQL
   const handleToggleBlockSlot = async (time: string, isBlocked: boolean, existingId?: string) => {
     setIsLoading(true);
     try {
       if (isBlocked && existingId) {
         // Desbloquear: borramos la cita falsa
-        await supabase.from('Appointments').delete().eq('id', existingId);
+        const { error } = await supabase.from('Appointments').delete().eq('id', existingId);
+        if (error) throw new Error(error.message);
       } else {
-        // Bloquear: creamos la cita falsa
-        await supabase.from('Appointments').insert({
+        // Bloquear: Forzamos la inyección omitiendo validaciones estrictas
+        const { error } = await supabase.from('Appointments').insert([{
           date: selectedDateFilter,
           time: time,
           status: 'BLOCKED',
           barber_id: barber?.id,
           barber_name: barber?.name,
-          client_name: 'Bloqueo Manual', // Campo requerido
-          service_name: 'No Disponible', // Campo requerido
-        });
+          client_name: 'Bloqueo Local', // Fake client info
+          client_phone: '000000000', 
+          service_name: 'Bloqueo Manual' // Fake service info
+        }]);
+        if (error) {
+          console.error("Detalle Error Supabase:", error);
+          throw new Error("No se pudo insertar. Revisa la consola o las reglas RLS de tu base de datos.");
+        }
       }
       loadDashboardData();
-    } catch (error) {
-      alert("Error al modificar el bloque de tiempo.");
+    } catch (error: any) {
+      alert(`Error al modificar el bloque de tiempo: ${error.message}`);
     } finally {
       setIsLoading(false);
     }
